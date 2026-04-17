@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -14,8 +15,15 @@ func main() {
 
 	game := editor.NewEditor()
 
-	// Auto-scan examples folder for sprites
+	// Scan for sprites
 	game.ScanAssetsFolder("pixelforge_examples")
+
+	state := game.State()
+	fmt.Printf("Pixelforge Studio starting...\n")
+	fmt.Printf("Loaded %d sprites:\n", len(state.Sprites))
+	for i, s := range state.Sprites {
+		fmt.Printf("  %d: %s (%dx%d)\n", i, s.Name, s.Width, s.Height)
+	}
 
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)

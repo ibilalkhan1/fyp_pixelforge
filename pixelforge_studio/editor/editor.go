@@ -272,19 +272,21 @@ func (e *Editor) importSpriteFromPath(path string) error {
 }
 
 func (e *Editor) ScanAssetsFolder(folder string) {
-	// Scan folder for PNG files
-	files, err := os.ReadDir(folder)
+	// Recursively scan folder for PNG files
+	entries, err := os.ReadDir(folder)
 	if err != nil {
 		return
 	}
-	for _, f := range files {
+	for _, f := range entries {
+		subPath := filepath.Join(folder, f.Name())
 		if f.IsDir() {
-			continue
-		}
-		name := f.Name()
-		if len(name) > 4 && name[len(name)-4:] == ".png" {
-			fullPath := filepath.Join(folder, name)
-			e.importSpriteFromPath(fullPath)
+			// Recurse into subdirectories
+			e.ScanAssetsFolder(subPath)
+		} else {
+			name := f.Name()
+			if len(name) > 4 && name[len(name)-4:] == ".png" {
+				e.importSpriteFromPath(subPath)
+			}
 		}
 	}
 }
