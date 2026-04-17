@@ -1,0 +1,216 @@
+package internal
+
+import (
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_audio"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten/internal/audio"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten/internal/input"
+	ebitenaudio "github.com/hajimehoshi/ebiten/v2/audio"
+	"math"
+	"time"
+
+	"github.com/hajimehoshi/ebiten/v2"
+
+	"github.com/ibilalkhan1/fyp_pixelforge"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_debug"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_loop"
+)
+
+func RunEbitenGame() *EbitenGame {
+	screen := pixelforge.Screen()
+
+	ctx := ebitenaudio.NewContext(audio.CtxSampleRate)
+	theAudioBackend := audio.StartAudioBackend(ctx)
+	piaudio.Backend = theAudioBackend
+
+	game := &EbitenGame{
+		piScreen:       screen,
+		ebitenScreen:   ebiten.NewImage(screen.W(), screen.H()),
+		drawScreenOpts: &ebiten.DrawImageOptions{},
+		audioBackend:   theAudioBackend,
+	}
+	game.inputBackend = &input.Backend{
+		Paused:     &game.paused,
+		LeftOffset: &game.left,
+		TopOffset:  &game.top,
+		Scale:      &game.scale,
+	}
+
+	pidebug.Target().SubscribeAll(game.onPidebugEvent)
+
+	return game
+}
+
+// get the monitor once per second and cache it.
+//
+// This is not a strong optimization, since Ebitengine itself
+// performs syscalls on each call to ebiten's Draw.
+type cachedMonitor struct {
+	monitor       *ebiten.MonitorType
+	lastCheckTime time.Time
+}
+
+func (c *cachedMonitor) Get() *ebiten.MonitorType {
+	if time.Since(c.lastCheckTime) > time.Second {
+		c.monitor = ebiten.Monitor()
+		c.lastCheckTime = time.Now()
+	}
+	return c.monitor
+}
+
+// TODO split into multiple objects to reduce complexity
+type EbitenGame struct {
+	piScreen       pixelforge.Canvas
+	ebitenScreen   *ebiten.Image
+	drawScreenOpts *ebiten.DrawImageOptions
+	cachedMonitor  cachedMonitor
+	started        bool
+
+	scale     float64
+	left, top float64
+
+	// When true, indicates that the frame was rendered by pixelforge.Draw
+	// and should be displayed on the next Draw call.
+	dirty bool
+
+	// When true, indicates that the last update+draw cycle
+	// exceeded the tick duration of 1/TPS (e.g., 33 ms for TPS=30).
+	skipNextDraw bool
+
+	paused bool
+
+	windowState  windowState
+	audioBackend *audio.Backend
+	inputBackend *input.Backend
+
+	ebitenFrame int // frame incremented on each Ebiten tick
+}
+
+func (g *EbitenGame) Update() error {
+	if ebiten.IsWindowBeingClosed() {
+		piloop.Target().Publish(piloop.EventWindowClose)
+		return ebiten.Termination
+	}
+
+	g.windowState.store()
+
+	g.audioBackend.OnBeforeUpdate()
+
+	started := time.Now()
+
+	if !g.started {
+		if pixelforge.Init != nil {
+			pixelforge.Init()
+		}
+		piloop.Target().Publish(piloop.EventInit)
+	}
+	g.started = true
+
+	if g.ebitenFrame%(ebitenTPS/pixelforge.TPS()) == 0 {
+		if !g.paused {
+			piloop.Target().Publish(piloop.EventFrameStart)
+		}
+		piloop.DebugTarget().Publish(piloop.EventFrameStart)
+	}
+
+	g.inputBackend.Update()
+
+	if g.ebitenFrame%(ebitenTPS/pixelforge.TPS()) == (ebitenTPS/pixelforge.TPS())-1 {
+		if !g.paused {
+			pixelforge.Update()
+			piloop.Target().Publish(piloop.EventUpdate)
+		}
+		piloop.DebugTarget().Publish(piloop.EventUpdate)
+
+		if !g.paused {
+			piloop.Target().Publish(piloop.EventLateUpdate)
+		}
+		piloop.DebugTarget().Publish(piloop.EventLateUpdate)
+
+		if !g.skipNextDraw {
+			if !g.paused {
+				pixelforge.Draw()
+				piloop.Target().Publish(piloop.EventDraw)
+			}
+			piloop.DebugTarget().Publish(piloop.EventDraw)
+
+			if !g.paused {
+				piloop.Target().Publish(piloop.EventLateDraw)
+			}
+			piloop.DebugTarget().Publish(piloop.EventLateDraw)
+
+			g.dirty = true
+		} else {
+			g.skipNextDraw = false
+		}
+
+		if time.Since(started).Seconds() > 1/float64(pixelforge.TPS()) {
+			g.skipNextDraw = true // game is too slow. Try to keep up by discarding next pixelforge.Draw()
+		}
+
+		pixelforge.Time += 1.0 / float64(pixelforge.TPS())
+		pixelforge.Frame++
+	}
+
+	g.audioBackend.OnAfterUpdate()
+
+	g.ebitenFrame++
+
+	return nil
+}
+
+func (g *EbitenGame) Draw(screen *ebiten.Image) {
+	if g.dirty { // draw only when needed to avoid CPU load on monitors >30 Hz
+		g.dirty = false
+
+		CopyCanvasToEbitenImage(pixelforge.Screen(), g.ebitenScreen)
+
+		screen.DrawImage(g.ebitenScreen, g.drawScreenOpts)
+	}
+}
+
+func (g *EbitenGame) LayoutF(outsideWidth, outsideHeight float64) (screenWidth, screenHeight float64) {
+	piScrW, piScrH := float64(g.piScreen.W()), float64(g.piScreen.H())
+
+	monitor := g.cachedMonitor.Get()
+	deviceScaleFactor := monitor.DeviceScaleFactor()
+	realWith := outsideWidth * deviceScaleFactor
+	realHeight := outsideHeight * deviceScaleFactor
+	widthRatio := realWith / piScrW
+	heightRatio := realHeight / piScrH
+	scale := math.Floor(min(widthRatio, heightRatio))
+
+	screenWidth = realWith
+	screenHeight = realHeight
+
+	g.scale = scale
+	// center on screen:
+	g.left = (realWith - piScrW*scale) / 2.0
+	g.top = (realHeight - piScrH*scale) / 2.0
+
+	g.drawScreenOpts.GeoM.Reset()
+	g.drawScreenOpts.GeoM.Scale(g.scale, g.scale)
+	g.drawScreenOpts.GeoM.Translate(g.left, g.top)
+
+	return
+}
+
+// Layout method is not executed because LayoutF is
+func (g *EbitenGame) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
+	return
+}
+
+func (g *EbitenGame) Resize() {
+	screen := pixelforge.Screen()
+	g.piScreen = screen
+	g.ebitenScreen = ebiten.NewImage(screen.W(), screen.H())
+}
+
+func (g *EbitenGame) onPidebugEvent(event pidebug.Event, _ pievent.Handler) {
+	switch event {
+	case pidebug.EventPause:
+		g.paused = true
+	case pidebug.EventResume:
+		g.paused = false
+	}
+}
