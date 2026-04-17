@@ -1,0 +1,6 @@
+* text=auto
+
+*.go text
+
+# Binary files.
+*.png binary

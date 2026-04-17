@@ -1,0 +1,78 @@
+name: Build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  all:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: ["1.24"]
+    env:
+      DISPLAY: ":99.0"
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install libasound2-dev libgl1-mesa-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev libxxf86vm-dev
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+
+      - name: Run Xvfb
+        run: |
+          Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+
+      - name: Build
+        run: make build
+
+      - name: Test
+        run: make test
+
+      - name: Install chrome
+        uses: browser-actions/setup-chrome@latest
+        with:
+          chrome-version: 138.0.7204.183
+          install-chromedriver: true
+
+      - name: Install wasmbrowsertest
+        run: go install github.com/agnivade/wasmbrowsertest@latest
+
+      - name: Setup wasmexec
+        run: mv $(go env GOPATH)/bin/wasmbrowsertest $(go env GOPATH)/bin/go_js_wasm_exec
+
+      - name: Test in the browser
+        run: |
+          # Disable AppArmor for Ubuntu 23.10+.
+          # https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md
+          echo 0 | sudo tee /proc/sys/kernel/apparmor_restrict_unprivileged_userns
+          GOOS=js GOARCH=wasm go test -v ./...
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          args: "-v"
+          version: v2.2.1
+
+      - name: Generate coverage report
+        run: go test -v -coverprofile coverage.txt -covermode atomic -coverpkg ./... ./...
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.txt
+          token: ${{ secrets.CODECOV_TOKEN }}
