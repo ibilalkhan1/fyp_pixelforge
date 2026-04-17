@@ -7,8 +7,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_audio"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_math"
+	piaudio "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_audio"
+	pimath "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_math"
 )
 
 const chanLen = 4

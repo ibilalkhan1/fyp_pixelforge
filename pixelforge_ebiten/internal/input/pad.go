@@ -4,7 +4,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_pad"
+	pipad "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_pad"
 )
 
 var directionalButtons = map[ebiten.StandardGamepadButton]struct{}{

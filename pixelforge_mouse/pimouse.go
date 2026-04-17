@@ -3,7 +3,7 @@ package pixelforge_mouse
 import (
 	"github.com/ibilalkhan1/fyp_pixelforge"
 	"github.com/ibilalkhan1/fyp_pixelforge/internal/input"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
+	pievent "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
 )
 
 var (

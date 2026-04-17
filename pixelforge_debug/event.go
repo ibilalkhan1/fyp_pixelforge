@@ -1,6 +1,6 @@
 package pixelforge_debug
 
-import "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
+import pievent "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
 
 type Event string
 

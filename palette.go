@@ -1,4 +1,4 @@
-package pi
+package pixelforge
 
 import (
 	"bytes"
@@ -7,8 +7,8 @@ import (
 	"image/png"
 	"strings"
 
-	"github.com/elgopher/pi/internal"
-	"github.com/elgopher/pi/pimath"
+	"github.com/ibilalkhan1/fyp_pixelforge/internal"
+	pixelforge_math "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_math"
 )
 
 // Palette is the global color palette used before the final rendering
@@ -57,9 +57,9 @@ func (rgb RGB) RGB() (r, g, b uint8) {
 // The r, g, and b parameters should be in the range [0.0, 1.0].
 // Values are clamped, converted to 8-bit, and combined into a single RGB value.
 func FromRGBf(r, g, b float64) RGB {
-	red := pimath.Clamp(r*255, 0, 255)
-	green := pimath.Clamp(g*255, 0, 255)
-	blue := pimath.Clamp(b*255, 0, 255)
+	red := pixelforge_math.Clamp(r*255, 0, 255)
+	green := pixelforge_math.Clamp(g*255, 0, 255)
+	blue := pixelforge_math.Clamp(b*255, 0, 255)
 	return RGB(uint32(red)<<16 + uint32(green)<<8 + uint32(blue))
 }
 

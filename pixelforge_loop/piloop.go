@@ -4,7 +4,7 @@
 // including those created by third parties.
 package pixelforge_loop
 
-import "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
+import pievent "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
 
 func Target() pievent.Target[Event] {
 	return target

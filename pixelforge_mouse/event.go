@@ -2,7 +2,7 @@ package pixelforge_mouse
 
 import (
 	"github.com/ibilalkhan1/fyp_pixelforge"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
+	pievent "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
 )
 
 // EventButton is published when the player presses or releases a mouse button.

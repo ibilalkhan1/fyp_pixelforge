@@ -15,11 +15,11 @@ import (
 	"errors"
 	"github.com/hajimehoshi/ebiten/v2"
 	ebitenaudio "github.com/hajimehoshi/ebiten/v2/audio"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_audio"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten/internal/audio"
 	"strconv"
 
 	"github.com/ibilalkhan1/fyp_pixelforge"
+	piaudio "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_audio"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten/internal"
 )
 

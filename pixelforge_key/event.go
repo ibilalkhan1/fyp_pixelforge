@@ -1,6 +1,6 @@
 package pixelforge_key
 
-import "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
+import pievent "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
 
 // Event is published when the player presses or releases a key.
 //

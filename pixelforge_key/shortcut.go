@@ -3,8 +3,8 @@ package pixelforge_key
 import (
 	"slices"
 
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_loop"
+	pievent "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
+	piloop "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_loop"
 )
 
 // RegisterShortcut registers a new keyboard shortcut.

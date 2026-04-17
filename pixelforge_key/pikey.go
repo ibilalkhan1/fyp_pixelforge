@@ -22,7 +22,7 @@ package pixelforge_key
 import (
 	"github.com/ibilalkhan1/fyp_pixelforge"
 	"github.com/ibilalkhan1/fyp_pixelforge/internal/input"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
+	pievent "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
 )
 
 // Duration returns the number of frames the key k has been held down.

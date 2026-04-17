@@ -1,19 +1,19 @@
 package internal
 
 import (
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_audio"
+	ebitenaudio "github.com/hajimehoshi/ebiten/v2/audio"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten/internal/audio"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten/internal/input"
-	ebitenaudio "github.com/hajimehoshi/ebiten/v2/audio"
 	"math"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/ibilalkhan1/fyp_pixelforge"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_debug"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_loop"
+	piaudio "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_audio"
+	pidebug "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_debug"
+	pievent "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
+	piloop "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_loop"
 )
 
 func RunEbitenGame() *EbitenGame {

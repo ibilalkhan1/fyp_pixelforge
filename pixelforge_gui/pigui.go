@@ -5,7 +5,7 @@ import (
 	"slices"
 
 	"github.com/ibilalkhan1/fyp_pixelforge"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_mouse"
+	pimouse "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_mouse"
 )
 
 // New creates a new GUI root element with the current screen size.

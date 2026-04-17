@@ -3,9 +3,9 @@ package audio
 import (
 	"time"
 
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_audio"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_math"
 	"github.com/hajimehoshi/ebiten/v2/audio"
+	piaudio "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_audio"
+	pimath "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_math"
 )
 
 const CtxSampleRate = 48000

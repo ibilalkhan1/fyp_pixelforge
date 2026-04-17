@@ -1,6 +1,6 @@
 package pixelforge_pad
 
-import "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
+import pievent "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
 
 // EventButton is published when the player presses or releases a gamepad button.
 //

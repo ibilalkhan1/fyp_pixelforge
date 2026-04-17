@@ -12,8 +12,8 @@ package pixelforge_routine
 import (
 	"log"
 
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_loop"
+	pievent "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
+	piloop "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_loop"
 )
 
 // New creates a new Routine composed of the provided steps.

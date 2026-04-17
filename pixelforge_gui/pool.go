@@ -3,7 +3,7 @@ package pixelforge_gui
 import (
 	"log"
 
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_pool"
+	pipool "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_pool"
 )
 
 func getPropagateToChildrenFromThePool() *propagateToChildren {

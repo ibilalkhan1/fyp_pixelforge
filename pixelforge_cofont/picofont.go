@@ -8,7 +8,7 @@ import (
 	_ "embed"
 
 	"github.com/ibilalkhan1/fyp_pixelforge"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_font"
+	pifont "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_font"
 )
 
 //go:embed "font.png"

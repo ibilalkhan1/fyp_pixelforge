@@ -1,8 +1,8 @@
 package internal
 
 import (
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_key"
+	pievent "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
+	pikey "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_key"
 )
 
 func handleInputInConsoleMode() {
