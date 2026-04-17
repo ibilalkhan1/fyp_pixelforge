@@ -157,6 +157,20 @@ func (e *Editor) Update() error {
 				return nil
 			}
 
+			// If Delete tool is active, delete object under cursor
+			if e.tool == ToolDelete {
+				for i := len(e.state.SceneObjects) - 1; i >= 0; i-- {
+					obj := &e.state.SceneObjects[i]
+					if canvX >= obj.X && canvX < obj.X+obj.Width &&
+						canvY >= obj.Y && canvY < obj.Y+obj.Height {
+						e.state.SceneObjects = append(e.state.SceneObjects[:i], e.state.SceneObjects[i+1:]...)
+						e.state.SelectedIndex = -1
+						return nil
+					}
+				}
+				return nil
+			}
+
 			// Otherwise, select object under cursor
 			e.state.SelectedIndex = -1
 			for i := len(e.state.SceneObjects) - 1; i >= 0; i-- {
@@ -177,11 +191,26 @@ func (e *Editor) Update() error {
 		}
 	}
 
-	// Drag objects
+	// Drag objects with Select tool
 	if e.state.SelectedIndex >= 0 && e.tool == ToolSelect && len(e.state.SceneObjects) > 0 {
 		if mx >= CanvasX && mx < CanvasX+CanvasW && my >= CanvasY && my < CanvasY+CanvasH {
 			e.state.SceneObjects[e.state.SelectedIndex].X = (mx-CanvasX)/int(e.state.Scale) - e.state.SceneObjects[e.state.SelectedIndex].Width/2
 			e.state.SceneObjects[e.state.SelectedIndex].Y = (my-CanvasY)/int(e.state.Scale) - e.state.SceneObjects[e.state.SelectedIndex].Height/2
+		}
+	}
+
+	// Keyboard shortcuts
+	if ebiten.IsKeyPressed(ebiten.KeyV) {
+		e.tool = ToolSelect
+	} else if ebiten.IsKeyPressed(ebiten.KeyP) {
+		e.tool = ToolPlace
+	} else if ebiten.IsKeyPressed(ebiten.KeyX) {
+		e.tool = ToolDelete
+	} else if ebiten.IsKeyPressed(ebiten.KeyDelete) && e.state.SelectedIndex >= 0 {
+		// Delete selected object
+		if e.state.SelectedIndex >= 0 && e.state.SelectedIndex < len(e.state.SceneObjects) {
+			e.state.SceneObjects = append(e.state.SceneObjects[:e.state.SelectedIndex], e.state.SceneObjects[e.state.SelectedIndex+1:]...)
+			e.state.SelectedIndex = -1
 		}
 	}
 
