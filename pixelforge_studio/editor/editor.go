@@ -138,6 +138,26 @@ func (e *Editor) Update() error {
 		} else if mx >= CanvasX && mx < CanvasX+CanvasW && my >= CanvasY && my < CanvasY+CanvasH {
 			canvX := (mx - CanvasX) / int(e.state.Scale)
 			canvY := (my - CanvasY) / int(e.state.Scale)
+
+			// If Place tool is active and a sprite is selected, place it
+			if e.tool == ToolPlace && e.state.SelectedIndex >= 0 && e.state.SelectedIndex < len(e.state.Sprites) {
+				sprite := e.state.Sprites[e.state.SelectedIndex]
+				newObj := SceneObject{
+					ID:         len(e.state.SceneObjects) + 1,
+					SpriteName: sprite.Name,
+					X:          canvX - sprite.FrameW/2,
+					Y:          canvY - sprite.FrameH/2,
+					Width:      sprite.FrameW,
+					Height:     sprite.FrameH,
+					Layer:      len(e.state.SceneObjects),
+					Collision:  &CollisionBox{X: 0, Y: 0, W: sprite.FrameW, H: sprite.FrameH},
+					Visible:    true,
+				}
+				e.state.SceneObjects = append(e.state.SceneObjects, newObj)
+				return nil
+			}
+
+			// Otherwise, select object under cursor
 			e.state.SelectedIndex = -1
 			for i := len(e.state.SceneObjects) - 1; i >= 0; i-- {
 				obj := &e.state.SceneObjects[i]
