@@ -14,6 +14,9 @@ func main() {
 
 	game := editor.NewEditor()
 
+	// Auto-scan examples folder for sprites
+	game.ScanAssetsFolder("pixelforge_examples")
+
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}

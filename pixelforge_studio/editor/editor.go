@@ -3,8 +3,11 @@ package editor
 import (
 	"image"
 	"image/color"
+	"os"
+	"path/filepath"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
@@ -12,6 +15,7 @@ import (
 type EditorState struct {
 	ProjectPath   string
 	Sprites       []SpriteInfo
+	AudioFiles    []AudioInfo
 	SceneObjects  []SceneObject
 	SelectedIndex int
 	Scale         float64
@@ -97,6 +101,7 @@ func NewEditor() *Editor {
 	return &Editor{
 		state: &EditorState{
 			Sprites:      []SpriteInfo{},
+			AudioFiles:   []AudioInfo{},
 			SceneObjects: []SceneObject{},
 			Scale:        1.0,
 			ShowGrid:     true,
@@ -131,7 +136,6 @@ func (e *Editor) Update() error {
 			}
 			e.menuOpen = -1
 		} else if mx >= CanvasX && mx < CanvasX+CanvasW && my >= CanvasY && my < CanvasY+CanvasH {
-			// Canvas - select object
 			canvX := (mx - CanvasX) / int(e.state.Scale)
 			canvY := (my - CanvasY) / int(e.state.Scale)
 			e.state.SelectedIndex = -1
@@ -144,7 +148,6 @@ func (e *Editor) Update() error {
 				}
 			}
 		} else if mx >= 0 && mx < LeftPanelW && my >= 50 {
-			// Sprite list
 			idx := (my - 50) / 25
 			if idx >= 0 && idx < len(e.state.Sprites) {
 				e.state.SelectedIndex = idx
@@ -154,7 +157,7 @@ func (e *Editor) Update() error {
 		}
 	}
 
-	// Drag objects - simplified (no drag yet, just click to select)
+	// Drag objects
 	if e.state.SelectedIndex >= 0 && e.tool == ToolSelect && len(e.state.SceneObjects) > 0 {
 		if mx >= CanvasX && mx < CanvasX+CanvasW && my >= CanvasY && my < CanvasY+CanvasH {
 			e.state.SceneObjects[e.state.SelectedIndex].X = (mx-CanvasX)/int(e.state.Scale) - e.state.SceneObjects[e.state.SelectedIndex].Width/2
@@ -163,6 +166,52 @@ func (e *Editor) Update() error {
 	}
 
 	return nil
+}
+
+func (e *Editor) importSpriteFromPath(path string) error {
+	img, _, err := ebitenutil.NewImageFromFile(path)
+	if err != nil {
+		return err
+	}
+
+	bounds := img.Bounds()
+	w, h := bounds.Dx(), bounds.Dy()
+	frameW, frameH := 8, 8
+	if w <= 16 && h <= 16 {
+		frameW, frameH = w, h
+	}
+
+	name := filepath.Base(path)
+	name = name[:len(name)-4]
+
+	e.state.Sprites = append(e.state.Sprites, SpriteInfo{
+		Name:   name,
+		Path:   path,
+		Width:  w,
+		Height: h,
+		FrameW: frameW,
+		FrameH: frameH,
+		Image:  img,
+	})
+	return nil
+}
+
+func (e *Editor) ScanAssetsFolder(folder string) {
+	// Scan folder for PNG files
+	files, err := os.ReadDir(folder)
+	if err != nil {
+		return
+	}
+	for _, f := range files {
+		if f.IsDir() {
+			continue
+		}
+		name := f.Name()
+		if len(name) > 4 && name[len(name)-4:] == ".png" {
+			fullPath := filepath.Join(folder, name)
+			e.importSpriteFromPath(fullPath)
+		}
+	}
 }
 
 // Draw - render editor
@@ -194,7 +243,7 @@ func (e *Editor) Draw(screen *ebiten.Image) {
 		screen.SubImage(image.Rect(CanvasX+10+i*60, CanvasY+10, CanvasX+50+i*60, CanvasY+30)).(*ebiten.Image).Fill(bg)
 	}
 
-	// Grid - draw as rectangles instead of pixels
+	// Grid
 	if e.state.ShowGrid {
 		gridSize := 8
 		for gx := CanvasX; gx < CanvasX+CanvasW; gx += gridSize {
@@ -233,13 +282,13 @@ func (e *Editor) Draw(screen *ebiten.Image) {
 		var items []string
 		switch e.menuOpen {
 		case 0:
-			items = []string{"New", "Open", "Save", "Import Sprite", "Export"}
+			items = []string{"New Project", "Open", "Save", "Import Sprites", "Export"}
 		case 1:
 			items = []string{"Delete", "Duplicate"}
 		case 2:
 			items = []string{"Zoom In", "Zoom Out", "Grid", "Collision"}
 		case 3:
-			items = []string{"Run", "Settings"}
+			items = []string{"Run Preview", "Settings"}
 		}
 		menuY := TitleBarH + 5
 		for range items {
@@ -251,14 +300,11 @@ func (e *Editor) Draw(screen *ebiten.Image) {
 	// Sprites list
 	for i := range e.state.Sprites {
 		bg := color.RGBA{R: 50, G: 50, B: 55, A: 255}
-		screen.SubImage(image.Rect(5, 50+i*25, 195, 50+(i+1)*25)).(*ebiten.Image).Fill(bg)
-	}
-
-	// Selected
-	if e.state.SelectedIndex >= 0 && e.state.SelectedIndex < len(e.state.Sprites) {
-		selIdx := e.state.SelectedIndex
-		screen.SubImage(image.Rect(5, 50+selIdx*25, 195, 50+(selIdx+1)*25)).(*ebiten.Image).
-			Fill(color.RGBA{R: 70, G: 90, B: 110, A: 255})
+		if i == e.state.SelectedIndex {
+			bg = color.RGBA{R: 70, G: 90, B: 110, A: 255}
+		}
+		listY := 50 + i*25
+		screen.SubImage(image.Rect(5, listY, 195, listY+20)).(*ebiten.Image).Fill(bg)
 	}
 }
 
