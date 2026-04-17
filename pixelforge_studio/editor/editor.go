@@ -11,6 +11,30 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
+const (
+	defaultUpdateCode = `func update() {
+	// Handle input with pixelforge_key, pixelforge_pad, pixelforge_mouse
+	
+	// Example: Exit with Escape
+	// if pixelforge_key.Duration(pixelforge_key.Escape) > 0 {
+	//     os.Exit(0)
+	// }
+}`
+
+	defaultDrawCode = `func draw() {
+	// Your drawing code here
+	pixelforge.Screen().Clear(0) // Clear with color 0 (black)
+	
+	// Example: Draw all scene objects
+	// for _, obj := range sceneObjects {
+	//     sprite := getSprite(obj.SpriteName)
+	//     if sprite != nil {
+	//         pixelforge.DrawSprite(sprite, obj.X, obj.Y)
+	//     }
+	// }
+}`
+)
+
 // EditorState - main state for editor
 type EditorState struct {
 	ProjectPath   string
@@ -108,6 +132,8 @@ func NewEditor() *Editor {
 			ScreenWidth:  320,
 			ScreenHeight: 180,
 			TPS:          30,
+			UpdateCode:   defaultUpdateCode,
+			DrawCode:     defaultDrawCode,
 		},
 		assets: NewAssetManager(),
 		menus: []MenuItem{
@@ -331,7 +357,7 @@ func (e *Editor) Draw(screen *ebiten.Image) {
 		var items []string
 		switch e.menuOpen {
 		case 0:
-			items = []string{"New Project", "Open", "Save", "Import Sprites", "Export"}
+			items = []string{"New Project", "Save", "Export Game", "---", "Exit"}
 		case 1:
 			items = []string{"Delete", "Duplicate"}
 		case 2:
