@@ -1,4 +1,4 @@
-package pisnap_test
+package pixelforge_snap_test
 
 import (
 	"image"
@@ -20,7 +20,7 @@ func TestPalettedImage(t *testing.T) {
 	screen := pixelforge.Screen()
 	screen.SetAll(1, 2, 3, 4, 5, 6)
 	// when
-	img := pisnap.PalettedImage()
+	img := pixelforge_snap.PalettedImage()
 	// then
 	assertPalettedImage(t, img, screen)
 }

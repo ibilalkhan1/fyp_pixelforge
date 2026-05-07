@@ -13,7 +13,7 @@ const event = "event"
 
 func TestTarget_Publish(t *testing.T) {
 	t.Run("should publish event to subscriber synchronously", func(t *testing.T) {
-		target := pievent.NewTarget[string]()
+		target := pixelforge_event.NewTarget[string]()
 		var subscriber Subscriber
 		target.Subscribe(event, subscriber.Handler)
 		// when
@@ -25,7 +25,7 @@ func TestTarget_Publish(t *testing.T) {
 	t.Run("should publish event to all subscribers", func(t *testing.T) {
 		var subscriber1, subscriber2 Subscriber
 
-		target := pievent.NewTarget[string]()
+		target := pixelforge_event.NewTarget[string]()
 		target.Subscribe(event, subscriber1.Handler)
 		target.Subscribe(event, subscriber2.Handler)
 		// when
@@ -38,7 +38,7 @@ func TestTarget_Publish(t *testing.T) {
 	t.Run("should not publish event to subscriber listening to a different event", func(t *testing.T) {
 		var subscriber1, subscriber2 Subscriber
 
-		target := pievent.NewTarget[string]()
+		target := pixelforge_event.NewTarget[string]()
 		target.Subscribe(event, subscriber1.Handler)
 		target.Subscribe("other", subscriber2.Handler)
 		// when
@@ -51,7 +51,7 @@ func TestTarget_Publish(t *testing.T) {
 		t.Run("subscribe with zero-value event", func(t *testing.T) {
 			var subscriber Subscriber
 
-			target := pievent.NewTarget[string]()
+			target := pixelforge_event.NewTarget[string]()
 			target.Subscribe("", subscriber.Handler) // zero-value string register subscriber for all events
 			// when
 			target.Publish(event)
@@ -62,7 +62,7 @@ func TestTarget_Publish(t *testing.T) {
 		t.Run("subscribe all", func(t *testing.T) {
 			var subscriber Subscriber
 
-			target := pievent.NewTarget[string]()
+			target := pixelforge_event.NewTarget[string]()
 			target.SubscribeAll(subscriber.Handler)
 			// when
 			target.Publish(event)
@@ -74,14 +74,14 @@ func TestTarget_Publish(t *testing.T) {
 
 func TestTarget_IsSubscribed(t *testing.T) {
 	t.Run("should return true if subscriber is subscribed", func(t *testing.T) {
-		target := pievent.NewTarget[string]()
+		target := pixelforge_event.NewTarget[string]()
 		var subscriber Subscriber
 		handler := target.Subscribe("", subscriber.Handler)
 		assert.True(t, target.IsSubscribed(handler))
 	})
 
 	t.Run("should return false if subscriber is no longer subscribed", func(t *testing.T) {
-		target := pievent.NewTarget[string]()
+		target := pixelforge_event.NewTarget[string]()
 		var subscriber Subscriber
 		handler := target.Subscribe("", subscriber.Handler)
 		target.Unsubscribe(handler)
@@ -91,11 +91,11 @@ func TestTarget_IsSubscribed(t *testing.T) {
 
 func TestEventHandler_Unsubscribe(t *testing.T) {
 	t.Run("should not unsubscribe other handler", func(t *testing.T) {
-		target := pievent.NewTarget[string]()
-		first := target.SubscribeAll(func(s string, _ pievent.Handler) {})
+		target := pixelforge_event.NewTarget[string]()
+		first := target.SubscribeAll(func(s string, _ pixelforge_event.Handler) {})
 		target.Unsubscribe(first)
 		eventReceived := false
-		target.SubscribeAll(func(string, pievent.Handler) {
+		target.SubscribeAll(func(string, pixelforge_event.Handler) {
 			eventReceived = true
 		})
 		target.Unsubscribe(first) // remove first handler again
@@ -108,14 +108,14 @@ func TestTrackingTarget_Subscribe(t *testing.T) {
 	t.Run("should return all subscription handlers", func(t *testing.T) {
 		var subscriber1, subscriber2 Subscriber
 
-		target := pievent.NewTarget[string]()
-		trackedTarget := pievent.Track(target)
+		target := pixelforge_event.NewTarget[string]()
+		trackedTarget := pixelforge_event.Track(target)
 		// when
 		handler1 := trackedTarget.Subscribe("1", subscriber1.Handler)
 		handler2 := trackedTarget.Subscribe("2", subscriber2.Handler)
 		// then
 		handlers := trackedTarget.Handlers()
-		assert.Equal(t, []pievent.Handler{handler1, handler2}, handlers)
+		assert.Equal(t, []pixelforge_event.Handler{handler1, handler2}, handlers)
 		// and
 		assert.True(t, trackedTarget.IsSubscribed(handler1))
 		assert.True(t, trackedTarget.IsSubscribed(handler2))
@@ -126,8 +126,8 @@ func TestTrackingTarget_UnsubscribeAll(t *testing.T) {
 	t.Run("should unsubscribe all handlers", func(t *testing.T) {
 		var subscriber1, subscriber2 Subscriber
 
-		target := pievent.NewTarget[string]()
-		trackedTarget := pievent.Track(target)
+		target := pixelforge_event.NewTarget[string]()
+		trackedTarget := pixelforge_event.Track(target)
 		handler1 := trackedTarget.Subscribe(event, subscriber1.Handler)
 		handler2 := trackedTarget.Subscribe(event, subscriber2.Handler)
 		// when
@@ -148,8 +148,8 @@ func TestTrackingTarget_Unsubscribe(t *testing.T) {
 	t.Run("should unsubscribe handler", func(t *testing.T) {
 		var subscriber Subscriber
 
-		target := pievent.NewTarget[string]()
-		trackedTarget := pievent.Track(target)
+		target := pixelforge_event.NewTarget[string]()
+		trackedTarget := pixelforge_event.Track(target)
 		handler := trackedTarget.Subscribe(event, subscriber.Handler)
 		// when
 		trackedTarget.Unsubscribe(handler)
@@ -166,7 +166,7 @@ type Subscriber struct {
 	eventReceived []string
 }
 
-func (s *Subscriber) Handler(e string, handler pievent.Handler) {
+func (s *Subscriber) Handler(e string, handler pixelforge_event.Handler) {
 	s.eventReceived = append(s.eventReceived, e)
 }
 

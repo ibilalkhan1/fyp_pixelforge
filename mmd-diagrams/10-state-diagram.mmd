@@ -1,0 +1,149 @@
+```mermaid
+stateDiagram-v2
+
+    %% =============================================
+    %% PIXELFORGE - State Diagram
+    %% Game Engine and Developer Tool States
+    %% =============================================
+
+    title Pixelforge Game Engine States
+
+    direction TB
+
+    [*] --> Uninitialized
+
+    %% =============================================
+    %% ENGINE INITIALIZATION STATES
+    %% =============================================
+
+    state Uninitialized {
+        [*] --> NoWindow
+        NoWindow --> WindowCreated : Run()
+        WindowCreated --> AudioInitialized : Init audio
+        AudioInitialized --> Ready : Init complete
+    }
+
+    Uninitialized --> Running : Engine started
+    Running --> Paused : Pause requested
+    Paused --> Running : Resume
+    Running --> [*] : Quit
+
+    %% =============================================
+    %% GAME LOOP STATES
+    %% =============================================
+
+    state Running {
+        direction LR
+
+        [*] --> UpdatePhase
+        UpdatePhase --> DrawPhase : Update complete
+        DrawPhase --> UpdatePhase : Next frame
+
+        state UpdatePhase {
+            [*] --> PollInput
+            PollInput --> ProcessEvents : Input updated
+            ProcessEvents --> GameLogic : Events processed
+            GameLogic --> [*]
+        }
+
+        state DrawPhase {
+            [*] --> ClearScreen : Cls()
+            ClearScreen --> RenderSprites : Draw sprites
+            RenderSprites --> RenderGUI : Draw GUI
+            RenderGUI --> Present : Copy to screen
+            Present --> [*]
+        }
+    }
+
+    %% =============================================
+    %% DEVELOPER TOOL STATES
+    %% =============================================
+
+    state DeveloperTools {
+        direction TB
+
+        [*] --> ToolsInactive
+
+        ToolsInactive --> PiscopeActive : Ctrl+Shift+I
+        PiscopeActive --> SingleStep : Step command
+        PiscopeActive --> Paused : Pause command
+        SingleStep --> PiscopeActive : Step complete
+        Paused --> SingleStep : Resume
+        PaopeActive --> ToolsInactive : Disable
+
+        PiscopeActive --> PaletteViewer : View palette
+        PiscopeActive --> SpriteViewer : View sprites
+        PiscopeActive --> MemoryViewer : View memory
+    }
+
+    state Pistat {
+        [*] --> MonitoringOff
+        MonitoringOff --> MonitoringOn : Start()
+        MonitoringOn --> MonitoringOff : Stop()
+        MonitoringOn --> Updating : Refresh (500ms)
+        Updating --> MonitoringOn : Display update
+    }
+
+    %% =============================================
+    %% INPUT STATES
+    %% =============================================
+
+    state InputStates {
+
+        state KeyState {
+            [*] --> KeyUp
+            KeyUp --> KeyDown : Key pressed
+            KeyDown --> KeyUp : Key released
+            KeyDown --> KeyHeld : Duration > 1
+            KeyHeld --> KeyUp : Released
+        }
+
+        state MouseState {
+            [*] --> MouseIdle
+            MouseIdle --> MouseMoved : Position change
+            MouseMoved --> MouseIdle : Frame complete
+            MouseIdle --> MousePressed : Button down
+            MousePressed --> MouseReleased : Button up
+        }
+
+        state GamepadState {
+            [*] --> PadDisconnected
+            PadDisconnected --> PadConnected : Device attached
+            PadConnected --> PadDisconnected : Device removed
+            PadConnected --> PadButtonDown : Button pressed
+            PadButtonDown --> PadConnected : Button released
+        }
+    }
+
+    %% =============================================
+    %% AUDIO STATES
+    %% =============================================
+
+    state AudioSystem {
+        direction LR
+
+        [*] --> AudioIdle
+        AudioIdle --> Playing : Play()
+        Playing --> Paused : Pause
+        Paused --> Playing : Resume
+        Playing --> Stopped : Stop
+        Stopped --> AudioIdle : Reset
+        Playing --> Looping : SetLoop()
+        Looping --> Playing : Loop end
+    }
+
+    %% =============================================
+    %% GUI ELEMENT STATES
+    %% =============================================
+
+    state GUIElement {
+        [*] --> GUIIdle
+
+        GUIIdle --> GUIPressed : Pointer enter + press
+        GUIPressed --> GUIReleased : Button up
+        GUIReleased --> GUITapped : Same element
+        GUITapped --> GUIIdle : Event handled
+        GUIPressed --> GUIIdle : Pointer leave
+        GUIReleased --> GUIIdle : Outside release
+    }
+```

@@ -1,0 +1,70 @@
+```mermaid
+sequenceDiagram
+
+    %% =============================================
+    %% PIXELFORGE - Input Handling Sequence
+    %% =============================================
+
+    title Input Handling - Keyboard, Mouse, Gamepad
+
+    actor User as "End User"
+    participant OS as "OS Input API"
+    participant Backend as "pixelforge_ebiten"
+    participant Input as "Input System"
+    participant Game as "User Game Code"
+
+    rect rgb(220, 230, 250)
+        Note over User,Game: KEYBOARD INPUT
+    end
+
+    User->>OS: Press ArrowUp
+    OS->>Backend: RawKeyDown
+    Backend->>Input: setDownFrame(Key.ArrowUp, frame)
+    Input-->>Input: Update duration map
+
+    User->>OS: Release ArrowUp
+    OS->>Backend: RawKeyUp
+    Backend->>Input: setUpFrame(Key.ArrowUp, frame)
+
+    loop Every Frame (Update phase)
+
+        Game->>Input: Duration(Key.ArrowUp)
+        Input-->>Game: frames held (e.g., 5)
+
+        alt Duration == 1
+            Game->>Game: "Just pressed" action
+        else Duration > 1
+            Game->>Game: "Held" action
+        else Duration == 0
+            Game->>Game: No action
+        end
+    end
+
+    rect rgb(250, 230, 220)
+        Note over User,Game: MOUSE INPUT
+    end
+
+    User->>OS: Move mouse / Click
+    OS->>Backend: Mouse event
+    Backend->>Input: Update position
+    Backend->>Input: Update duration
+
+    Game->>Input: mouse.Position
+    Game->>Input: mouse.Delta
+    Game->>Input: Duration(Mouse.Left)
+
+    rect rgb(230, 250, 220)
+        Note over User,Game: GAMEPAD INPUT
+    end
+
+    User->>OS: Press gamepad A
+    OS->>Backend: GamepadButtonDown(A)
+    Backend->>Input: setDownFrame(Pad.A, player=0)
+
+    loop Every Frame
+        Game->>Input: Duration(Pad.A, player=0)
+        Game->>Input: pad.Position(player=0)
+    end
+
+    Note over Input: Up to 16 controllers supported
+```

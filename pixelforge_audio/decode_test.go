@@ -11,7 +11,7 @@ import (
 func TestDecodeRaw(t *testing.T) {
 	t.Run("should decode raw sample", func(t *testing.T) {
 		raw := []byte{0, 1, 255}
-		sample := piaudio.DecodeRaw(raw, 22050)
+		sample := pixelforge_audio.DecodeRaw(raw, 22050)
 
 		assert.Equal(t, []int8{0, 1, -1}, sample.Data())
 		assert.Equal(t, uint16(22050), sample.SampleRate())
@@ -33,7 +33,7 @@ var (
 
 func TestDecodeWavOrErr(t *testing.T) {
 	t.Run("should decode valid wav file", func(t *testing.T) {
-		sample, err := piaudio.DecodeWavOrErr(validWAV)
+		sample, err := pixelforge_audio.DecodeWavOrErr(validWAV)
 		require.NoError(t, err)
 		assert.Equal(t, []int8{0, 90, 127, 90, 0, -91, -128, -91}, sample.Data())
 		assert.Equal(t, uint16(8363), sample.SampleRate())
@@ -64,7 +64,7 @@ func TestDecodeWavOrErr(t *testing.T) {
 
 		for testName, testCase := range tests {
 			t.Run(testName, func(t *testing.T) {
-				sample, err := piaudio.DecodeWavOrErr(testCase.file)
+				sample, err := pixelforge_audio.DecodeWavOrErr(testCase.file)
 				assert.Nil(t, sample)
 				assert.ErrorContains(t, err, testCase.expectedErr)
 			})

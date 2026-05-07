@@ -35,7 +35,7 @@ func TestClamp(t *testing.T) {
 	}
 	for testName, testCase := range tests {
 		t.Run(testName, func(t *testing.T) {
-			actual := pimath.Clamp(testCase.x, testCase.min, testCase.max)
+			actual := pixelforge_math.Clamp(testCase.x, testCase.min, testCase.max)
 			assert.Equal(t, testCase.expected, actual)
 		})
 	}
@@ -61,7 +61,7 @@ func TestLerp(t *testing.T) {
 	}
 	for testName, testCase := range tests {
 		t.Run(testName, func(t *testing.T) {
-			actual := pimath.Lerp(testCase.a, testCase.b, testCase.t)
+			actual := pixelforge_math.Lerp(testCase.a, testCase.b, testCase.t)
 			assert.InDelta(t, testCase.expected, actual, 0.01)
 		})
 	}
@@ -86,7 +86,7 @@ func TestDistance(t *testing.T) {
 	}
 	for testName, testCase := range tests {
 		t.Run(testName, func(t *testing.T) {
-			actual := pimath.Distance(testCase.x1, testCase.y1, testCase.x2, testCase.y2)
+			actual := pixelforge_math.Distance(testCase.x1, testCase.y1, testCase.x2, testCase.y2)
 			assert.InDelta(t, testCase.expected, actual, 0.01)
 		})
 	}

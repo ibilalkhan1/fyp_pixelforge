@@ -1,0 +1,117 @@
+```mermaid
+flowchart TB
+
+    %% =============================================
+    %% PIXELFORGE - System Architecture
+    %% =============================================
+
+    title Pixelforge Game Engine - System Context
+
+    subgraph External["External Systems"]
+
+        OS[("Operating System")]
+        Display[("Display Monitor")]
+        InputDevices["Input Devices
+        Keyboard/Mouse/Gamepad"]
+        AudioOut[("Audio Output")]
+        Filesystem[("Filesystem")]
+    end
+
+    subgraph Engine["Pixelforge Game Engine"]
+        direction TB
+
+        subgraph UserCode["User Game Code"]
+            game["main.go
+            Update/Draw/Init callbacks"]
+        end
+
+        subgraph Core["Core Engine (pixelforge)"]
+            screen["Screen Management
+            SetScreenSize, Cls, Screen"]
+            canvas["Canvas & Surface
+            Surface[Color] pixel buffers"]
+            drawing["Drawing Primitives
+            SetPixel, Line, Rect, Circ"]
+            sprites["Sprite System
+            Sprite, DrawSprite"]
+            camera["Camera & Clip
+            Camera offset, SetClip"]
+            palette["Color System
+            Palette, ColorTables"]
+        end
+
+        subgraph Events["Event System (pixelforge_event)"]
+            pub["Publisher
+            Publish()"]
+            sub["Subscriber
+            Subscribe/Unsubscribe"]
+        end
+
+        subgraph Input["Input System"]
+            keyboard["Virtual Keyboard
+            pixelforge_key (75 keys)"]
+            mouse["Mouse State
+            pixelforge_mouse"]
+            gamepad["Gamepad (16 controllers)
+            pixelforge_pad"]
+        end
+
+        subgraph Audio["Audio System (pixelforge_audio)"]
+            mixer["4-Channel PCM Mixer
+            Channels 0-3"]
+            scheduler["Command Scheduler
+            SetPitch, SetVolume, SetLoop"]
+        end
+
+        subgraph DevTools["Developer Tools"]
+            piscope["Piscope (Frame Debugger)
+            Step-through, pause"]
+            pistat["Pistat (Performance)
+            CPU %, Memory MB"]
+            pisnap["Pisnap (Screenshot)
+            PNG capture"]
+        end
+
+        subgraph GUI["GUI System (pixelforge_gui)"]
+            elements["GUI Elements
+            Panel, Button"]
+        end
+    end
+
+    subgraph Backend["Backend (pixelforge_ebiten)"]
+        ebiten["ebiten.Game Interface
+            Run(), Update(), Draw()"]
+        window["Window Management"]
+        audioCB["Audio Callback
+            4-channel mixing"]
+    end
+
+    game --> Core
+    game --> Events
+    game --> Input
+    game --> Audio
+    game --> DevTools
+    game --> GUI
+
+    Core --> Backend
+    Events --> Backend
+    Input --> Backend
+    Audio --> Backend
+    DevTools --> Backend
+    GUI --> Backend
+
+    Backend --> OS
+    Backend --> Display
+    Backend --> InputDevices
+    Backend --> AudioOut
+    Backend --> Filesystem
+
+    style Engine fill:#f5f5f5,stroke:#333,stroke-width:3px
+    style Backend fill:#e8f4e8,stroke:#27ae60,stroke-width:2px
+    style Core fill:#d5e8f5,stroke:#2980b9,stroke-width:2px
+    style Events fill:#f5d5e8,stroke:#8e44ad,stroke-width:2px
+    style Input fill:#f5e8d5,stroke:#e67e22,stroke-width:2px
+    style Audio fill:#e8f5e8,stroke:#27ae60,stroke-width:2px
+    style DevTools fill:#f8e8e8,stroke:#c0392b,stroke-width:2px
+    style GUI fill:#e8f5e8,stroke:#27ae60,stroke-width:2px
+```

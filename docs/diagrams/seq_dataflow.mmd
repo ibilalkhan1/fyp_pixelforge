@@ -1,0 +1,25 @@
+sequenceDiagram
+    participant OS as Operating System
+    participant EB as Ebitengine
+    participant BE as pixelforge_ebiten
+    participant Core as pixelforge Core
+    participant Input as Input Subsystems
+    participant Audio as pixelforge_audio
+    participant User as User Game Code
+
+    OS->>EB: OS Timer Tick 60 TPS
+    EB->>BE: Update() called
+    BE->>Core: Publish EventFrameStart
+    BE->>Input: Poll keyboard-mouse-gamepad
+    Input->>Core: Publish key-mouse-pad events
+    BE->>Core: Publish EventUpdate
+    User->>Core: Update() logic user-defined
+    User->>Core: SetPixel-DrawSprite etc
+    BE->>Core: Publish EventDraw
+    User->>Core: Draw() logic user-defined
+    Core->>Core: Apply color tables-masks-clipping
+    Core->>BE: Return modified Canvas
+    BE->>EB: CopyCanvasToEbitenImage()
+    EB->>OS: GPU Compositing Swap buffers
+    BE->>Audio: Audio callback 44100 Hz
+    Audio->>Audio: Mix 4 channels to stereo PCM

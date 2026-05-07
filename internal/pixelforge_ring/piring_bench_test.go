@@ -9,7 +9,7 @@ import (
 func BenchmarkBuffer_NextWritePointer(b *testing.B) {
 	b.ReportAllocs()
 	// allocation takes place only here
-	buffer := piring.NewBuffer[someStruct](4)
+	buffer := pixelforge_ring.NewBuffer[someStruct](4)
 	for i := 0; i < buffer.Cap(); i++ {
 		buffer.NextWritePointer().slice = make([]int, 128)
 	}
@@ -21,7 +21,7 @@ func BenchmarkBuffer_NextWritePointer(b *testing.B) {
 
 func BenchmarkBuffer_PointerTo(b *testing.B) {
 	b.ReportAllocs()
-	buffer := piring.NewBuffer[someStruct](4)
+	buffer := pixelforge_ring.NewBuffer[someStruct](4)
 	buffer.NextWritePointer().slice = make([]int, 128)
 	z := 0
 	for b.Loop() {

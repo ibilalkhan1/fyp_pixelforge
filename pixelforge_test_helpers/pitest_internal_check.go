@@ -1,10 +1,9 @@
-package pitest_test
+package pixelforge_test_helpers
 
 import (
 	"testing"
 
 	"github.com/ibilalkhan1/fyp_pixelforge"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_test"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -15,7 +14,7 @@ func TestAssertSurfaceEqual(t *testing.T) {
 		surface2 := surface1.Clone()
 		mockT := new(testing.T)
 		// when
-		actual := pitest.AssertSurfaceEqual(mockT, surface1, surface2)
+		actual := AssertSurfaceEqual(mockT, surface1, surface2)
 		// then
 		assert.False(t, mockT.Failed())
 		assert.True(t, actual)
@@ -46,7 +45,7 @@ func TestAssertSurfaceEqual(t *testing.T) {
 			t.Run(testName, func(t *testing.T) {
 				mockT := new(testing.T)
 				// when
-				actual := pitest.AssertSurfaceEqual(mockT, testCase.surface1, testCase.surface2)
+				actual := AssertSurfaceEqual(mockT, testCase.surface1, testCase.surface2)
 				// then
 				assert.True(t, mockT.Failed())
 				assert.False(t, actual)
@@ -63,7 +62,7 @@ func TestAssertSpriteEqual(t *testing.T) {
 		sprite2 := pixelforge.CanvasSprite(canvas)
 		mockT := new(testing.T)
 		// when
-		pitest.AssertSpriteEqual(mockT, sprite1, sprite2)
+		AssertSpriteEqual(mockT, sprite1, sprite2)
 		// then
 		assert.False(t, mockT.Failed())
 	})
@@ -115,7 +114,7 @@ func TestAssertSpriteEqual(t *testing.T) {
 			t.Run(testName, func(t *testing.T) {
 				mockT := new(testing.T)
 				// when
-				pitest.AssertSpriteEqual(mockT, testCase.sprite1, testCase.sprite2)
+				AssertSpriteEqual(mockT, testCase.sprite1, testCase.sprite2)
 				// then
 				assert.True(t, mockT.Failed())
 			})

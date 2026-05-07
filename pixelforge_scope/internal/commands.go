@@ -20,11 +20,11 @@ func exitConsoleMode() {
 	theScreenRecorder.ShowPrev()
 	theScreenRecorder.Reset()
 	consoleMode = false
-	pidebug.SetPaused(false)
+	pixelforge_debug.SetPaused(false)
 }
 
 func captureSnapshot() {
-	f, err := pisnap.CaptureOrErr()
+	f, err := pixelforge_snap.CaptureOrErr()
 	if err != nil {
 		log.Println("Error capturing screenshot:", err)
 	} else {
@@ -33,13 +33,13 @@ func captureSnapshot() {
 }
 
 func showPrevSnapshot() {
-	pidebug.SetPaused(true)
+	pixelforge_debug.SetPaused(true)
 	theScreenRecorder.ShowPrev()
 }
 
 func showNextSnapshot() {
 	if !theScreenRecorder.ShowNext() {
-		pidebug.SetPaused(false)
+		pixelforge_debug.SetPaused(false)
 		pauseOnNextFrame = true
 	}
 }
@@ -48,6 +48,6 @@ func pauseOrResume() {
 	if consoleMode {
 		theScreenRecorder.GoToLast()
 
-		pidebug.SetPaused(!pidebug.Paused())
+		pixelforge_debug.SetPaused(!pixelforge_debug.Paused())
 	}
 }

@@ -1,0 +1,15 @@
+flowchart TD
+    A[Game Starts] --> B{Draw Callback}
+    B -->|Hello World| C[Print text via cofont]
+    B -->|Shapes| D[Draw shapes + mouse preview]
+    B -->|Snake| E[Draw snake + food + score]
+    B -->|GUI| F[Draw panel + button]
+    F -->|Button pressed| G[OnTap fires]
+    G --> H[Print to console]
+    B -->|Any game| I{Ctrl+Shift+I?}
+    I -->|Yes| J[Show Piscope overlay]
+    J -->|Space| K{Paused?}
+    K -->|Yes| L[Step with arrows]
+    K -->|No| B
+    L -->|Right arrow| B
+    I -->|No| B

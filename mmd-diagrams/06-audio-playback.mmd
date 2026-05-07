@@ -1,0 +1,50 @@
+```mermaid
+sequenceDiagram
+
+    %% =============================================
+    %% PIXELFORGE - Audio Playback Sequence
+    %% =============================================
+
+    title Audio Playback - 4 Channel PCM Mixer
+
+    actor Dev as "Game Developer"
+    participant Audio as "pixelforge_audio"
+    participant Mixer as "4-Channel Mixer"
+    participant Backend as "pixelforge_ebiten"
+    participant Ebiten as "Ebitengine Audio"
+    participant OS as "OS Audio API"
+
+    Dev->>Audio: DecodeWav(wavData)
+    Audio-->>Dev: Sample{pcm[], rate}
+
+    Dev->>Audio: LoadSample(sample)
+    Audio->>Mixer: Store in ring buffer
+
+    Dev->>Audio: Play(Chan1, sample, 1.0, 0.5)
+    Audio->>Mixer: SetSample(Chan1, sample)
+    Audio->>Mixer: SetPitch(Chan1, 1.0)
+    Audio->>Mixer: SetVolume(Chan1, 0.5)
+
+    loop Every audio callback (buffer refill)
+
+        Ebiten->>Backend: AudioCallback(buffer)
+        Backend->>Mixer: MixChannels(buffer)
+
+        par Left Speakers (Chan0, Chan3)
+            Mixer->>Mixer: Fetch sample[pos0]
+            Mixer->>Mixer: Apply pitch, volume
+            Mixer->>Mixer: Add to left buffer
+        and Right Speakers (Chan1, Chan2)
+            Mixer->>Mixer: Fetch sample[pos2]
+            Mixer->>Mixer: Apply pitch, volume
+            Mixer->>Mixer: Add to right buffer
+        end
+
+        Mixer-->>Backend: Mixed stereo buffer
+        Backend-->>Ebiten: buffer filled
+        Ebiten-->>OS: Play audio
+    end
+
+    Note over Mixer: Channels 0,3 pan LEFT
+    Note over Mixer: Channels 1,2 pan RIGHT
+```

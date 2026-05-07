@@ -1,0 +1,39 @@
+graph LR
+    pixelforge[pixelforge core engine]
+    pievent[pixelforge_event observer pattern]
+    ebiten[pixelforge_ebiten backend]
+
+    key[pixelforge_key]
+    mouse[pixelforge_mouse]
+    pad[pixelforge_pad]
+    audio[pixelforge_audio]
+    loop[pixelforge_loop]
+    debug[pixelforge_debug]
+    font[pixelforge_font]
+    cofont[pixelforge_cofont]
+    gui[pixelforge_gui]
+    scope[pixelforge_scope]
+    stat[pixelforge_stat]
+    snap[pixelforge_snap]
+    routine[pixelforge_routine]
+    math[pixelforge_math]
+    pool[pixelforge_pool]
+
+    key --> pievent
+    mouse --> pievent
+    pad --> pievent
+    loop --> pievent
+    debug --> pievent
+    scope --> pievent
+    scope --> gui
+    scope --> debug
+    stat --> debug
+    snap --> pixelforge
+    gui --> pixelforge
+    font --> pixelforge
+    routine --> loop
+    audio --> ebiten
+    key --> ebiten
+    mouse --> ebiten
+    pad --> ebiten
+    ebiten --> pixelforge

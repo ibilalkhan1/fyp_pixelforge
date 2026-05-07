@@ -2,7 +2,7 @@ package pixelforge_font_test
 
 import (
 	_ "embed"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_test"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_test_helpers"
 	"testing"
 
 	"github.com/ibilalkhan1/fyp_pixelforge"
@@ -12,7 +12,7 @@ import (
 //go:embed internal/test/font.png
 var fontPNG []byte
 
-var fontSheet pifont.Sheet
+var fontSheet pixelforge_font.Sheet
 
 func init() {
 	prevPalette := pixelforge.Palette
@@ -22,7 +22,7 @@ func init() {
 
 	pixelforge.Palette = pixelforge.DecodePalette(fontPNG)
 	fontCanvas := pixelforge.DecodeCanvas(fontPNG)
-	fontSheet = pifont.Sheet{
+	fontSheet = pixelforge_font.Sheet{
 		Chars: map[rune]pixelforge.Sprite{
 			'S': {
 				Area:   pixelforge.Area[int]{X: 0, Y: 0, W: 8, H: 8},
@@ -92,14 +92,14 @@ func TestSheet_Print(t *testing.T) {
 				// when
 				fontSheet.Print("S", 0, 0)
 				// then
-				pitest.AssertSurfaceEqual(t, expectedCanvas, pixelforge.Screen())
+				pixelforge_test_helpers.AssertSurfaceEqual(t, expectedCanvas, pixelforge.Screen())
 			})
 		}
 	})
 }
 
 func BenchmarkSheet_Print(b *testing.B) {
-	sheet := pifont.Sheet{
+	sheet := pixelforge_font.Sheet{
 		Chars: map[rune]pixelforge.Sprite{
 			'a': {
 				Area:   pixelforge.Area[int]{X: 0, Y: 0, W: 8, H: 8},

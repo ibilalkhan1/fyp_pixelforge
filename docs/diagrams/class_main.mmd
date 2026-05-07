@@ -1,0 +1,89 @@
+classDiagram
+    direction TB
+
+    class pixelforge {
+        <<core engine>>
+        +Frame int
+        +Time float64
+        +Camera Position
+        +Palette PaletteArray
+        +SetTPS tps int
+        +Cls
+        +SetPixel x int, y int
+        +Line x0 y0 x1 y1 int
+        +Rect x0 y0 x1 y1 int
+        +Circ cx cy r int
+        +DrawSprite sprite Sprite, dx dy int
+        +Stretch sprite Sprite, dx dy dw dh int
+        +SetDrawTarget c Canvas
+        +SetColor c Color
+    }
+
+    class pievent {
+        <<observer pattern>>
+        +NewTarget T comparable TargetT
+        +Track T comparable TargetT TrackingTargetT
+    }
+
+    class Target~T~ {
+        +Publish event T
+        +Subscribe event T, f funcT Handler Handler
+        +SubscribeAll listener funcT Handler Handler
+        +Unsubscribe Handler
+    }
+
+    class pixelforge_audio {
+        <<audio player>>
+        +LoadSample sample *Sample
+        +Play ch Chan, sample *Sample, pitch float64, vol float64
+        +SetSample ch Chan, sample *Sample, offset int, delay float64
+        +SetPitch ch Chan, pitch float64, delay float64
+        +SetVolume ch Chan, vol float64, delay float64
+        +ClearChan ch Chan, delay float64
+    }
+
+    class pixelforge_key {
+        <<input subsystem>>
+        +Duration k Key int
+        +Target pievent.TargetEvent
+        +RegisterShortcut onEvent func, keys ...Key *Shortcut
+    }
+
+    class pixelforge_pad {
+        <<input subsystem>>
+        +Duration b Button, player int int
+        +PlayerCount int
+        +ButtonTarget pievent.TargetEventButton
+        +ConnectionTarget pievent.TargetEventConnection
+    }
+
+    class pixelforge_gui {
+        <<GUI element>>
+        +New Element
+        +Attach parent *Element, x y w h int *Element
+    }
+
+    class Element {
+        +Area Areaint
+        +OnDraw funcDrawEvent
+        +OnUpdate funcUpdateEvent
+        +OnTap funcEvent
+        +Attach child *Element
+        +Update
+        +Draw
+    }
+
+    class piroutine {
+        <<coroutine>>
+        +New steps ...Step *Routine
+        +Resume bool
+        +Stop
+        +Stopped bool
+    }
+
+    pievent ..> Target~T~ : provides
+    pixelforge --> pixelforge_audio
+    pixelforge --> pixelforge_gui.Element
+    pixelforge_key --> pievent
+    pixelforge_pad --> pievent
+    piroutine ..> pixelforge_loop

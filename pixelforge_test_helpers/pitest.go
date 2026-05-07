@@ -1,5 +1,5 @@
-// Package pitest provides helper functions for writing unit tests.
-package pixelforge_test
+// Package pixelforge_test_helpers provides helper functions for writing unit tests.
+package pixelforge_test_helpers
 
 import (
 	"testing"

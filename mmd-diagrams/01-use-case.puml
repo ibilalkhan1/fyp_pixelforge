@@ -1,0 +1,77 @@
+@startuml PixelforgeUseCase
+title Pixelforge Game Engine - Use Cases
+left to right direction
+
+' ---------------------------------------------
+' ACTORS
+' ---------------------------------------------
+actor "Developer" as dev #orange
+actor "Player" as player #lightblue
+
+' ---------------------------------------------
+' SYSTEM BOUNDARY
+' ---------------------------------------------
+rectangle "Pixelforge Engine" {
+
+    ' ---------------------------------------------
+    ' CORE RENDERING USE CASES
+    ' ---------------------------------------------
+    usecase "Render Pixels" as UC1
+    usecase "Draw Shapes\n(Rect, Line, Circle)" as UC2
+    usecase "Render Sprites\n(with Flip & Scale)" as UC3
+
+    ' ---------------------------------------------
+    ' INPUT USE CASES
+    ' ---------------------------------------------
+    usecase "Handle Keyboard\nInput" as UC4
+    usecase "Handle Mouse\nInput" as UC5
+    usecase "Handle Gamepad\nInput" as UC6
+
+    ' ---------------------------------------------
+    ' AUDIO USE CASES
+    ' ---------------------------------------------
+    usecase "Play Audio\n(4-Channel Mixer)" as UC7
+
+    ' ---------------------------------------------
+    ' UI USE CASES
+    ' ---------------------------------------------
+    usecase "Render GUI\nElements" as UC8
+
+    ' ---------------------------------------------
+    ' DOCUMENTED USE CASES
+    ' ---------------------------------------------
+    usecase "Draw Shapes\nwith Mouse" as UC9
+
+    usecase "Play Snake Game\n(Keyboard & Gamepad)" as UC10
+
+    usecase "Debug Frame\nby Frame" as UC11
+}
+
+' ---------------------------------------------
+' RELATIONSHIPS
+' ---------------------------------------------
+
+' Core rendering - developer uses
+dev --> UC1
+dev --> UC2
+dev --> UC3
+
+' Input - player uses
+player --> UC4
+player --> UC5
+player --> UC6
+
+' Audio - both can use
+dev --> UC7
+player --> UC7
+
+' GUI
+dev --> UC8
+
+' Documented use cases
+dev --> UC9
+dev --> UC11
+player --> UC9
+player --> UC10
+
+@enduml

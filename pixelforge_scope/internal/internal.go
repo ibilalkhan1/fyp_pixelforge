@@ -3,12 +3,12 @@ package internal
 import (
 	"fmt"
 	"github.com/ibilalkhan1/fyp_pixelforge"
-	picofont "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_cofont"
-	pidebug "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_debug"
-	pievent "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
-	pigui "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_gui"
-	piloop "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_loop"
-	pimouse "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_mouse"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_cofont"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_debug"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_gui"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_loop"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_mouse"
 )
 
 var bgColor, fgColor *pixelforge.Color
@@ -28,23 +28,23 @@ func Start(backgroundColor, foregroundColor *pixelforge.Color) {
 
 	// TODO Handle screen size change event and redraw entire gui.
 
-	smallFont := picofont.Sheet
+	smallFont := pixelforge_cofont.Sheet
 
 	registerShortcuts()
 
-	gui := pigui.New()
+	gui := pixelforge_gui.New()
 	attachToolbar(gui)
 
-	piloop.DebugTarget().Subscribe(piloop.EventUpdate, func(piloop.Event, pievent.Handler) {
+	pixelforge_loop.DebugTarget().Subscribe(pixelforge_loop.EventUpdate, func(pixelforge_loop.Event, pixelforge_event.Handler) {
 		if consoleMode {
 			gui.Update()
 
-			if !pidebug.Paused() {
+			if !pixelforge_debug.Paused() {
 				theScreenRecorder.Save()
 			}
 
 			if pauseOnNextFrame {
-				pidebug.SetPaused(true)
+				pixelforge_debug.SetPaused(true)
 				pauseOnNextFrame = false
 			}
 
@@ -52,7 +52,7 @@ func Start(backgroundColor, foregroundColor *pixelforge.Color) {
 		}
 	})
 
-	piloop.DebugTarget().Subscribe(piloop.EventLateDraw, func(piloop.Event, pievent.Handler) {
+	pixelforge_loop.DebugTarget().Subscribe(pixelforge_loop.EventLateDraw, func(pixelforge_loop.Event, pixelforge_event.Handler) {
 		if consoleMode {
 			gui.Draw()
 
@@ -63,13 +63,13 @@ func Start(backgroundColor, foregroundColor *pixelforge.Color) {
 			prev := pixelforge.SetColor(*bgColor)
 			defer pixelforge.SetColor(prev)
 
-			pixelColor := pixelforge.GetPixel(pimouse.Position.X, pimouse.Position.Y)
+			pixelColor := pixelforge.GetPixel(pixelforge_mouse.Position.X, pixelforge_mouse.Position.Y)
 			if pixelColor != *bgColor {
 				pixelforge.SetColor(pixelColor)
 			} else {
 				pixelforge.SetColor(1)
 			}
-			msg := fmt.Sprintf("%d(%d,%d)", pixelColor, pimouse.Position.X, pimouse.Position.Y)
+			msg := fmt.Sprintf("%d(%d,%d)", pixelColor, pixelforge_mouse.Position.X, pixelforge_mouse.Position.Y)
 			smallFont.Print(msg, 50, y+2)
 		}
 	})

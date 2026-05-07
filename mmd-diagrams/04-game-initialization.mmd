@@ -1,0 +1,38 @@
+```mermaid
+sequenceDiagram
+
+    %% =============================================
+    %% PIXELFORGE - Game Initialization Sequence
+    %% =============================================
+
+    title Game Initialization Flow
+
+    actor Dev as "Game Developer"
+    participant UserCode as "main.go"
+    participant PF as "Pixelforge Core"
+    participant Backend as "pixelforge_ebiten"
+    participant Ebiten as "Ebitengine"
+
+    Dev->>UserCode: Write game code
+    UserCode->>PF: SetScreenSize(320, 180)
+    PF-->>PF: Initialize CANVAS[320][180]
+
+    UserCode->>PF: SetTPS(60)
+    PF->>PF: Configure tick rate
+
+    UserCode->>PF: Assign Update callback
+    UserCode->>PF: Assign Draw callback
+    UserCode->>PF: Assign Init callback
+
+    UserCode->>PF: DecodePalette(spritesPNG)
+    UserCode->>PF: DecodeCanvas(spritesPNG)
+    UserCode->>PF: LoadSample(audioData)
+
+    UserCode->>Backend: Run()
+    Backend->>Ebiten: Create window (320x180)
+    Backend->>Ebiten: Initialize audio context
+    Ebiten-->>Backend: Ready
+    Backend-->>UserCode: Engine running
+
+    Note over Dev,Ebiten: Game loop starts at 60 TPS
+```

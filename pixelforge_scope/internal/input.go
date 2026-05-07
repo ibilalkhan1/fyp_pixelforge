@@ -1,18 +1,18 @@
 package internal
 
 import (
-	pievent "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
-	pikey "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_key"
+	pixelforge_event "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
+	pixelforge_key "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_key"
 )
 
 func handleInputInConsoleMode() {
-	right := pikey.Duration(pikey.Right)
+	right := pixelforge_key.Duration(pixelforge_key.Right)
 	if right > 0 {
 		if right == 1 || right > 10 {
 			showNextSnapshot()
 		}
 	} else {
-		left := pikey.Duration(pikey.Left)
+		left := pixelforge_key.Duration(pixelforge_key.Left)
 		if left == 1 || left > 10 {
 			showPrevSnapshot()
 		}
@@ -28,25 +28,25 @@ func registerShortcuts() {
 			exitConsoleMode()
 		}
 	}
-	pikey.RegisterShortcut(onCtrlShiftI, pikey.Ctrl, pikey.Shift, pikey.I)
+	pixelforge_key.RegisterShortcut(onCtrlShiftI, pixelforge_key.Ctrl, pixelforge_key.Shift, pixelforge_key.I)
 
 	// F12
-	f12Down := pikey.Event{Type: pikey.EventDown, Key: pikey.F12}
-	pikey.DebugTarget().Subscribe(f12Down, func(pikey.Event, pievent.Handler) {
+	f12Down := pixelforge_key.Event{Type: pixelforge_key.EventDown, Key: pixelforge_key.F12}
+	pixelforge_key.DebugTarget().Subscribe(f12Down, func(pixelforge_key.Event, pixelforge_event.Handler) {
 		if consoleMode {
 			captureSnapshot()
 		}
 	})
 
 	// Space
-	spaceDown := pikey.Event{Type: pikey.EventDown, Key: pikey.Space}
-	pikey.DebugTarget().Subscribe(spaceDown, func(pikey.Event, pievent.Handler) {
+	spaceDown := pixelforge_key.Event{Type: pixelforge_key.EventDown, Key: pixelforge_key.Space}
+	pixelforge_key.DebugTarget().Subscribe(spaceDown, func(pixelforge_key.Event, pixelforge_event.Handler) {
 		pauseOrResume()
 	})
 
 	// Esc
-	escDown := pikey.Event{Type: pikey.EventDown, Key: pikey.Esc}
-	pikey.DebugTarget().Subscribe(escDown, func(pikey.Event, pievent.Handler) {
+	escDown := pixelforge_key.Event{Type: pixelforge_key.EventDown, Key: pixelforge_key.Esc}
+	pixelforge_key.DebugTarget().Subscribe(escDown, func(pixelforge_key.Event, pixelforge_event.Handler) {
 		if consoleMode {
 			exitConsoleMode()
 		}

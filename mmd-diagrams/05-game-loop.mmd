@@ -1,0 +1,55 @@
+```mermaid
+sequenceDiagram
+
+    %% =============================================
+    %% PIXELFORGE - Game Loop Per Frame (60 TPS)
+    %% =============================================
+
+    title Game Loop Per Frame
+
+    participant Ebiten as "Ebitengine"
+    participant Backend as "pixelforge_ebiten"
+    participant PF as "Pixelforge Core"
+    participant Input as "Input System"
+    participant Event as "Event System"
+    participant UpdateCB as "Update Callback"
+    participant DrawCB as "Draw Callback"
+    participant Display as "Display"
+
+    rect rgb(200, 220, 240)
+        Note over Ebiten,DrawCB: FRAME N - Update Phase
+    end
+
+    Ebiten->>Backend: Update()
+    Backend->>Input: PollKeyboard()
+    Backend->>Input: PollMouse()
+    Backend->>Input: PollGamepad()
+    Input-->>Backend: Update duration maps
+
+    Backend->>Event: Publish(FrameEvent)
+    Event->>UpdateCB: Notify subscribers
+
+    UpdateCB->>Input: Duration(Key.ArrowUp)
+    UpdateCB->>Input: mouse.Position
+    UpdateCB->>Input: pad.Duration(A)
+    UpdateCB->>UpdateCB: Process game logic
+
+    rect rgb(220, 240, 220)
+        Note over Ebiten,DrawCB: FRAME N - Draw Phase
+    end
+
+    Backend->>PF: Cls()
+    PF-->>PF: Clear canvas
+
+    Backend->>DrawCB: Call Draw()
+    DrawCB->>PF: SetPixel(x, y, color)
+    DrawCB->>PF: Line(x1, y1, x2, y2)
+    DrawCB->>PF: RectFill(x, y, w, h)
+    DrawCB->>PF: DrawSprite(sprite, x, y)
+    DrawCB-->>Backend: Return
+
+    Backend->>PF: CopyCanvasToEbitenImage()
+    PF-->>Backend: EbitenImage
+    Backend->>Ebiten: drawCanvas()
+    Ebiten->>Display: Present frame
+```

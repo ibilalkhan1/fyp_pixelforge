@@ -1,0 +1,21 @@
+sequenceDiagram
+    participant User as Game Code
+    participant Audio as pixelforge_audio
+    participant Ring as BufferCommand
+    participant Backend as pixelforge_ebiten Audio
+    participant Mixer as Stereo Mixer
+
+    User->>Audio: LoadSample rawData 22050
+    Audio->>Audio: NewSample data rate
+    User->>Audio: Play Chan1 sample pitch=1.0 vol=0.8
+    Audio->>Audio: SetSample Chan1 sample 0 delay=0
+    Audio->>Ring: NextWritePointer append CommandSetSample
+    Audio->>Ring: NextWritePointer append CommandSetVolume
+    Note over Ring: Commands sorted by scheduled time
+    loop Audio Callback 44.1kHz
+        Backend->>Ring: Read commands where time less= now
+        Backend->>Mixer: Set active sample for channel 1
+        Backend->>Mixer: Set volume for channel 1
+        Mixer->>Mixer: Mix channels 0-3 to Left, 1-2 to Right
+        Mixer-->>Backend: Stereo PCM output
+    end

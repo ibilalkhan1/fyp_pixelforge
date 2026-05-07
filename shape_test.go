@@ -6,7 +6,7 @@ import (
 
 	"github.com/ibilalkhan1/fyp_pixelforge"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_snap"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_test"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_test_helpers"
 	"github.com/stretchr/testify/require"
 )
 
@@ -172,9 +172,9 @@ func TestShapes(t *testing.T) {
 				// then
 				shapeArea := pixelforge.IntArea{X: shape.col * 32, Y: shape.row * 32, W: 32, H: 32}
 				expected := shapesSheet.CloneArea(shapeArea)
-				equal := pitest.AssertSurfaceEqual(t, expected, pixelforge.Screen())
+				equal := pixelforge_test_helpers.AssertSurfaceEqual(t, expected, pixelforge.Screen())
 				if !equal {
-					f, err := pisnap.CaptureOrErr()
+					f, err := pixelforge_snap.CaptureOrErr()
 					require.NoError(t, err)
 					t.Log("INVALID SNAPSHOT STORED TO", f)
 				}

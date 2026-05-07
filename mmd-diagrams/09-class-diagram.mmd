@@ -1,0 +1,435 @@
+```mermaid
+classDiagram
+
+    %% =============================================
+    %% PIXELFORGE - Class Diagram (UML Notation)
+    %% =============================================
+
+    title Pixelforge Game Engine - Class Diagram
+
+    direction TB
+
+    %% =============================================
+    %% CORE ENGINE - Primitive Types
+    %% =============================================
+
+    class Color {
+        <<primitive>>
+        uint8
+    }
+
+    class Position {
+        +int X
+        +int Y
+        +Add(other Position) Position
+        +Subtract(other Position) Position
+        +WithX(x int) Position
+        +WithY(y int) Position
+    }
+
+    class RGB {
+        +uint32 value
+        +RGB() (r, g, b uint8)
+        +RGBf() (r, g, b float64)
+        +FromRGB(r, g, b uint8) RGB
+        +FromRGBf(r, g, b float64) RGB
+    }
+
+    %% =============================================
+    %% CORE ENGINE - Generic Types
+    %% =============================================
+
+    class Area~T~ {
+        +T X
+        +T Y
+        +T W
+        +T H
+        +Size() T
+        +WithX(x T) Area~T~
+        +WithY(y T) Area~T~
+        +WithW(w T) Area~T~
+        +WithH(h T) Area~T~
+        +MovedBy(dx, dy T) Area~T~
+        +ClippedBy(clip Area~T~) Area~T~
+        +Contains(x, y T) bool
+    }
+
+    class IntArea {
+        <<alias>>
+    }
+    IntArea --|> Area~int~
+
+    class Surface~T~ {
+        -[]T data
+        -int width
+        -int height
+        +W() int
+        +H() int
+        +Set(x, y int, value T)
+        +Get(x, y int) T
+        +SetArea(area IntArea, values ...T)
+        +Clone() Surface~T~
+        +CloneArea(area IntArea) Surface~T~
+        +Clear(v T)
+        +LinesIterator(area IntArea) iter.Seq2
+    }
+
+    class Canvas {
+        <<alias: Surface~Color~>>
+    }
+    Canvas --|> Surface~Color~
+
+    %% =============================================
+    %% CORE ENGINE - Sprite System
+    %% =============================================
+
+    class Sprite {
+        +Area[int] Area
+        +Source Canvas
+        +FlipX bool
+        +FlipY bool
+        +WithFlipX(flip bool) Sprite
+        +WithFlipY(flip bool) Sprite
+        +WithSize(w, h int) Sprite
+        +WithSizeScaled(w, h float64) Sprite
+        +WithSource(source Canvas) Sprite
+    }
+
+    Sprite --> Canvas : source
+    Sprite --|> Area[int] : embeds
+
+    %% =============================================
+    %% CORE ENGINE - Color System
+    %% =============================================
+
+    class PaletteArray {
+        +[64]RGB entries
+        +String() string
+        +DecodePalette(pngFile []byte) PaletteArray
+        +DecodePaletteOrErr(pngFile []byte) (PaletteArray, error)
+    }
+
+    class ColorTable {
+        +[64][64]Color mapping
+        +String() string
+    }
+
+    class PaletteMap {
+        +[64]Color entries
+        +String() string
+    }
+
+    PaletteArray o-- RGB : contains 64
+    ColorTable --> Color : maps
+    PaletteMap --> Color : maps
+
+    class Palette {
+        <<global>>
+        PaletteArray
+    }
+    Palette ..> PaletteArray : instance
+
+    class ColorTables {
+        <<global>>
+        [4]ColorTable
+    }
+    ColorTables ..> ColorTable : contains
+
+    %% =============================================
+    %% CORE ENGINE - Game Functions
+    %% =============================================
+
+    class GameState {
+        <<global variables>>
+        +Frame int
+        +Time float64
+        +Camera Position
+        +drawColor Color
+        +drawTarget Canvas
+        +clip IntArea
+    }
+
+    GameState --> Position
+    GameState --> Canvas
+    GameState --> Color
+
+    class GameFunctions {
+        <<global function variables>>
+        +Update func()
+        +Draw func()
+        +Init func()
+    }
+
+    class CoreFunctions {
+        <<engine API>>
+        +SetTPS(tps int) int
+        +TPS() int
+        +SetDrawTarget(c Canvas) Canvas
+        +DrawTarget() Canvas
+        +SetColor(c Color) Color
+        +GetColor() Color
+        +SetClip(area IntArea) IntArea
+        +Clip() IntArea
+        +SetPixel(x, y int)
+        +GetPixel(x, y int) Color
+        +Rect(x0, y0, x1, y1 int)
+        +RectFill(x0, y0, x1, y1 int)
+        +Line(x0, y0, x1, y1 int)
+        +Circ(cx, cy, r int)
+        +CircFill(cx, cy, r int)
+        +Screen() Canvas
+        +SetScreenSize(width, height int)
+        +Cls()
+    }
+
+    CoreFunctions ..> Canvas : operates on
+    CoreFunctions ..> Color : uses
+    CoreFunctions ..> IntArea : uses
+
+    %% =============================================
+    %% EVENT SYSTEM - Observer Pattern
+    %% =============================================
+
+    class Target~T~ {
+        <<interface>>
+        +Publish(event T)
+        +Subscribe(event T, f func(T, Handler)) Handler
+        +SubscribeAll(listener func(T, Handler)) Handler
+        +Unsubscribe(handler Handler)
+        +IsSubscribed(handler Handler) bool
+        +SetTracing(enabled bool)
+    }
+
+    class Handler {
+        <<type>>
+        int
+    }
+
+    class target~T~ {
+        <<private>>
+        -handlers []eventHandler~T~
+        -tracing bool
+        -lastID Handler
+    }
+
+    class TrackingTarget~T~ {
+        -wrappedTarget Target~T~
+        -handlers []Handler
+        +Publish(event T)
+        +Subscribe(event T, f func(T, Handler)) Handler
+        +SubscribeAll(listener func(T, Handler)) Handler
+        +UnsubscribeAll()
+    }
+
+    Target~T~ <|.. target~T~ : implements
+    Target~T~ <|.. TrackingTarget~T~ : implements
+    TrackingTarget~T~ o-- Target~T~ : wraps
+    target~T~ *-- eventHandler~T~ : contains
+
+    class eventHandler~T~ {
+        <<private>>
+        -id Handler
+        -fileLoc string
+        -f func(T, Handler)
+    }
+    eventHandler~T~ --> Handler : identified by
+
+    %% =============================================
+    %% AUDIO SYSTEM
+    %% =============================================
+
+    class Sample {
+        -[]int8 data
+        -uint16 sampleRate
+        +Data() []int8
+        +Len() int
+        +SampleRate() uint16
+    }
+
+    class LoopType {
+        <<enumeration>>
+        "none"
+        "forward"
+    }
+
+    class BackendInterface {
+        <<interface>>
+        +LoadSample(sample *Sample)
+        +UnloadSample(sample *Sample)
+        +SetSample(ch Chan, sample *Sample, offset int, delay float64)
+        +SetLoop(ch Chan, start int, length int, loopType LoopType, delay float64)
+        +SetPitch(ch Chan, pitch float64, delay float64)
+        +SetVolume(ch Chan, vol float64, delay float64)
+        +ClearChan(ch Chan, delay float64)
+    }
+
+    class panicBackend {
+        <<implements BackendInterface>>
+    }
+
+    BackendInterface <|.. panicBackend
+
+    class AudioFunctions {
+        <<global>>
+        +LoadSample(sample *Sample)
+        +Play(ch Chan, sample *Sample, pitch, vol float64)
+        +SetPitch(ch Chan, pitch float64, delay float64)
+        +SetVolume(ch Chan, vol float64, delay float64)
+        +Time float64
+    }
+
+    AudioFunctions ..> BackendInterface : uses
+
+    class Chan {
+        <<type alias>>
+        uint8
+        Chan1 = 1
+        Chan2 = 2
+        Chan3 = 4
+        Chan4 = 8
+    }
+
+    AudioFunctions ..> Sample : uses
+
+    %% =============================================
+    %% INPUT SYSTEM
+    %% =============================================
+
+    class State~T~ {
+        <<generic>>
+        -duration map[T]int
+        -downFrame map[T]int
+        -upFrame map[T]int
+        +SetDownFrame(key T, frame int)
+        +SetUpFrame(key T, frame int)
+        +Duration(key T) int
+    }
+
+    class Key {
+        <<type>>
+        string
+        75 constants
+    }
+
+    class Button {
+        <<type>>
+        string
+        Left, Right
+    }
+
+    class PadButton {
+        <<type>>
+        string
+        Left, Right, Top, Bottom, A, B, X, Y
+    }
+
+    class InputFunctions {
+        <<global>>
+        +Duration(k Key) int
+    }
+    InputFunctions ..> State~Key~ : uses
+
+    %% =============================================
+    %% GUI SYSTEM
+    %% =============================================
+
+    class Element {
+        +Area[int] Area
+        +OnDraw func(DrawEvent)
+        +OnUpdate func(UpdateEvent)
+        +OnPress func(Event)
+        +OnRelease func(Event)
+        +OnTap func(Event)
+        -[]*Element children
+        -bool pressed
+        +Attach(child *Element) *Element
+        +Detach(child *Element)
+        +Update()
+        +Draw()
+    }
+
+    Element *-- Element : children 0..*
+
+    class Event {
+        +Element *Element
+        +HasPointer bool
+    }
+
+    class UpdateEvent {
+        +Element *Element
+        +HasPointer bool
+        +StopPropagation()
+    }
+
+    class DrawEvent {
+        +Element *Element
+        +HasPointer bool
+        +Pressed bool
+        +StopPropagation()
+    }
+
+    UpdateEvent --|> Event : extends
+    DrawEvent --|> Event : extends
+
+    class GUIFunctions {
+        +New() *Element
+        +Attach(parent *Element, x, y, w, h int) *Element
+    }
+    GUIFunctions ..> Element : creates
+
+    %% =============================================
+    %% FONT SYSTEM
+    %% =============================================
+
+    class Sheet {
+        -map[rune]Sprite Chars
+        -int Height
+        -Color FgColor
+        -Color BgColor
+        -Canvas intermediateCanvas
+        +Print(str string, x, y int) (int, int)
+        +PrintOriginal(str string, x, y int) (int, int)
+        +PrintStroked(text string, x, y int, fgColor, strokeColor Color) (int, int)
+        +Size(text string) (width, height int)
+    }
+
+    Sheet --> Sprite : contains chars
+    Sheet --> Canvas : uses
+
+    %% =============================================
+    %% BACKEND SYSTEM
+    %% =============================================
+
+    class Audio {
+        <<interface>>
+        +OnBeforeUpdate()
+        +OnAfterUpdate()
+    }
+
+    class EbitenBackend {
+        <<global functions>>
+        +Run()
+        +RunOrErr() error
+        +CopyCanvasToEbitenImage(canvas Canvas, dst *ebiten.Image)
+        +StartAudioBackend(ctx *ebitenaudio.Context) Audio
+        +RememberWindow bool
+    }
+
+    EbitenBackend ..> Canvas : renders
+    EbitenBackend ..> Audio : creates
+    Audio <|.. EbitenBackend
+
+    %% =============================================
+    %% RELATIONSHIP TYPES LEGEND
+    %% =============================================
+
+    class Legend {
+        <<note>>
+    }
+    Legend : <|-- Inheritance
+    Legend : *-- Composition
+    Legend : o-- Aggregation
+    Legend : --> Association
+    Legend : ..> Dependency
+    Legend : ..|> Realization
+```

@@ -2,7 +2,7 @@ package pixelforge_test
 
 import (
 	_ "embed"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_test"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_test_helpers"
 	"github.com/stretchr/testify/require"
 	"math/rand"
 	"testing"
@@ -45,7 +45,7 @@ func TestDecodeCanvasOrErr(t *testing.T) {
 				8, 9, 10, 11,
 				12, 13, 14, 15,
 			)
-			pitest.AssertSurfaceEqual(t, expected, canvas)
+			pixelforge_test_helpers.AssertSurfaceEqual(t, expected, canvas)
 		})
 	}
 }
@@ -98,7 +98,7 @@ func TestSurface_SetArea(t *testing.T) {
 		expected.SetMany(1, 1, 'a', 'b')
 		expected.SetMany(1, 2, 'c', 'd')
 
-		pitest.AssertSurfaceEqual(t, expected, surface)
+		pixelforge_test_helpers.AssertSurfaceEqual(t, expected, surface)
 	})
 
 	t.Run("clipped area", func(t *testing.T) {
@@ -115,7 +115,7 @@ func TestSurface_SetArea(t *testing.T) {
 		expected.SetMany(0, 0, 'e', 'f')
 		expected.SetMany(0, 1, 'h', 'i')
 
-		pitest.AssertSurfaceEqual(t, expected, surface)
+		pixelforge_test_helpers.AssertSurfaceEqual(t, expected, surface)
 	})
 
 	t.Run("area outside surface", func(t *testing.T) {
@@ -127,7 +127,7 @@ func TestSurface_SetArea(t *testing.T) {
 			'a', 'b',
 			'c', 'd')
 		// then
-		pitest.AssertSurfaceEqual(t, original, surface)
+		pixelforge_test_helpers.AssertSurfaceEqual(t, original, surface)
 	})
 
 	t.Run("panic on too few values", func(t *testing.T) {
@@ -170,7 +170,7 @@ func TestSurface_SetSurface(t *testing.T) {
 		expected := pixelforge.NewSurface[rune](4, 4)
 		expected.SetMany(1, 1, 'a', 'b')
 		expected.SetMany(1, 2, 'c', 'd')
-		pitest.AssertSurfaceEqual(t, expected, dst)
+		pixelforge_test_helpers.AssertSurfaceEqual(t, expected, dst)
 	})
 
 	t.Run("partially outside top-left", func(t *testing.T) {
@@ -180,7 +180,7 @@ func TestSurface_SetSurface(t *testing.T) {
 		// then
 		expected := pixelforge.NewSurface[rune](4, 4)
 		expected.Set(0, 0, 'd')
-		pitest.AssertSurfaceEqual(t, expected, dst)
+		pixelforge_test_helpers.AssertSurfaceEqual(t, expected, dst)
 	})
 
 	t.Run("partially outside bottom-right", func(t *testing.T) {
@@ -190,7 +190,7 @@ func TestSurface_SetSurface(t *testing.T) {
 		// then
 		expected := pixelforge.NewSurface[rune](4, 4)
 		expected.Set(3, 3, 'a')
-		pitest.AssertSurfaceEqual(t, expected, dst)
+		pixelforge_test_helpers.AssertSurfaceEqual(t, expected, dst)
 	})
 
 	t.Run("completely outside", func(t *testing.T) {
@@ -199,7 +199,7 @@ func TestSurface_SetSurface(t *testing.T) {
 		dst.SetSurface(4, 4, src)
 		// then
 		expected := pixelforge.NewSurface[rune](4, 4)
-		pitest.AssertSurfaceEqual(t, expected, dst)
+		pixelforge_test_helpers.AssertSurfaceEqual(t, expected, dst)
 	})
 }
 
@@ -273,7 +273,7 @@ func TestSurface_SetMany(t *testing.T) {
 		expected.Set(0, 1, 'c')
 		expected.Set(1, 1, 'd')
 
-		pitest.AssertSurfaceEqual(t, expected, surface)
+		pixelforge_test_helpers.AssertSurfaceEqual(t, expected, surface)
 	})
 
 	t.Run("partially outside left", func(t *testing.T) {
@@ -285,7 +285,7 @@ func TestSurface_SetMany(t *testing.T) {
 		expected.Set(0, 0, 'b')
 		expected.Set(1, 0, 'c')
 
-		pitest.AssertSurfaceEqual(t, expected, surface)
+		pixelforge_test_helpers.AssertSurfaceEqual(t, expected, surface)
 	})
 
 	t.Run("partially outside top", func(t *testing.T) {
@@ -296,7 +296,7 @@ func TestSurface_SetMany(t *testing.T) {
 		expected := pixelforge.NewSurface[rune](2, 2)
 		expected.Set(0, 0, 'c')
 
-		pitest.AssertSurfaceEqual(t, expected, surface)
+		pixelforge_test_helpers.AssertSurfaceEqual(t, expected, surface)
 	})
 
 	t.Run("start far left with too few values", func(t *testing.T) {
@@ -305,7 +305,7 @@ func TestSurface_SetMany(t *testing.T) {
 		// when
 		surface.SetMany(-3, 0, 'a')
 		// then
-		pitest.AssertSurfaceEqual(t, original, surface)
+		pixelforge_test_helpers.AssertSurfaceEqual(t, original, surface)
 	})
 
 	t.Run("outside bottom-right", func(t *testing.T) {
@@ -314,7 +314,7 @@ func TestSurface_SetMany(t *testing.T) {
 		// when
 		surface.SetMany(2, 2, 'a', 'b')
 		// then
-		pitest.AssertSurfaceEqual(t, original, surface)
+		pixelforge_test_helpers.AssertSurfaceEqual(t, original, surface)
 	})
 
 	t.Run("truncate at surface end", func(t *testing.T) {
@@ -325,7 +325,7 @@ func TestSurface_SetMany(t *testing.T) {
 		expected := pixelforge.NewSurface[rune](2, 2)
 		expected.Set(1, 1, 'a')
 
-		pitest.AssertSurfaceEqual(t, expected, surface)
+		pixelforge_test_helpers.AssertSurfaceEqual(t, expected, surface)
 	})
 }
 

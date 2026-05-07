@@ -1,0 +1,69 @@
+```mermaid
+sequenceDiagram
+
+    %% =============================================
+    %% PIXELFORGE - Event System & Dev Tools Sequence
+    %% =============================================
+
+    title Event System & Developer Tools
+
+    participant SubSystem as "Subsystem"
+    participant Event as "pixelforge_event"
+    participant GameCode as "Game Code"
+    participant Piscope as "piscope"
+    participant Pistat as "pistat"
+    participant Pisnap as "pisnap"
+
+    rect rgb(240, 230, 250)
+        Note over SubSystem,Pisnap: ZERO-ALLOCATION EVENT DISPATCH
+    end
+
+    SubSystem->>Event: Publish(TickEvent, data)
+    Event-->>Event: Acquire pre-allocated slice
+    loop For each subscriber
+        Event->>GameCode: Callback(event)
+    end
+    Event-->>Event: Release slice (no heap alloc)
+
+    Note over Event: 18.76 ns/op
+    Note over Event: 0 allocations
+
+    rect rgb(250, 240, 220)
+        Note over SubSystem,Pisnap: PISCOPE FRAME DEBUGGER
+    end
+
+    Piscope->>Piscope: Start()
+    Piscope->>Piscope: Register shortcuts
+
+    GameCode->>Piscope: Ctrl+Shift+I
+    Piscope->>Piscope: Toggle overlay
+
+    loop Debug Mode
+        Piscope->>GameCode: Pause Update dispatch
+        User->>Piscope: Step command
+        Piscope->>GameCode: Single Update()
+        Piscope->>GameCode: Draw() only
+        Piscope->>Piscope: Render to overlay
+    end
+
+    rect rgb(220, 250, 250)
+        Note over SubSystem,Pisnap: PISTAT PERFORMANCE MONITOR
+    end
+
+    Pistat->>Pistat: Start()
+    loop Every 500ms
+        Pistat->>Pistat: Read CPU via gopsutil
+        Pistat->>Pistat: Read memory via gopsutil
+        Pistat->>Pistat: Update overlay
+    end
+
+    rect rgb(250, 220, 230)
+        Note over SubSystem,Pisnap: PISNAP SCREENSHOT
+    end
+
+    GameCode->>Pisnap: Capture()
+    Pisnap->>Pisnap: Read canvas pixels
+    Pisnap->>Pisnap: Encode paletted PNG
+    Pisnap->>Pisnap: Save to filesystem
+    Pisnap-->>GameCode: filepath
+```

@@ -1,0 +1,13 @@
+flowchart TD
+    P[Pixel Value Color uint8] -->|bits 0-5| Pal[Palette Array 64RGB]
+    P -->|bits 6-7| CT[Color Table Index]
+    CT -->|0 Normal| T0[ColorTable 0 Transparency handling]
+    CT -->|1 Remap A| T1[ColorTable 1]
+    CT -->|2 Remap B| T2[ColorTable 2]
+    CT -->|3 Remap C| T3[ColorTable 3]
+    T0 -->|Lookup| Out[Output RGBA for Ebitengine]
+    T1 -->|Lookup| Out
+    T2 -->|Lookup| Out
+    T3 -->|Lookup| Out
+    Pal -->|RGB lookup| Out
+    T0 -->|if tableIndex==0 && outputColor==0| Skip[Skip pixel transparent]

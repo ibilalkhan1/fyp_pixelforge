@@ -1,0 +1,26 @@
+classDiagram
+    class Surface~T any~ {
+        -data []T
+        -width int
+        -height int
+        +New w int, h int *Surface~T~
+        +Width int
+        +Height int
+        +Set x int, y int, v T
+        +Get x int, y int T
+        +Fill v T
+    }
+
+    class Canvas {
+        <<alias SurfaceColor>>
+    }
+
+    class Sprite {
+        +Area Areaint
+        +Source Canvas
+        +FlipX bool
+        +FlipY bool
+    }
+
+    Surface~T~ --> Sprite
+    Canvas --|> Surface~Color~

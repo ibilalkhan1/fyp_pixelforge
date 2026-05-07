@@ -1,0 +1,36 @@
+erDiagram
+    CANVAS {
+        int width PK
+        int height
+        slice_Color data
+    }
+    SPRITE {
+        int X
+        int Y
+        int W
+        int H
+        Canvas source
+        bool FlipX
+        bool FlipY
+    }
+    SAMPLE {
+        slice_int8 data
+        uint16 sampleRate
+        int length
+    }
+    FONT-SHEET {
+        map_rune_Sprite chars
+        int height
+        Color fgColor
+        Color bgColor
+    }
+    PALETTE {
+        array_64_RGB colors
+    }
+    COLOR-TABLE {
+        array_64_64_Color tables
+    }
+
+    CANVAS 1--o{ SPRITE : sprites reference
+    FONT-SHEET 1--o{ SPRITE : chars reference
+    PALETTE 1--1 COLOR-TABLE : indexed by bits 6-7

@@ -1,0 +1,159 @@
+```mermaid
+erDiagram
+
+    %% =============================================
+    %% PIXELFORGE - Entity Relationship Diagram
+    %% =============================================
+
+    title Pixelforge Game Engine - Data Model
+
+    direction TB
+
+    %% =============================================
+    %% CORE ENGINE ENTITIES
+    %% =============================================
+
+    CANVAS ||--o{ SPRITE : contains
+    CANVAS {
+        Color array pixels
+        int width
+        int height
+    }
+
+    SPRITE }o--|| CANVAS : references
+    SPRITE {
+        IntArea region
+        Canvas source
+        bool flipX
+        bool flipY
+    }
+
+    PALETTE ||--o{ COLOR : maps
+    PALETTE {
+        RGB array entries
+    }
+
+    COLOR_TABLE ||--o{ COLOR : remaps
+    COLOR_TABLE {
+        Color array mapping
+    }
+
+    %% =============================================
+    %% GAME STATE ENTITIES
+    %% =============================================
+
+    GAME_STATE ||--|| CANVAS : renders_to
+    GAME_STATE {
+        int frame
+        float64 time
+        Position camera
+        Color drawColor
+        IntArea clip
+    }
+
+    INPUT_STATE ||--o{ KEY_EVENT : tracks
+    INPUT_STATE {
+        map Key duration
+        Position mousePos
+        Position mouseDelta
+        map Button mouseDuration
+        map int padState
+    }
+
+    KEY_EVENT }o--|| KEY : references
+    KEY_EVENT {
+        EventType type
+        Key key
+    }
+
+    %% =============================================
+    %% AUDIO ENTITIES
+    %% =============================================
+
+    AUDIO_MIXER ||--|| SAMPLE : loads
+    AUDIO_MIXER ||--|{ AUDIO_CHANNEL : controls
+    AUDIO_MIXER {
+        Sample loadedSample
+        float64 time
+    }
+
+    AUDIO_CHANNEL ||--o{ SAMPLE : plays
+    AUDIO_CHANNEL {
+        Chan id
+        float pitch
+        float volume
+        float pan
+        bool loop
+    }
+
+    AUDIO_COMMAND ||--|| AUDIO_CHANNEL : targets
+    AUDIO_COMMAND {
+        CommandType type
+        float delay
+    }
+
+    %% =============================================
+    %% GUI ENTITIES
+    %% =============================================
+
+    GUI_ELEMENT ||--o{ GUI_ELEMENT : parents
+    GUI_ELEMENT {
+        IntArea bounds
+        func OnDraw
+        func OnUpdate
+        func OnPress
+        func OnRelease
+        func OnTap
+    }
+
+    GUI_EVENT ||--|| GUI_ELEMENT : originates_from
+    GUI_EVENT {
+        Element element
+        bool hasPointer
+    }
+
+    %% =============================================
+    %% EXAMPLE GAME ENTITIES
+    %% =============================================
+
+    SNAKE_GAME ||--|| SNAKE : manages
+    SNAKE_GAME ||--o{ FOOD : spawns
+    SNAKE_GAME ||--|| DIRECTION : uses
+    SNAKE_GAME {
+        int score
+    }
+
+    SNAKE ||--o{ POSITION : segments
+    SNAKE {
+        int length
+    }
+
+    FOOD ||--|| POSITION : location
+    FOOD {
+        bool active
+    }
+
+    POSITION {
+        int x
+        int y
+    }
+
+    %% =============================================
+    %% KEY CONSTANTS
+    %% =============================================
+
+    KEY {
+        string value
+        "A" "B" ... "Space" "Enter"
+    }
+
+    BUTTON {
+        string value
+        "Left" "Right" "A" "B" "X" "Y"
+    }
+
+    CHAN {
+        uint8 value
+        "1" "2" "4" "8"
+    }
+```

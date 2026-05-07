@@ -1,6 +1,6 @@
 //go:build !js
 
-package pisnap_test
+package pixelforge_snap_test
 
 import (
 	"bytes"
@@ -17,7 +17,7 @@ import (
 
 func TestCaptureOrErr(t *testing.T) {
 	// when
-	file, err := pisnap.CaptureOrErr()
+	file, err := pixelforge_snap.CaptureOrErr()
 	// then
 	require.NoError(t, err)
 	assert.NotEmpty(t, file)

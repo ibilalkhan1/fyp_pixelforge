@@ -14,13 +14,13 @@ func SetScreenSnapshotHistorySize(historySize int) {
 }
 
 func newScreenRecorder(historySize int) *screenRecorder {
-	buffer := piring.NewBuffer[screenSnapshot](historySize)
+	buffer := pixelforge_ring.NewBuffer[screenSnapshot](historySize)
 
 	return &screenRecorder{snapshots: buffer}
 }
 
 type screenRecorder struct {
-	snapshots *piring.Buffer[screenSnapshot]
+	snapshots *pixelforge_ring.Buffer[screenSnapshot]
 	shift     int // which element from the end is currently selected
 }
 

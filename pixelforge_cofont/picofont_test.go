@@ -7,7 +7,7 @@ import (
 
 	"github.com/ibilalkhan1/fyp_pixelforge"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_cofont"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_test"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_test_helpers"
 )
 
 //go:embed "font.png"
@@ -39,8 +39,8 @@ func TestPrint(t *testing.T) {
 		}
 		pixelforge.SetColor(1)
 		// when
-		picofont.Print(table.String(), 0, 8)
+		pixelforge_cofont.Print(table.String(), 0, 8)
 		// then
-		pitest.AssertSurfaceEqual(t, canvas, pixelforge.Screen())
+		pixelforge_test_helpers.AssertSurfaceEqual(t, canvas, pixelforge.Screen())
 	})
 }

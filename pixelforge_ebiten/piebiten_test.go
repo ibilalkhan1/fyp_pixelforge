@@ -5,10 +5,10 @@ package pixelforge_ebiten_test
 import (
 	"testing"
 
+	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/ibilalkhan1/fyp_pixelforge"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten/internal/ebitentesting"
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -31,7 +31,7 @@ func TestCopyCanvasToEbitenImage(t *testing.T) {
 		)
 		img := ebiten.NewImage(3, 2)
 		// when
-		piebiten.CopyCanvasToEbitenImage(canvas, img)
+		pixelforge_ebiten.CopyCanvasToEbitenImage(canvas, img)
 		// then
 		bounds := img.Bounds()
 		out := make([]byte, bounds.Dx()*bounds.Dy()*4)
@@ -51,7 +51,7 @@ func TestCopyCanvasToEbitenImage(t *testing.T) {
 		pixelforge.PaletteMapping[0] = 1 // map 0 to 1 (0x000000 to 0xFFFFFF)
 		img := ebiten.NewImage(1, 1)
 		// when
-		piebiten.CopyCanvasToEbitenImage(canvas, img)
+		pixelforge_ebiten.CopyCanvasToEbitenImage(canvas, img)
 		// then
 		bounds := img.Bounds()
 		out := make([]byte, bounds.Dx()*bounds.Dy()*4)

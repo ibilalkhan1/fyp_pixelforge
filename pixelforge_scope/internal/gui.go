@@ -6,9 +6,9 @@ import (
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_gui"
 )
 
-func attachToolbar(parent *pigui.Element) *pigui.Element {
-	toolbar := pigui.Attach(parent, 0, pixelforge.Screen().H()-9, pixelforge.Screen().W(), 9)
-	toolbar.OnDraw = func(event pigui.DrawEvent) {
+func attachToolbar(parent *pixelforge_gui.Element) *pixelforge_gui.Element {
+	toolbar := pixelforge_gui.Attach(parent, 0, pixelforge.Screen().H()-9, pixelforge.Screen().W(), 9)
+	toolbar.OnDraw = func(event pixelforge_gui.DrawEvent) {
 		prev := pixelforge.SetColor(*bgColor)
 		defer pixelforge.SetColor(prev)
 		pixelforge.RectFill(0, 0, toolbar.W, toolbar.H)
@@ -21,15 +21,15 @@ func attachToolbar(parent *pigui.Element) *pigui.Element {
 	// attachIconButton(toolbar, icons.Paint, 32) // icon hidden until implemented
 
 	snap := attachIconButton(toolbar, icons.Snap, pixelforge.Screen().W()-34)
-	snap.OnTap = func(event pigui.Event) {
+	snap.OnTap = func(event pixelforge_gui.Event) {
 		captureSnapshot()
 	}
 
 	prev := attachIconButton(toolbar, icons.Prev, pixelforge.Screen().W()-24)
-	prev.OnTap = func(event pigui.Event) {
+	prev.OnTap = func(event pixelforge_gui.Event) {
 		showPrevSnapshot()
 	}
-	prev.OnUpdate = func(pigui.UpdateEvent) {
+	prev.OnUpdate = func(pixelforge_gui.UpdateEvent) {
 		if theScreenRecorder.HasPrev() {
 			prev.Icon = icons.Prev
 		} else {
@@ -38,11 +38,11 @@ func attachToolbar(parent *pigui.Element) *pigui.Element {
 	}
 
 	playPause := attachIconButton(toolbar, icons.Pause, pixelforge.Screen().W()-19)
-	playPause.OnTap = func(pigui.Event) {
+	playPause.OnTap = func(pixelforge_gui.Event) {
 		pauseOrResume()
 	}
-	playPause.OnUpdate = func(pigui.UpdateEvent) {
-		if pidebug.Paused() {
+	playPause.OnUpdate = func(pixelforge_gui.UpdateEvent) {
+		if pixelforge_debug.Paused() {
 			playPause.Icon = icons.Pause
 		} else {
 			playPause.Icon = icons.Play
@@ -50,12 +50,12 @@ func attachToolbar(parent *pigui.Element) *pigui.Element {
 	}
 
 	next := attachIconButton(toolbar, icons.Next, pixelforge.Screen().W()-14)
-	next.OnTap = func(event pigui.Event) {
+	next.OnTap = func(event pixelforge_gui.Event) {
 		showNextSnapshot()
 	}
 
 	exit := attachIconButton(toolbar, icons.Exit, pixelforge.Screen().W()-8)
-	exit.OnTap = func(event pigui.Event) {
+	exit.OnTap = func(event pixelforge_gui.Event) {
 		exitConsoleMode()
 	}
 
@@ -63,15 +63,15 @@ func attachToolbar(parent *pigui.Element) *pigui.Element {
 }
 
 type IconButton struct {
-	*pigui.Element
+	*pixelforge_gui.Element
 
 	Icon pixelforge.Sprite
 }
 
-func attachIconButton(parent *pigui.Element, icon pixelforge.Sprite, x int) *IconButton {
-	btn := pigui.Attach(parent, x, 0, icon.W, icon.H+1)
+func attachIconButton(parent *pixelforge_gui.Element, icon pixelforge.Sprite, x int) *IconButton {
+	btn := pixelforge_gui.Attach(parent, x, 0, icon.W, icon.H+1)
 	iconBtn := &IconButton{Icon: icon, Element: btn}
-	btn.OnDraw = func(event pigui.DrawEvent) {
+	btn.OnDraw = func(event pixelforge_gui.DrawEvent) {
 		y := 0
 		if event.Pressed {
 			y = 1

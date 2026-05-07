@@ -10,10 +10,10 @@ import (
 )
 
 func TestPiroutine(t *testing.T) {
-	r := piroutine.New(
-		piroutine.Wait(2),
-		piroutine.Printf("abc"),
-		piroutine.Wait(5),
+	r := pixelforge_routine.New(
+		pixelforge_routine.Wait(2),
+		pixelforge_routine.Printf("abc"),
+		pixelforge_routine.Wait(5),
 	)
 	r.SetTracing(true)
 	for r.Resume() {
@@ -22,7 +22,7 @@ func TestPiroutine(t *testing.T) {
 
 func TestRoutine_Resume(t *testing.T) {
 	t.Run("empty routine", func(t *testing.T) {
-		routine := piroutine.New()
+		routine := pixelforge_routine.New()
 		assert.False(t, routine.Resume())
 	})
 
@@ -32,13 +32,13 @@ func TestRoutine_Resume(t *testing.T) {
 			stepExecuted = true
 			return true // finish immediately
 		}
-		routine := piroutine.New(step)
+		routine := pixelforge_routine.New(step)
 		assert.False(t, routine.Resume()) // finished
 		assert.True(t, stepExecuted)
 	})
 
 	t.Run("wait step", func(t *testing.T) {
-		routine := piroutine.New(piroutine.Wait(1))
+		routine := pixelforge_routine.New(pixelforge_routine.Wait(1))
 		assert.True(t, routine.Resume())  // not yet finished
 		assert.False(t, routine.Resume()) // finished
 		assert.False(t, routine.Resume()) // nothing changed
@@ -48,7 +48,7 @@ func TestRoutine_Resume(t *testing.T) {
 func TestCall(t *testing.T) {
 	t.Run("should call callback", func(t *testing.T) {
 		var executed = false
-		step := piroutine.Call(func() {
+		step := pixelforge_routine.Call(func() {
 			executed = true
 		})
 		// when
@@ -62,7 +62,7 @@ func TestCall(t *testing.T) {
 func TestSlowDown(t *testing.T) {
 	t.Run("should wait n updates before running callback", func(t *testing.T) {
 		executionCount := 0
-		step := piroutine.SlowDown(2, func() bool {
+		step := pixelforge_routine.SlowDown(2, func() bool {
 			executionCount++
 			return true
 		})
@@ -76,7 +76,7 @@ func TestSlowDown(t *testing.T) {
 
 	t.Run("should immediately run callback", func(t *testing.T) {
 		executionCount := 0
-		step := piroutine.SlowDown(0, func() bool {
+		step := pixelforge_routine.SlowDown(0, func() bool {
 			executionCount++
 			return true
 		})
@@ -86,7 +86,7 @@ func TestSlowDown(t *testing.T) {
 
 	t.Run("should wait another n updates after callback returned false", func(t *testing.T) {
 		executionCount := 0
-		step := piroutine.SlowDown(3, func() bool {
+		step := pixelforge_routine.SlowDown(3, func() bool {
 			executionCount++
 			return executionCount%2 == 0
 		})
@@ -109,13 +109,13 @@ func TestRoutine_ScheduleOn(t *testing.T) {
 			executionCount++
 			return true
 		}
-		routine := piroutine.New(step)
+		routine := pixelforge_routine.New(step)
 		// when
-		handler := routine.ScheduleOn(piloop.EventDraw)
+		handler := routine.ScheduleOn(pixelforge_loop.EventDraw)
 		// then
-		require.True(t, piloop.Target().IsSubscribed(handler))
-		piloop.Target().Publish(piloop.EventDraw) // runs callback and unsubscribes handlers
+		require.True(t, pixelforge_loop.Target().IsSubscribed(handler))
+		pixelforge_loop.Target().Publish(pixelforge_loop.EventDraw) // runs callback and unsubscribes handlers
 		assert.Equal(t, 1, executionCount)
-		assert.False(t, piloop.Target().IsSubscribed(handler))
+		assert.False(t, pixelforge_loop.Target().IsSubscribed(handler))
 	})
 }

@@ -9,13 +9,13 @@ import (
 
 func TestBuffer(t *testing.T) {
 	t.Run("not found", func(t *testing.T) {
-		buffer := piring.NewBuffer[int](4)
+		buffer := pixelforge_ring.NewBuffer[int](4)
 		assert.Equal(t, 0, buffer.Len())
 		assert.Zero(t, *buffer.PointerTo(0))
 	})
 
 	t.Run("no cycle", func(t *testing.T) {
-		buffer := piring.NewBuffer[int](3)
+		buffer := pixelforge_ring.NewBuffer[int](3)
 		*buffer.NextWritePointer() = 0
 		*buffer.NextWritePointer() = 1
 		*buffer.NextWritePointer() = 2
@@ -28,7 +28,7 @@ func TestBuffer(t *testing.T) {
 	})
 
 	t.Run("cycle", func(t *testing.T) {
-		buffer := piring.NewBuffer[int](2)
+		buffer := pixelforge_ring.NewBuffer[int](2)
 		*buffer.NextWritePointer() = 0
 		*buffer.NextWritePointer() = 1
 		*buffer.NextWritePointer() = 2
@@ -40,7 +40,7 @@ func TestBuffer(t *testing.T) {
 	})
 
 	t.Run("two cycles", func(t *testing.T) {
-		buffer := piring.NewBuffer[int](2)
+		buffer := pixelforge_ring.NewBuffer[int](2)
 		*buffer.NextWritePointer() = 0
 		*buffer.NextWritePointer() = 1
 		*buffer.NextWritePointer() = 2
@@ -54,7 +54,7 @@ func TestBuffer(t *testing.T) {
 	})
 
 	t.Run("out of range for filled buffer", func(t *testing.T) {
-		buffer := piring.NewBuffer[int](3)
+		buffer := pixelforge_ring.NewBuffer[int](3)
 		for i := 0; i < buffer.Cap(); i++ {
 			*buffer.NextWritePointer() = i
 		}
@@ -64,7 +64,7 @@ func TestBuffer(t *testing.T) {
 	})
 
 	t.Run("out of range for half-empty buffer", func(t *testing.T) {
-		buffer := piring.NewBuffer[int](4)
+		buffer := pixelforge_ring.NewBuffer[int](4)
 		*buffer.NextWritePointer() = 10
 		*buffer.NextWritePointer() = 20
 
@@ -74,7 +74,7 @@ func TestBuffer(t *testing.T) {
 	})
 
 	t.Run("out of range for overfilled buffer", func(t *testing.T) {
-		buffer := piring.NewBuffer[int](2)
+		buffer := pixelforge_ring.NewBuffer[int](2)
 		*buffer.NextWritePointer() = 0
 		*buffer.NextWritePointer() = 1
 		*buffer.NextWritePointer() = 2
@@ -84,7 +84,7 @@ func TestBuffer(t *testing.T) {
 	})
 
 	t.Run("out of range, far away", func(t *testing.T) {
-		buffer := piring.NewBuffer[int](2)
+		buffer := pixelforge_ring.NewBuffer[int](2)
 		*buffer.NextWritePointer() = 0
 		*buffer.NextWritePointer() = 1
 
@@ -93,7 +93,7 @@ func TestBuffer(t *testing.T) {
 	})
 
 	t.Run("negative index equal to -Cap()", func(t *testing.T) {
-		buffer := piring.NewBuffer[int](2)
+		buffer := pixelforge_ring.NewBuffer[int](2)
 		*buffer.NextWritePointer() = 0
 		*buffer.NextWritePointer() = 1
 
@@ -101,7 +101,7 @@ func TestBuffer(t *testing.T) {
 	})
 }
 
-func assertHas[T any](t *testing.T, buffer *piring.Buffer[T], index int, value T) {
+func assertHas[T any](t *testing.T, buffer *pixelforge_ring.Buffer[T], index int, value T) {
 	t.Helper()
 	assert.Equal(t, value, *buffer.PointerTo(index))
 }
