@@ -310,14 +310,40 @@ func (e *Editor) Draw(screen *ebiten.Image) {
 	// Status bar
 	screen.SubImage(image.Rect(0, 755, 1280, 800)).(*ebiten.Image).Fill(color.RGBA{R: 35, G: 35, B: 40, A: 255})
 
-	// Tool buttons
-	tools := []string{"Select", "Place", "Delete"}
-	for i := range tools {
-		bg := color.RGBA{R: 60, G: 60, B: 70, A: 255}
+	// Panel borders - left panel
+	for y := TitleBarH; y < 755; y++ {
+		screen.SubImage(image.Rect(LeftPanelW-1, y, LeftPanelW, y+1)).(*ebiten.Image).Fill(color.RGBA{R: 60, G: 60, B: 70, A: 255})
+	}
+	// Panel borders - right panel
+	for y := TitleBarH; y < 755; y++ {
+		screen.SubImage(image.Rect(1080, y, 1081, y+1)).(*ebiten.Image).Fill(color.RGBA{R: 60, G: 60, B: 70, A: 255})
+	}
+	// Canvas border
+	for x := CanvasX; x < CanvasX+CanvasW; x++ {
+		screen.SubImage(image.Rect(x, CanvasY+CanvasH-1, x+1, CanvasY+CanvasH)).(*ebiten.Image).Fill(color.RGBA{R: 60, G: 60, B: 70, A: 255})
+	}
+	for y := CanvasY; y < CanvasY+CanvasH; y++ {
+		screen.SubImage(image.Rect(CanvasX+CanvasW-1, y, CanvasX+CanvasW, y+1)).(*ebiten.Image).Fill(color.RGBA{R: 60, G: 60, B: 70, A: 255})
+	}
+
+	// Tool buttons with visual indicators
+	toolColors := []color.RGBA{
+		{R: 80, G: 160, B: 80, A: 255},  // Select - green
+		{R: 80, G: 120, B: 200, A: 255}, // Place - blue
+		{R: 180, G: 80, B: 80, A: 255},  // Delete - red
+	}
+	toolLabels := []string{"V", "P", "X"}
+	for i := range toolLabels {
+		bg := color.RGBA{R: 50, G: 50, B: 55, A: 255}
+		indicator := color.RGBA{R: 70, G: 70, B: 80, A: 255}
 		if e.tool == Tool(i) {
-			bg = color.RGBA{R: 100, G: 100, B: 110, A: 255}
+			bg = color.RGBA{R: 60, G: 60, B: 70, A: 255}
+			indicator = toolColors[i]
 		}
-		screen.SubImage(image.Rect(CanvasX+10+i*60, CanvasY+10, CanvasX+50+i*60, CanvasY+30)).(*ebiten.Image).Fill(bg)
+		btnX := CanvasX + 10 + i*60
+		screen.SubImage(image.Rect(btnX, CanvasY+10, btnX+40, CanvasY+30)).(*ebiten.Image).Fill(bg)
+		// Color indicator square
+		screen.SubImage(image.Rect(btnX+5, CanvasY+15, btnX+10, CanvasY+20)).(*ebiten.Image).Fill(indicator)
 	}
 
 	// Grid
@@ -374,15 +400,35 @@ func (e *Editor) Draw(screen *ebiten.Image) {
 		}
 	}
 
-	// Sprites list
+	// Sprite list header - "SPRITES" header bar
+	screen.SubImage(image.Rect(5, TitleBarH+5, 195, TitleBarH+25)).(*ebiten.Image).Fill(color.RGBA{R: 55, G: 55, B: 65, A: 255})
+
+	// Sprites list with visual thumbnails
 	for i := range e.state.Sprites {
 		bg := color.RGBA{R: 50, G: 50, B: 55, A: 255}
 		if i == e.state.SelectedIndex {
 			bg = color.RGBA{R: 70, G: 90, B: 110, A: 255}
 		}
-		listY := 50 + i*25
-		screen.SubImage(image.Rect(5, listY, 195, listY+20)).(*ebiten.Image).Fill(bg)
+		listY := TitleBarH + 30 + i*30
+		screen.SubImage(image.Rect(5, listY, 195, listY+25)).(*ebiten.Image).Fill(bg)
+		// Thumbnail box
+		screen.SubImage(image.Rect(10, listY+5, 25, listY+20)).(*ebiten.Image).Fill(color.RGBA{R: 80, G: 80, B: 90, A: 255})
 	}
+
+	// Current tool indicator in status bar
+	statusY := 760
+	screen.SubImage(image.Rect(10, statusY, 150, statusY+25)).(*ebiten.Image).Fill(color.RGBA{R: 45, G: 45, B: 50, A: 255})
+	toolIndicator := toolColors[int(e.tool)]
+	screen.SubImage(image.Rect(15, statusY+8, 20, statusY+17)).(*ebiten.Image).Fill(toolIndicator)
+
+	// Object count in status bar
+	screen.SubImage(image.Rect(200, statusY, 350, statusY+25)).(*ebiten.Image).Fill(color.RGBA{R: 45, G: 45, B: 50, A: 255})
+
+	// Zoom indicator
+	screen.SubImage(image.Rect(400, statusY, 500, statusY+25)).(*ebiten.Image).Fill(color.RGBA{R: 45, G: 45, B: 50, A: 255})
+
+	// Canvas size indicator
+	screen.SubImage(image.Rect(600, statusY, 750, statusY+25)).(*ebiten.Image).Fill(color.RGBA{R: 45, G: 45, B: 50, A: 255})
 }
 
 // Layout - set size

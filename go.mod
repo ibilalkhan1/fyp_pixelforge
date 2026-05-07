@@ -3,7 +3,7 @@ module github.com/ibilalkhan1/fyp_pixelforge
 go 1.24.2
 
 require (
-	github.com/hajimehoshi/ebiten/v2 v2.9.2
+	github.com/hajimehoshi/ebiten/v2 v2.9.9
 	github.com/shirou/gopsutil/v4 v4.25.9
 	github.com/stretchr/testify v1.11.1
 )
