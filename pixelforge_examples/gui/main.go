@@ -13,6 +13,7 @@ import (
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_cofont"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_gui"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_metrics"
 	"log"
 )
 
@@ -52,6 +53,7 @@ func main() {
 		root.Draw()
 	}
 
+	pixelforge_metrics.Start()
 	pixelforge_ebiten.Run()
 }
 

@@ -1,9 +1,10 @@
 package main
 
 import (
-	"github.com/ibilalkhan1/fyp_pixelforge"                   // import pixelforge core package
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_cofont" // import very small pico-8 font
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten" // import backend
+	"github.com/ibilalkhan1/fyp_pixelforge"                     // import pixelforge core package
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_cofont"   // import very small pico-8 font
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten"   // import backend
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_metrics" // live metrics overlay
 )
 
 func main() {
@@ -11,5 +12,6 @@ func main() {
 	pixelforge.Draw = func() {      // draw will be executed each frame
 		pixelforge_cofont.Print("HELLO WORLD", 2, 2)
 	}
+	pixelforge_metrics.Start()
 	pixelforge_ebiten.Run() // run backend
 }

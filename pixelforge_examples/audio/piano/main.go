@@ -13,6 +13,7 @@ import (
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_cofont"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_key"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_metrics"
 )
 
 var (
@@ -79,6 +80,7 @@ func main() {
 		printLetters()
 	}
 
+	pixelforge_metrics.Start()
 	pixelforge_ebiten.Run()
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_cofont"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_key"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_metrics"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_pad"
 )
 
@@ -177,5 +178,6 @@ func main() {
 
 	startNewGame()
 
+	pixelforge_metrics.Start()
 	pixelforge_ebiten.Run()
 }
