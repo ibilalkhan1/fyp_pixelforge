@@ -13,6 +13,7 @@ import (
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_cofont"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_metrics"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_loop"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_mouse"
 )
@@ -78,5 +79,6 @@ func main() {
 		log.Println("TIME", pixelforge_audio.Time)
 	})
 
+	pixelforge_metrics.Start()
 	pixelforge_ebiten.Run()
 }

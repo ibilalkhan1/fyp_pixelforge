@@ -8,6 +8,7 @@ import (
 	"github.com/ibilalkhan1/fyp_pixelforge"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_cofont"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_metrics"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_mouse"
 	"math"
 )
@@ -107,6 +108,7 @@ func main() {
 	}
 
 	ebiten.SetCursorMode(ebiten.CursorModeHidden) // hide cursor in Ebitengine
+	pixelforge_metrics.Start()
 	pixelforge_ebiten.Run()
 }
 
