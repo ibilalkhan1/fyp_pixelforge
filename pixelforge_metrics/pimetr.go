@@ -72,7 +72,7 @@ func drawMetrics(piloop.Event, pievent.Handler) {
 		y += 9
 	}
 
-	line("FPS:%-3d TPS:%-2d CPU:%-3d%% RAM:%-3dMB", fps, pixelforge.TPS(), pistat.CPU, pistat.MemoryMB)
+	line("FPS:%-3d TPS:%-2d CPU:%-5.2f%% RAM:%-3dKB", fps, pixelforge.TPS(), float64(pistat.CPU)/100, pistat.MemoryMB)
 	line("FRM:%-5d ALLOC:%-5d TIME:%.1fs", pixelforge.Frame, pistat.Allocs, pixelforge.Time)
 
 	heldKeys := ""
