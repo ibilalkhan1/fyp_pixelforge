@@ -16,6 +16,42 @@ type Scene struct {
 	// preserved across save / load and matters only for tie-breaks
 	// in mouse-pick selection.
 	Entities []Entity `json:"entities"`
+
+	// Tilemaps are the paint-tool layers authored in M2. Each layer
+	// is a flat grid of integer tile values. Backwards-compatible:
+	// older .pforge files without this field round-trip as an empty
+	// slice.
+	Tilemaps []TilemapLayer `json:"tilemaps"`
+}
+
+// TilemapLayer is one paint-tool surface inside a scene. Values are
+// arbitrary integers: in pixel mode the value is a palette index, in
+// tile mode the value is an offset into the project's sprite catalog.
+type TilemapLayer struct {
+	// Name is the editor-displayed layer label.
+	Name string `json:"name"`
+
+	// TileW / TileH are the tile dimensions in scene-space pixels.
+	TileW int `json:"tile_w"`
+	TileH int `json:"tile_h"`
+
+	// Grid is a row-major matrix of tile values. Out-of-range coords
+	// are no-ops at paint time.
+	Grid [][]int `json:"grid"`
+
+	// AutoTileRules captures user-painted neighbor patterns that the
+	// editor synthesizes into transition rules. The runtime treats
+	// rules as a hint — the on-disk Grid is the source of truth.
+	AutoTileRules []AutoTileRule `json:"auto_tile_rules"`
+}
+
+// AutoTileRule binds a 3×3 neighbor pattern to an output tile value.
+// The middle cell (index 4) of Pattern is the cell being painted; the
+// surrounding cells are the read context. -1 cells are wildcards.
+type AutoTileRule struct {
+	Pattern [9]int `json:"pattern"`
+	Output  int    `json:"output"`
+	Count   int    `json:"count"`
 }
 
 // Entity is one placed object in a scene. Entities have a stable string

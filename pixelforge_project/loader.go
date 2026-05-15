@@ -77,6 +77,7 @@ func Load(path string) (*Project, error) {
 	if err := MigrateForward(p); err != nil {
 		return nil, err
 	}
+	p.applyDefaults()
 	p.normalizeSlices()
 
 	if err := validateAssets(p, path); err != nil {
@@ -111,6 +112,7 @@ func LoadReader(r io.Reader) (*Project, error) {
 	if err := MigrateForward(p); err != nil {
 		return nil, err
 	}
+	p.applyDefaults()
 	p.normalizeSlices()
 	return p, nil
 }

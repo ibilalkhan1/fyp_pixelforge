@@ -7,8 +7,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Happy path: a default-sized window splits cleanly into title bar,
-// left panel, canvas, right panel, status bar.
+// chromeTopBandH is the total vertical pixels the menu bar + title bar +
+// tab strip claim above the body region. M1.5 added the menu bar and
+// tab strip; tests below account for them when computing offsets.
+func chromeTopBandH(titleH int) int {
+	return widgetsMenuBarHeight() + titleH + tabStripH
+}
+
+// widgetsMenuBarHeight pulls in the constant from the widgets package
+// through a tiny helper so the test file doesn't need an extra import.
+func widgetsMenuBarHeight() int { return 22 }
+
+// Happy path: a default-sized window splits cleanly into menu bar,
+// title bar, tab strip, left panel, canvas, right panel, status bar.
 func TestChromeLayout_Default1280x800(t *testing.T) {
 	l := computeChromeLayout(1280, 800,
 		defaultTitleBarH, defaultLeftPanelW, defaultRightPanelW, defaultStatusBarH)
@@ -16,23 +27,24 @@ func TestChromeLayout_Default1280x800(t *testing.T) {
 	assert.Equal(t, defaultTitleBarH, l.TitleBar.H)
 	assert.Equal(t, 1280, l.TitleBar.W)
 	assert.Equal(t, 0, l.TitleBar.X)
-	assert.Equal(t, 0, l.TitleBar.Y)
+	assert.Equal(t, widgetsMenuBarHeight(), l.TitleBar.Y)
 
 	assert.Equal(t, defaultStatusBarH, l.StatusBar.H)
 	assert.Equal(t, 800-defaultStatusBarH, l.StatusBar.Y)
 
+	bodyY := chromeTopBandH(defaultTitleBarH)
 	assert.Equal(t, defaultLeftPanelW, l.LeftPanel.W)
 	assert.Equal(t, 0, l.LeftPanel.X)
-	assert.Equal(t, defaultTitleBarH, l.LeftPanel.Y)
-	assert.Equal(t, 800-defaultTitleBarH-defaultStatusBarH, l.LeftPanel.H)
+	assert.Equal(t, bodyY, l.LeftPanel.Y)
+	assert.Equal(t, 800-bodyY-defaultStatusBarH, l.LeftPanel.H)
 
 	assert.Equal(t, defaultRightPanelW, l.RightPanel.W)
 	assert.Equal(t, 1280-defaultRightPanelW, l.RightPanel.X)
 
 	wantCanvasW := 1280 - defaultLeftPanelW - defaultRightPanelW
-	wantCanvasH := 800 - defaultTitleBarH - defaultStatusBarH
+	wantCanvasH := 800 - bodyY - defaultStatusBarH
 	assert.Equal(t, defaultLeftPanelW, l.Canvas.X)
-	assert.Equal(t, defaultTitleBarH, l.Canvas.Y)
+	assert.Equal(t, bodyY, l.Canvas.Y)
 	assert.Equal(t, wantCanvasW, l.Canvas.W)
 	assert.Equal(t, wantCanvasH, l.Canvas.H)
 }
@@ -50,11 +62,11 @@ func TestChromeLayout_RegionsTileWindow(t *testing.T) {
 		l := computeChromeLayout(c.w, c.h,
 			defaultTitleBarH, defaultLeftPanelW, defaultRightPanelW, defaultStatusBarH)
 
-		// vertical: title + body + status = window height
+		// vertical: menu + title + tabstrip + body + status = window height
 		body := l.LeftPanel.H
 		require.Equal(t, body, l.Canvas.H, "%dx%d canvas height", c.w, c.h)
 		require.Equal(t, body, l.RightPanel.H, "%dx%d right panel height", c.w, c.h)
-		assert.Equal(t, c.h, l.TitleBar.H+body+l.StatusBar.H,
+		assert.Equal(t, c.h, l.MenuBar.H+l.TitleBar.H+l.TabStrip.H+body+l.StatusBar.H,
 			"vertical tile for %dx%d", c.w, c.h)
 
 		// horizontal: left + canvas + right = window width
@@ -62,10 +74,11 @@ func TestChromeLayout_RegionsTileWindow(t *testing.T) {
 			"horizontal tile for %dx%d", c.w, c.h)
 
 		// no overlap on adjacencies
+		bodyY := l.MenuBar.H + l.TitleBar.H + l.TabStrip.H
 		assert.Equal(t, l.LeftPanel.W, l.Canvas.X, "canvas X after left panel")
 		assert.Equal(t, l.LeftPanel.W+l.Canvas.W, l.RightPanel.X, "right panel X after canvas")
-		assert.Equal(t, l.TitleBar.H, l.Canvas.Y, "canvas Y after title bar")
-		assert.Equal(t, l.TitleBar.H+l.Canvas.H, l.StatusBar.Y, "status bar Y after canvas")
+		assert.Equal(t, bodyY, l.Canvas.Y, "canvas Y after top chrome band")
+		assert.Equal(t, bodyY+l.Canvas.H, l.StatusBar.Y, "status bar Y after canvas")
 	}
 }
 
@@ -93,9 +106,11 @@ func TestChromeLayout_LargeWindowKeepsFixedPanels(t *testing.T) {
 	assert.Equal(t, defaultTitleBarH, l.TitleBar.H)
 	assert.Equal(t, defaultStatusBarH, l.StatusBar.H)
 
-	// Canvas takes everything else.
+	// Canvas takes everything else (after subtracting the menu bar +
+	// tab strip + title bar + status bar).
 	assert.Equal(t, 3840-defaultLeftPanelW-defaultRightPanelW, l.Canvas.W)
-	assert.Equal(t, 2160-defaultTitleBarH-defaultStatusBarH, l.Canvas.H)
+	bodyH := 2160 - chromeTopBandH(defaultTitleBarH) - defaultStatusBarH
+	assert.Equal(t, bodyH, l.Canvas.H)
 }
 
 // New() returns a usable Editor with a chrome layout attached. Update

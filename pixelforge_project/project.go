@@ -28,6 +28,11 @@ type Project struct {
 
 	Palette PaletteData `json:"palette"`
 
+	// Theme is the editor's chrome theme. Optional in M0-M2 saves;
+	// missing on load falls back to DefaultTheme so older projects open
+	// cleanly. M3 introduces this field for the editor-as-cart fixture.
+	Theme Theme `json:"theme"`
+
 	Sprites  []SpriteAsset `json:"sprites"`
 	Audio    []AudioSample `json:"audio"`
 	Scenes   []Scene       `json:"scenes"`
@@ -80,18 +85,31 @@ func NewProject(name string) *Project {
 		CreatedAt:     now,
 		ModifiedAt:    now,
 		Palette:       DefaultPalette(),
+		Theme:         DefaultTheme(),
 		Sprites:       []SpriteAsset{},
 		Audio:         []AudioSample{},
 		Scenes: []Scene{{
 			ID:       "main",
 			Name:     "Main",
 			Entities: []Entity{},
+			Tilemaps: []TilemapLayer{},
 		}},
 		Behaviors:          []BehaviorGraph{},
 		Bindings:           []AudioBinding{},
 		EventSubscriptions: []EventSubscription{},
 		ExtensionHooks:     []ExtensionHook{},
 	}
+}
+
+// applyDefaults fills in additive schema fields that older projects may
+// be missing on load. Currently scoped to the Theme zero-value fallback
+// so M0-M2 projects open with sensible chrome colours.
+func (p *Project) applyDefaults() {
+	zero := Theme{}
+	if p.Theme == zero {
+		p.Theme = DefaultTheme()
+	}
+	p.Theme.SanitizeSlots()
 }
 
 // normalizeSlices replaces every nil slice with an empty one. Keeps the
@@ -123,6 +141,14 @@ func (p *Project) normalizeSlices() {
 	for i := range p.Scenes {
 		if p.Scenes[i].Entities == nil {
 			p.Scenes[i].Entities = []Entity{}
+		}
+		if p.Scenes[i].Tilemaps == nil {
+			p.Scenes[i].Tilemaps = []TilemapLayer{}
+		}
+		for j := range p.Scenes[i].Tilemaps {
+			if p.Scenes[i].Tilemaps[j].AutoTileRules == nil {
+				p.Scenes[i].Tilemaps[j].AutoTileRules = []AutoTileRule{}
+			}
 		}
 		for j := range p.Scenes[i].Entities {
 			if p.Scenes[i].Entities[j].Components == nil {

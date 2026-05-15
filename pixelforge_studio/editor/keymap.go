@@ -41,14 +41,39 @@ func NewKeyMap() *KeyMap {
 	return &KeyMap{bindings: map[string][]Binding{}}
 }
 
-// DefaultKeyMap pre-registers the file-menu shortcuts (M0) and leaves
-// tool shortcuts for M2 to layer on.
+// DefaultKeyMap pre-registers the studio-wide shortcuts. M1.5 layers on
+// the file-menu actions, tool shortcuts, and workspace navigation.
 func DefaultKeyMap() *KeyMap {
 	k := NewKeyMap()
 	k.Register("file.new", Binding{Mods: ModCtrl, Key: ebiten.KeyN})
 	k.Register("file.open", Binding{Mods: ModCtrl, Key: ebiten.KeyO})
+	// Save As must match before Save: both bindings include ModCtrl+KeyS,
+	// but Save As also requires Shift. JustPressed checks both — Save
+	// won't fire while Shift is held because modsPressed enforces an
+	// exact-mods match for that binding's own mod-set.
 	k.Register("file.save", Binding{Mods: ModCtrl, Key: ebiten.KeyS})
+	k.Register("file.save_as", Binding{Mods: ModCtrl | ModShift, Key: ebiten.KeyS})
 	k.Register("file.close", Binding{Mods: ModCtrl, Key: ebiten.KeyW})
+	k.Register("file.export", Binding{Mods: ModCtrl, Key: ebiten.KeyE})
+	k.Register("file.quit", Binding{Mods: ModCtrl, Key: ebiten.KeyQ})
+
+	// Canvas tools.
+	k.Register("tool.select", Binding{Key: ebiten.KeyV})
+	k.Register("tool.place", Binding{Key: ebiten.KeyP})
+	k.Register("tool.delete", Binding{Key: ebiten.KeyX})
+	k.Register("tool.paint", Binding{Key: ebiten.KeyB})
+
+	// Workspace navigation.
+	k.Register("workspace.cycle", Binding{Mods: ModCtrl, Key: ebiten.KeyTab})
+	k.Register("workspace.scene", Binding{Mods: ModCtrl, Key: ebiten.KeyDigit1})
+	k.Register("workspace.palette", Binding{Mods: ModCtrl, Key: ebiten.KeyDigit2})
+	k.Register("workspace.behavior", Binding{Mods: ModCtrl, Key: ebiten.KeyDigit3})
+	k.Register("workspace.audio", Binding{Mods: ModCtrl, Key: ebiten.KeyDigit4})
+	k.Register("workspace.capture", Binding{Mods: ModCtrl, Key: ebiten.KeyDigit5})
+	k.Register("workspace.procgen", Binding{Mods: ModCtrl, Key: ebiten.KeyDigit6})
+
+	// M3 chrome visibility toggle (U33).
+	k.Register("chrome.toggle", Binding{Key: ebiten.KeyEscape})
 	return k
 }
 
@@ -142,17 +167,20 @@ func bindingJustPressed(b Binding) bool {
 	return inpututil.IsKeyJustPressed(b.Key)
 }
 
+// modsPressed enforces an *exact* mod-set match: the binding fires only
+// when every required modifier is held AND no other modifier is held.
+// Without the exclusion check, Ctrl+Shift+S would fire both "file.save"
+// (Ctrl+S) and "file.save_as" (Ctrl+Shift+S) simultaneously.
 func modsPressed(m Modifier, isPressed func(ebiten.Key) bool) bool {
-	if m&ModCtrl != 0 && !(isPressed(ebiten.KeyControlLeft) || isPressed(ebiten.KeyControlRight)) {
-		return false
-	}
-	if m&ModShift != 0 && !(isPressed(ebiten.KeyShiftLeft) || isPressed(ebiten.KeyShiftRight)) {
-		return false
-	}
-	if m&ModAlt != 0 && !(isPressed(ebiten.KeyAltLeft) || isPressed(ebiten.KeyAltRight)) {
-		return false
-	}
-	return true
+	ctrl := isPressed(ebiten.KeyControlLeft) || isPressed(ebiten.KeyControlRight)
+	shift := isPressed(ebiten.KeyShiftLeft) || isPressed(ebiten.KeyShiftRight)
+	alt := isPressed(ebiten.KeyAltLeft) || isPressed(ebiten.KeyAltRight)
+
+	wantCtrl := m&ModCtrl != 0
+	wantShift := m&ModShift != 0
+	wantAlt := m&ModAlt != 0
+
+	return ctrl == wantCtrl && shift == wantShift && alt == wantAlt
 }
 
 // describeBinding renders a binding as a human-readable string

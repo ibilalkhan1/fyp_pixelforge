@@ -11,6 +11,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/editor"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/palette"
 )
 
 const windowTitle = "Pixelforge Studio"
@@ -22,7 +23,10 @@ func main() {
 	ebiten.SetWindowSize(settings.WindowWidth, settings.WindowHeight)
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 
-	if err := ebiten.RunGame(editor.NewWithSettings(settings)); err != nil {
+	e := editor.NewWithSettings(settings)
+	palette.RegisterWith(e)
+
+	if err := ebiten.RunGame(e); err != nil {
 		log.Fatalf("pixelforge studio: %v", err)
 	}
 }

@@ -7,12 +7,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// DefaultKeyMap registers the four file shortcuts and nothing else.
+// DefaultKeyMap registers the studio-wide shortcuts.
 func TestDefaultKeyMap_RegistersFileShortcuts(t *testing.T) {
 	k := DefaultKeyMap()
-	assert.ElementsMatch(t,
-		[]string{"file.new", "file.open", "file.save", "file.close"},
-		k.Actions())
+	for _, action := range []string{
+		"file.new", "file.open", "file.save", "file.save_as",
+		"file.close", "file.export", "file.quit",
+		"tool.select", "tool.place", "tool.delete", "tool.paint",
+		"workspace.cycle", "workspace.scene", "workspace.palette",
+	} {
+		assert.NotNil(t, k.BindingsFor(action), "expected %s registered", action)
+	}
 
 	saveBindings := k.BindingsFor("file.save")
 	assert.Equal(t, []Binding{{Mods: ModCtrl, Key: ebiten.KeyS}}, saveBindings)
@@ -41,7 +46,8 @@ func TestKeyMap_IsPressedUnregisteredAction(t *testing.T) {
 	assert.False(t, k.IsPressed("does.not.exist"))
 }
 
-// bindingPressed honours the modifier mask via the injected key probe.
+// bindingPressed enforces an exact modifier-mask match so overlapping
+// shortcuts (Ctrl+S vs. Ctrl+Shift+S) never fire simultaneously.
 func TestBindingPressed_HonoursModifiers(t *testing.T) {
 	// stub: only Ctrl+S is held
 	held := map[ebiten.Key]bool{
@@ -55,11 +61,20 @@ func TestBindingPressed_HonoursModifiers(t *testing.T) {
 	ctrlShiftS := Binding{Mods: ModCtrl | ModShift, Key: ebiten.KeyS}
 
 	assert.True(t, bindingPressed(ctrlS, probe))
-	// Modless binding still fires when Ctrl is *also* down — common UX
-	// since we don't claim modifier-exclusivity.
-	assert.True(t, bindingPressed(plainS, probe))
+	// Plain S does NOT fire while Ctrl is held — exact-mods match.
+	assert.False(t, bindingPressed(plainS, probe))
 	// Missing Shift → not pressed
 	assert.False(t, bindingPressed(ctrlShiftS, probe))
+
+	// When both Ctrl and Shift are held, only Ctrl+Shift+S matches.
+	held2 := map[ebiten.Key]bool{
+		ebiten.KeyControlLeft: true,
+		ebiten.KeyShiftLeft:   true,
+		ebiten.KeyS:           true,
+	}
+	probe2 := func(k ebiten.Key) bool { return held2[k] }
+	assert.False(t, bindingPressed(ctrlS, probe2))
+	assert.True(t, bindingPressed(ctrlShiftS, probe2))
 }
 
 // Unregistering removes an action; IsPressed reflects the absence.

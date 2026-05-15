@@ -24,6 +24,7 @@ var prevBgColorTable [pixelforge.MaxColors]pixelforge.Color
 // Returns the x, y position where you can continue writing text.
 func (s Sheet) Print(str string, x, y int) (currentX, currentY int) {
 	originalDrawTarget := pixelforge.DrawTarget()
+	originalClip := pixelforge.Clip()
 	if intermediateCanvas.W() != originalDrawTarget.W() || intermediateCanvas.H() != originalDrawTarget.H() {
 		intermediateCanvas = pixelforge.NewCanvas(originalDrawTarget.W(), originalDrawTarget.H())
 	}
@@ -62,6 +63,9 @@ func (s Sheet) Print(str string, x, y int) (currentX, currentY int) {
 		Source: intermediateCanvas,
 	}
 	pixelforge.SetDrawTarget(originalDrawTarget)
+	// SetDrawTarget reset the clip to the entire target. Restore the
+	// caller's clip so the final blit honours any parent clip region.
+	pixelforge.SetClip(originalClip)
 	pixelforge.DrawSprite(coloredText, x, y)
 
 	// revert bgColor transparency
