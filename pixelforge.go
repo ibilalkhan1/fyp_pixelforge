@@ -131,7 +131,15 @@ func setPixelWithColor(x, y int, draw Color) {
 	idx := y*drawTarget.width + x
 	target := drawTarget.data[idx] & ShapeTargetMask
 
-	drawTarget.data[idx] = ColorTables[(draw|target)>>6][drawColor&(MaxColors-1)][target&(MaxColors-1)]
+	PixelsWrittenThisFrame++
+	recordHeatMap(idx)
+
+	tableIdx := (draw | target) >> 6
+	drawIdx := drawColor & (MaxColors - 1)
+	targetIdx := target & (MaxColors - 1)
+	ColorTableAccesses[tableIdx][drawIdx][targetIdx]++
+
+	drawTarget.data[idx] = ColorTables[tableIdx][drawIdx][targetIdx]
 }
 
 // SetPixel sets the draw color at the given coordinates.

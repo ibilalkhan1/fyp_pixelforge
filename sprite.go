@@ -87,8 +87,16 @@ func Stretch(sprite Sprite, dx, dy, dw, dh int) {
 		for cell := 0.0; cell < dst.W; cell++ {
 			sourceColor := srcSource.data[srcLineIdx+int(srcX)] & ReadMask
 			targetColor := drawTarget.data[targetIdx] & TargetMask
-			drawTarget.data[targetIdx] =
-				ColorTables[(sourceColor|targetColor)>>6][sourceColor&(MaxColors-1)][targetColor&(MaxColors-1)]
+
+			PixelsWrittenThisFrame++
+			recordHeatMap(targetIdx)
+
+			tableIdx := (sourceColor | targetColor) >> 6
+			drawIdx := sourceColor & (MaxColors - 1)
+			tIdx := targetColor & (MaxColors - 1)
+			ColorTableAccesses[tableIdx][drawIdx][tIdx]++
+
+			drawTarget.data[targetIdx] = ColorTables[tableIdx][drawIdx][tIdx]
 			srcX += stepX
 			targetIdx++
 		}

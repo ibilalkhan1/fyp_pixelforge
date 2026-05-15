@@ -113,9 +113,14 @@ func (g *EbitenGame) Update() error {
 		piloop.DebugTarget().Publish(piloop.EventFrameStart)
 	}
 
+	inputStart := time.Now()
 	g.inputBackend.Update()
+	inputDur := time.Since(inputStart)
+
+	var updateDur, drawDur time.Duration
 
 	if g.ebitenFrame%(ebitenTPS/pixelforge.TPS()) == (ebitenTPS/pixelforge.TPS())-1 {
+		updateStart := time.Now()
 		if !g.paused {
 			pixelforge.Update()
 			piloop.Target().Publish(piloop.EventUpdate)
@@ -126,8 +131,10 @@ func (g *EbitenGame) Update() error {
 			piloop.Target().Publish(piloop.EventLateUpdate)
 		}
 		piloop.DebugTarget().Publish(piloop.EventLateUpdate)
+		updateDur = time.Since(updateStart)
 
 		if !g.skipNextDraw {
+			drawStart := time.Now()
 			if !g.paused {
 				pixelforge.Draw()
 				piloop.Target().Publish(piloop.EventDraw)
@@ -138,6 +145,7 @@ func (g *EbitenGame) Update() error {
 				piloop.Target().Publish(piloop.EventLateDraw)
 			}
 			piloop.DebugTarget().Publish(piloop.EventLateDraw)
+			drawDur = time.Since(drawStart)
 
 			g.dirty = true
 		} else {
@@ -150,6 +158,8 @@ func (g *EbitenGame) Update() error {
 
 		pixelforge.Time += 1.0 / float64(pixelforge.TPS())
 		pixelforge.Frame++
+
+		pixelforge.SetFramePhaseDurations(inputDur, updateDur, drawDur, time.Since(started))
 	}
 
 	g.audioBackend.OnAfterUpdate()
@@ -159,6 +169,13 @@ func (g *EbitenGame) Update() error {
 	return nil
 }
 
+// NativeOverlay is an optional callback invoked after the scaled game frame
+// is drawn to the window. Implementations should render directly to screen
+// at native window resolution (e.g. via ebitenutil.DebugPrintAt or
+// ebiten/text), which keeps the overlay readable even when the game canvas
+// is heavily upscaled.
+var NativeOverlay func(screen *ebiten.Image)
+
 func (g *EbitenGame) Draw(screen *ebiten.Image) {
 	if g.dirty { // draw only when needed to avoid CPU load on monitors >30 Hz
 		g.dirty = false
@@ -166,6 +183,10 @@ func (g *EbitenGame) Draw(screen *ebiten.Image) {
 		CopyCanvasToEbitenImage(pixelforge.Screen(), g.ebitenScreen)
 
 		screen.DrawImage(g.ebitenScreen, g.drawScreenOpts)
+	}
+
+	if NativeOverlay != nil {
+		NativeOverlay(screen)
 	}
 }
 

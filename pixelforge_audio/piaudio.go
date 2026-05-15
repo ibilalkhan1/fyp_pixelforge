@@ -112,3 +112,26 @@ func SetVolume(ch Chan, vol float64, delay float64) {
 func ClearChan(ch Chan, delay float64) {
 	Backend.ClearChan(ch, delay)
 }
+
+// ChannelActive reports whether the channel is currently playing a sample.
+//
+// Intended for read-only inspection (e.g. visualization overlays).
+func ChannelActive(ch Chan) bool { return Backend.ChannelActive(ch) }
+
+// ChannelPosition returns the channel's current playback position
+// as a fractional sample index into the active sample data.
+func ChannelPosition(ch Chan) float64 { return Backend.ChannelPosition(ch) }
+
+// ChannelPitch returns the channel's current playback pitch.
+//
+// Initial pitch is 1.0.
+func ChannelPitch(ch Chan) float64 { return Backend.ChannelPitch(ch) }
+
+// ChannelVolume returns the channel's current playback volume in [0, 1].
+//
+// Initial volume is 1.0.
+func ChannelVolume(ch Chan) float64 { return Backend.ChannelVolume(ch) }
+
+// ChannelSample returns the original *Sample currently scheduled on the channel,
+// or nil if no sample is set.
+func ChannelSample(ch Chan) *Sample { return Backend.ChannelSample(ch) }

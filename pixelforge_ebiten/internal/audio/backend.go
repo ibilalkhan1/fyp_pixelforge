@@ -1,6 +1,7 @@
 package audio
 
 import (
+	"math/bits"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2/audio"
@@ -152,4 +153,38 @@ func (b *Backend) OnBeforeUpdate() {
 func (b *Backend) OnAfterUpdate() {
 	b.player.SendCommands(b.commands)
 	b.commands = b.commands[:0]
+}
+
+// chanIndex maps a Chan bitmask to a channel index in [0, chanLen).
+//
+// Returns -1 when ch is zero or has more than one bit set.
+func chanIndex(ch piaudio.Chan) int {
+	if ch == 0 || bits.OnesCount8(ch) != 1 {
+		return -1
+	}
+	idx := bits.TrailingZeros8(ch)
+	if idx >= chanLen {
+		return -1
+	}
+	return idx
+}
+
+func (b *Backend) ChannelActive(ch piaudio.Chan) bool {
+	return b.player.ChannelSnapshot(chanIndex(ch)).Active
+}
+
+func (b *Backend) ChannelPosition(ch piaudio.Chan) float64 {
+	return b.player.ChannelSnapshot(chanIndex(ch)).Position
+}
+
+func (b *Backend) ChannelPitch(ch piaudio.Chan) float64 {
+	return b.player.ChannelSnapshot(chanIndex(ch)).Pitch
+}
+
+func (b *Backend) ChannelVolume(ch piaudio.Chan) float64 {
+	return b.player.ChannelSnapshot(chanIndex(ch)).Volume
+}
+
+func (b *Backend) ChannelSample(ch piaudio.Chan) *piaudio.Sample {
+	return b.player.ChannelSnapshot(chanIndex(ch)).Sample
 }

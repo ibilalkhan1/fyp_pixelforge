@@ -41,13 +41,14 @@ type player struct {
 }
 
 type channel struct {
-	active     bool
-	sampleData []int8
-	position   float64 // float for fractional pitch
-	pitch      float64
-	sampleRate uint16
-	volume     float64
-	loop       loop
+	active         bool
+	sampleData     []int8
+	originalSample *piaudio.Sample // preserved for read-only inspection
+	position       float64         // float for fractional pitch
+	pitch          float64
+	sampleRate     uint16
+	volume         float64
+	loop           loop
 }
 
 func (c *channel) nextSample() (float64, bool) {
@@ -126,15 +127,18 @@ func (p *player) runCommands() {
 				case cmd.sample == nil:
 					selectedChan.active = false
 					selectedChan.sampleData = nil
+					selectedChan.originalSample = nil
 				case p.sampleClones[cmd.sample] == nil:
 					log.Printf("[piaudio] SetSample failed: Sample not found: %p", cmd.sample)
 					selectedChan.active = false
 					selectedChan.sampleData = nil
+					selectedChan.originalSample = nil
 				default:
 					selectedChan.active = true
 					sample := p.sampleClones[cmd.sample]
 					selectedChan.sampleData = sample.Data()
 					selectedChan.sampleRate = sample.SampleRate()
+					selectedChan.originalSample = cmd.sample
 				}
 				selectedChan.position = float64(cmd.offset)
 			case cmdKindSetLoop:
@@ -243,6 +247,37 @@ func (p *player) CurrentTime() float64 {
 	defer p.mutex.Unlock()
 
 	return p.currentTime
+}
+
+// ChannelSnapshot is a read-only snapshot of a channel's playback state,
+// returned by player.ChannelSnapshot under the player's mutex.
+type ChannelSnapshot struct {
+	Active   bool
+	Position float64
+	Pitch    float64
+	Volume   float64
+	Sample   *piaudio.Sample
+}
+
+// ChannelSnapshot returns a consistent snapshot of the given channel's state.
+//
+// idx must be in [0, chanLen). Out-of-range indexes return the zero snapshot.
+func (p *player) ChannelSnapshot(idx int) ChannelSnapshot {
+	if idx < 0 || idx >= chanLen {
+		return ChannelSnapshot{}
+	}
+
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	c := &p.channels[idx]
+	return ChannelSnapshot{
+		Active:   c.active,
+		Position: c.position,
+		Pitch:    c.pitch,
+		Volume:   c.volume,
+		Sample:   c.originalSample,
+	}
 }
 
 const sampleTime = 1.0 / float64(CtxSampleRate)

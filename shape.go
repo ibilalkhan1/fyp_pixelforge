@@ -37,11 +37,31 @@ func RectFill(x0 int, y0 int, x1 int, y1 int) {
 	area, _, _ = area.ClippedBy(Clip())
 
 	currentColor := GetColor() & ReadMask
+	drawIdx := currentColor & (MaxColors - 1)
 
 	for _, line := range DrawTarget().LinesIterator(area) {
 		for i := 0; i < len(line); i++ {
 			target := line[i]
-			line[i] = ColorTables[(currentColor|target)>>6][currentColor&(MaxColors-1)][target&(MaxColors-1)]
+
+			PixelsWrittenThisFrame++
+			tableIdx := (currentColor | target) >> 6
+			tIdx := target & (MaxColors - 1)
+			ColorTableAccesses[tableIdx][drawIdx][tIdx]++
+
+			line[i] = ColorTables[tableIdx][drawIdx][tIdx]
+		}
+	}
+
+	if HeatMapBuffer != nil && drawingToScreen() {
+		stride := drawTarget.width
+		for y := area.Y; y < area.Y+area.H; y++ {
+			rowStart := y * stride
+			for x := area.X; x < area.X+area.W; x++ {
+				idx := rowStart + x
+				if idx >= 0 && idx < len(HeatMapBuffer) && HeatMapBuffer[idx] < 0xffff {
+					HeatMapBuffer[idx]++
+				}
+			}
 		}
 	}
 }

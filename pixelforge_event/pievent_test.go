@@ -144,6 +144,45 @@ func TestTrackingTarget_UnsubscribeAll(t *testing.T) {
 	})
 }
 
+func TestTarget_SubscriberAndPublishCounts(t *testing.T) {
+	t.Run("subscriber count tracks subscribe/unsubscribe", func(t *testing.T) {
+		target := pixelforge_event.NewTarget[string]()
+		assert.Equal(t, 0, target.SubscriberCount())
+
+		var s1, s2 Subscriber
+		h1 := target.Subscribe(event, s1.Handler)
+		assert.Equal(t, 1, target.SubscriberCount())
+
+		target.Subscribe(event, s2.Handler)
+		assert.Equal(t, 2, target.SubscriberCount())
+
+		target.Unsubscribe(h1)
+		assert.Equal(t, 1, target.SubscriberCount())
+	})
+
+	t.Run("publish count increments on every Publish", func(t *testing.T) {
+		target := pixelforge_event.NewTarget[string]()
+		assert.Equal(t, uint64(0), target.PublishCount())
+
+		target.Publish(event)
+		target.Publish(event)
+		target.Publish("other")
+		assert.Equal(t, uint64(3), target.PublishCount())
+	})
+
+	t.Run("TrackingTarget forwards counts to wrapped target", func(t *testing.T) {
+		base := pixelforge_event.NewTarget[string]()
+		tracked := pixelforge_event.Track(base)
+
+		var s Subscriber
+		tracked.Subscribe(event, s.Handler)
+		base.Publish(event)
+
+		assert.Equal(t, 1, tracked.SubscriberCount())
+		assert.Equal(t, uint64(1), tracked.PublishCount())
+	})
+}
+
 func TestTrackingTarget_Unsubscribe(t *testing.T) {
 	t.Run("should unsubscribe handler", func(t *testing.T) {
 		var subscriber Subscriber

@@ -102,6 +102,42 @@ func TestSlowDown(t *testing.T) {
 	})
 }
 
+func TestRoutine_StateAccessors(t *testing.T) {
+	t.Run("StepCount returns total steps", func(t *testing.T) {
+		r := pixelforge_routine.New(
+			pixelforge_routine.Wait(1),
+			pixelforge_routine.Wait(1),
+			pixelforge_routine.Wait(1),
+		)
+		assert.Equal(t, 3, r.StepCount())
+	})
+
+	t.Run("StepCount is zero for empty routine", func(t *testing.T) {
+		r := pixelforge_routine.New()
+		assert.Equal(t, 0, r.StepCount())
+	})
+
+	t.Run("CurrentStep advances through Resume", func(t *testing.T) {
+		r := pixelforge_routine.New(
+			pixelforge_routine.Call(func() {}),
+			pixelforge_routine.Wait(1),
+			pixelforge_routine.Call(func() {}),
+		)
+		assert.Equal(t, 0, r.CurrentStep())
+		r.Resume() // step 0 finishes, step 1 starts and waits
+		assert.Equal(t, 1, r.CurrentStep())
+		r.Resume() // step 1 finishes
+		assert.Equal(t, 3, r.CurrentStep())
+	})
+
+	t.Run("Name returns the configured name", func(t *testing.T) {
+		r := pixelforge_routine.New(pixelforge_routine.Wait(1))
+		assert.Equal(t, "", r.Name())
+		r.SetName("hero-walk")
+		assert.Equal(t, "hero-walk", r.Name())
+	})
+}
+
 func TestRoutine_ScheduleOn(t *testing.T) {
 	t.Run("should run callback on event", func(t *testing.T) {
 		executionCount := 0

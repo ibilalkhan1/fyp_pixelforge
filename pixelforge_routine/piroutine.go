@@ -162,6 +162,22 @@ func (r *Routine) SetName(name string) {
 	}
 }
 
+// CurrentStep returns the index of the step that will be executed
+// on the next call to Resume.
+func (r *Routine) CurrentStep() int {
+	return r.currentStep
+}
+
+// StepCount returns the total number of steps in the Routine.
+func (r *Routine) StepCount() int {
+	return len(r.steps)
+}
+
+// Name returns the Routine's name (set via SetName).
+func (r *Routine) Name() string {
+	return r.name
+}
+
 // ScheduleOn schedules the Routine to resume on the given event.
 //
 // Each publication of the event will call Resume.

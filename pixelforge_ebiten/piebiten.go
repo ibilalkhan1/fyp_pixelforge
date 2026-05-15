@@ -55,6 +55,15 @@ func CopyCanvasToEbitenImage(canvas pixelforge.Canvas, dst *ebiten.Image) {
 	internal.CopyCanvasToEbitenImage(canvas, dst)
 }
 
+// SetNativeOverlay registers a callback drawn after the game frame is
+// scaled to the window. Use it for debug overlays that should render at
+// native (window) resolution rather than the upscaled canvas.
+//
+// Pass nil to clear a previously registered overlay.
+func SetNativeOverlay(fn func(screen *ebiten.Image)) {
+	internal.NativeOverlay = fn
+}
+
 // StartAudioBackend starts the audio backend with the given Ebitengine audio.Context.
 // Use if you want only pixelforge_audio functionality without Pixelforge's graphics.
 //

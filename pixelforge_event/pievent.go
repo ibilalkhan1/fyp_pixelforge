@@ -78,6 +78,17 @@ type Target[T comparable] interface {
 
 	// SetTracing enables or disables tracing for this Target.
 	SetTracing(enabled bool)
+
+	// SubscriberCount returns the number of currently registered subscribers.
+	//
+	// Intended for read-only inspection (e.g. visualization overlays).
+	SubscriberCount() int
+
+	// PublishCount returns the total number of times Publish has been called
+	// on this Target since it was created.
+	//
+	// Intended for read-only inspection (e.g. visualization overlays).
+	PublishCount() uint64
 }
 
 // Handler is an identifier returned when subscribing to a Target.
@@ -86,9 +97,10 @@ type Target[T comparable] interface {
 type Handler int
 
 type target[T comparable] struct {
-	handlers []eventHandler[T]
-	tracing  bool
-	lastID   Handler
+	handlers     []eventHandler[T]
+	tracing      bool
+	lastID       Handler
+	publishCount uint64
 }
 
 var logger = func() *log.Logger {
@@ -97,6 +109,8 @@ var logger = func() *log.Logger {
 
 func (t *target[T]) Publish(event T) {
 	var zeroEvent T
+
+	t.publishCount++
 
 	if t.tracing {
 		logger.Printf("Publishing %+v", event)
@@ -110,6 +124,14 @@ func (t *target[T]) Publish(event T) {
 			handler.f(event, handler.id)
 		}
 	}
+}
+
+func (t *target[T]) SubscriberCount() int {
+	return len(t.handlers)
+}
+
+func (t *target[T]) PublishCount() uint64 {
+	return t.publishCount
 }
 
 func (t *target[T]) SubscribeAll(f func(T, Handler)) Handler {
@@ -209,6 +231,14 @@ func (t *TrackingTarget[T]) Unsubscribe(handler Handler) {
 
 func (t *TrackingTarget[T]) IsSubscribed(h Handler) bool {
 	return t.wrappedTarget.IsSubscribed(h)
+}
+
+func (t *TrackingTarget[T]) SubscriberCount() int {
+	return t.wrappedTarget.SubscriberCount()
+}
+
+func (t *TrackingTarget[T]) PublishCount() uint64 {
+	return t.wrappedTarget.PublishCount()
 }
 
 func (t *TrackingTarget[T]) UnsubscribeAll() {

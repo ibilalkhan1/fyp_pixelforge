@@ -40,6 +40,33 @@ type BackendInterface interface {
 
 	// ClearChan removes all scheduled operations for the channel(s) after the specified delay.
 	ClearChan(ch Chan, delay float64)
+
+	// ChannelActive reports whether the channel is currently playing a sample.
+	//
+	// Intended for read-only inspection (e.g. visualization overlays).
+	// Returns false when the channel was never configured or has finished playing.
+	ChannelActive(ch Chan) bool
+
+	// ChannelPosition returns the channel's current playback position
+	// as a fractional sample index into the active sample data.
+	//
+	// Returns 0 when the channel is inactive.
+	ChannelPosition(ch Chan) float64
+
+	// ChannelPitch returns the channel's current playback pitch.
+	//
+	// Initial pitch is 1.0.
+	ChannelPitch(ch Chan) float64
+
+	// ChannelVolume returns the channel's current playback volume in [0, 1].
+	//
+	// Initial volume is 1.0.
+	ChannelVolume(ch Chan) float64
+
+	// ChannelSample returns the original *Sample currently scheduled on the channel.
+	//
+	// Returns nil when no sample has been set or the channel was cleared.
+	ChannelSample(ch Chan) *Sample
 }
 
 type panicBackend struct{}
@@ -71,3 +98,9 @@ func (p panicBackend) SetPitch(_ Chan, pitch float64, delay float64) {
 func (p panicBackend) SetVolume(_ Chan, vol float64, delay float64) {
 	panic("cannot set volume: backend not set. Please call SetVolume only after starting the game")
 }
+
+func (p panicBackend) ChannelActive(Chan) bool      { return false }
+func (p panicBackend) ChannelPosition(Chan) float64 { return 0 }
+func (p panicBackend) ChannelPitch(Chan) float64    { return 0 }
+func (p panicBackend) ChannelVolume(Chan) float64   { return 0 }
+func (p panicBackend) ChannelSample(Chan) *Sample   { return nil }
