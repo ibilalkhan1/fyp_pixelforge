@@ -11,14 +11,15 @@ package main
 
 import (
 	"math"
+	"strconv"
 	"time"
 
 	pf "github.com/ibilalkhan1/fyp_pixelforge"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_audio"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_cofont"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_font"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_metrics"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_key"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_metrics"
 )
 
 // ─── constants ──────────────────────────────────────────────────────────────
@@ -319,6 +320,10 @@ func initGame() {
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
+// tileAt returns the maze tile that contains the top-left of an
+// entity placed at (px, py). Entities are always 1 tile (8×8) in
+// size, so the lookup is a simple integer divide. Float input is
+// permitted for transitional sub-pixel motion (ghosts).
 func tileAt(px, py float64) *Tile {
 	col := int(math.Round(px)) / tileSize
 	row := int(math.Round(py)) / tileSize
@@ -328,40 +333,48 @@ func tileAt(px, py float64) *Tile {
 	return &tiles[row][col]
 }
 
-func isWall(px, py float64) bool {
-	t := tileAt(px, py)
-	if t == nil {
+// isWallTile reports whether the tile at (col, row) is a wall (or
+// outside the maze, which counts as solid).
+func isWallTile(col, row int) bool {
+	if col < 0 || col >= mazeW || row < 0 || row >= mazeH {
 		return true
 	}
-	return t.wall
+	return tiles[row][col].wall
 }
 
-// Grid-aligned? Within 1 pixel of a tile centre.
+// aligned reports whether v sits exactly on a tile boundary.
+// Pacman moves 1 px/tick and tiles are 8 px; alignment hits every 8
+// frames precisely, no tolerance band needed.
 func aligned(v float64) bool {
-	return math.Mod(v, tileSize) < 1.5 || math.Mod(v, tileSize) > tileSize-1.5
+	r := math.Round(v)
+	if math.Abs(v-r) > 0.0001 {
+		return false
+	}
+	return int(r)%tileSize == 0
 }
 
+// snapToGrid rounds v to the nearest tile boundary. The caller is
+// expected to verify aligned(v) before snapping to avoid teleporting
+// an entity inside a wall.
 func snapToGrid(v float64) float64 {
 	return math.Round(v/tileSize) * tileSize
 }
 
+// canMove reports whether the entity at the grid-aligned position
+// (x, y) can step into the adjacent tile in direction d. The check
+// treats the entity as occupying exactly one tile and looks one
+// tile ahead — this is the right semantics for a Pac-Man-style game
+// where turns happen at intersections.
 func canMove(x, y float64, d Dir) bool {
-	nx := x + float64(d.dx())*tileSize
-	ny := y + float64(d.dy())*tileSize
-	// check corners of the bounding box (6px wide)
-	half := float64(tileSize)/2 - 1
-	for _, ox := range []float64{-half, half} {
-		for _, oy := range []float64{-half, half} {
-			if isWall(nx+ox, ny+oy) {
-				return false
-			}
-		}
-	}
-	return true
+	col := int(math.Round(x)) / tileSize
+	row := int(math.Round(y)) / tileSize
+	return !isWallTile(col+d.dx(), row+d.dy())
 }
 
-const pacSpeed = 1.5
-const ghostSpeed = 1.0
+// pacSpeed / ghostSpeed are integer pixels per tick. At 30 TPS that
+// gives 30 px/s = 3.75 tiles/sec — the classic arcade tempo.
+const pacSpeed = 1
+const ghostSpeed = 1
 
 // ─── update ──────────────────────────────────────────────────────────────────
 
@@ -392,21 +405,21 @@ func update() {
 	}
 
 	// ── Move Pac-Man
-	// Try to turn if grid-aligned
+	// Turns and wall checks happen only when Pac is grid-aligned;
+	// between tiles, Pac is committed to the current direction.
 	if aligned(pac.x) && aligned(pac.y) {
-		sx := snapToGrid(pac.x)
-		sy := snapToGrid(pac.y)
-		if canMove(sx, sy, pac.nextDir) {
+		// First try the desired (next) direction.
+		if canMove(pac.x, pac.y, pac.nextDir) {
 			pac.dir = pac.nextDir
-			pac.x = sx
-			pac.y = sy
+		}
+		// If even the current direction is blocked, stop.
+		if !canMove(pac.x, pac.y, pac.dir) {
+			pac.dir = DirNone
 		}
 	}
 
-	if canMove(pac.x, pac.y, pac.dir) {
-		pac.x += float64(pac.dir.dx()) * pacSpeed
-		pac.y += float64(pac.dir.dy()) * pacSpeed
-	}
+	pac.x += float64(pac.dir.dx()) * pacSpeed
+	pac.y += float64(pac.dir.dy()) * pacSpeed
 
 	// Tunnel wrap
 	if pac.x < 0 {
@@ -482,25 +495,25 @@ func update() {
 			g.scaredT--
 		}
 
-		spd := ghostSpeed
-		if g.scared {
-			spd = ghostSpeed * 0.6
+		// Scared ghosts move at 2/3 speed: skip every 3rd tick so
+		// movement stays grid-aligned (sub-pixel speeds break the
+		// integer-grid invariant pacSpeed=1 relies on).
+		moveThisTick := true
+		if g.scared && pf.Frame%3 == 0 {
+			moveThisTick = false
 		}
 
-		// At grid alignment, pick a direction
+		// Pick a direction at intersections.
 		if aligned(g.x) && aligned(g.y) {
-			sx := snapToGrid(g.x)
-			sy := snapToGrid(g.y)
-			g.x = sx
-			g.y = sy
-			g.dir = chooseGhostDir(i, sx, sy, g.dir)
+			g.dir = chooseGhostDir(i, g.x, g.y, g.dir)
+			if !canMove(g.x, g.y, g.dir) {
+				g.dir = DirNone
+			}
 		}
 
-		if canMove(g.x, g.y, g.dir) {
-			g.x += float64(g.dir.dx()) * spd
-			g.y += float64(g.dir.dy()) * spd
-		} else {
-			g.dir = DirNone
+		if moveThisTick {
+			g.x += float64(g.dir.dx()) * ghostSpeed
+			g.y += float64(g.dir.dy()) * ghostSpeed
 		}
 
 		// Tunnel
@@ -651,7 +664,8 @@ func chooseGhostDir(idx int, gx, gy float64, currentDir Dir) Dir {
 // ─── draw ────────────────────────────────────────────────────────────────────
 
 func draw() {
-	pf.Clear(colBlack)
+	pf.SetColor(colBlack)
+	pf.Cls()
 
 	// Maze offset — centre the 28×31 maze (224×248) in the screen
 	const ox = 0
@@ -666,10 +680,10 @@ func draw() {
 
 			if t.wall {
 				pf.SetColor(colBlue)
-				pf.FillRect(px, py, tileSize, tileSize)
+				pf.RectFill(px, py, px+tileSize-1, py+tileSize-1)
 				// Inner shadow for depth
 				pf.SetColor(colDkBlue)
-				pf.FillRect(px+1, py+1, tileSize-2, tileSize-2)
+				pf.RectFill(px+1, py+1, px+tileSize-2, py+tileSize-2)
 			} else if t.dot {
 				pf.SetColor(colWhite)
 				pf.SetPixel(px+3, py+3)
@@ -680,7 +694,7 @@ func draw() {
 				// Flashing power pellet
 				if flashTimer < 20 {
 					pf.SetColor(colWhite)
-					pf.FillCircle(px+4, py+4, 3)
+					pf.CircFill(px+4, py+4, 3)
 				}
 			}
 		}
@@ -713,8 +727,8 @@ func draw() {
 
 	// HUD
 	pf.SetColor(colWhite)
-	pixelforge_font.Print(4, screenH-16, "SCORE:")
-	pixelforge_font.PrintNum(52, screenH-16, score)
+	pixelforge_cofont.Print("SCORE:", 4, screenH-16)
+	pixelforge_cofont.Print(strconv.Itoa(score), 52, screenH-16)
 
 	pf.SetColor(colYellow)
 	for l := 0; l < lives; l++ {
@@ -724,11 +738,11 @@ func draw() {
 	// State overlays
 	if state == StateWin {
 		pf.SetColor(colYellow)
-		pixelforge_font.Print(60, screenH/2-4, "YOU WIN!")
+		pixelforge_cofont.Print("YOU WIN!", 60, screenH/2-4)
 	}
 	if state == StateDead {
 		pf.SetColor(colRed)
-		pixelforge_font.Print(50, screenH/2-4, "GAME OVER")
+		pixelforge_cofont.Print("GAME OVER", 50, screenH/2-4)
 	}
 }
 
@@ -736,9 +750,9 @@ func drawGhost(x, y int, col pf.Color) {
 	// Ghost body: 7×8 pixels
 	pf.SetColor(col)
 	// Head (dome)
-	pf.FillCircle(x+3, y+3, 4)
+	pf.CircFill(x+3, y+3, 4)
 	// Body rectangle
-	pf.FillRect(x-1, y+3, 9, 5)
+	pf.RectFill(x-1, y+3, x+7, y+7)
 	// Wavy bottom (3 bumps)
 	pf.SetColor(colBlack)
 	pf.SetPixel(x-1, y+7)
@@ -746,8 +760,8 @@ func drawGhost(x, y int, col pf.Color) {
 	pf.SetPixel(x+5, y+7)
 	// Eyes
 	pf.SetColor(colWhite)
-	pf.FillRect(x, y+1, 2, 2)
-	pf.FillRect(x+4, y+1, 2, 2)
+	pf.RectFill(x, y+1, x+1, y+2)
+	pf.RectFill(x+4, y+1, x+5, y+2)
 	pf.SetColor(colBlue)
 	pf.SetPixel(x+1, y+2)
 	pf.SetPixel(x+5, y+2)
@@ -759,7 +773,7 @@ func drawPacman(x, y int, dir Dir, anim int) {
 	mouthOpen := (anim%8 < 4)
 
 	if !mouthOpen {
-		pf.FillCircle(x+3, y+3, 4)
+		pf.CircFill(x+3, y+3, 4)
 		return
 	}
 
@@ -792,7 +806,7 @@ func drawPacman(x, y int, dir Dir, anim int) {
 
 func drawSmallPac(x, y int) {
 	pf.SetColor(colYellow)
-	pf.FillCircle(x+3, y+3, 3)
+	pf.CircFill(x+3, y+3, 3)
 	pf.SetColor(colBlack)
 	pf.SetPixel(x+4, y+2)
 	pf.SetPixel(x+5, y+3)
@@ -802,7 +816,11 @@ func drawSmallPac(x, y int) {
 // ─── main ────────────────────────────────────────────────────────────────────
 
 func main() {
-	pf.SetTPS(60)
+	// 30 TPS keeps movement at the classic arcade tempo (30 px/s for
+	// pacSpeed=1) and aligns nicely with the 8-px tile grid: a full
+	// tile traversal is exactly 8 ticks.
+	pf.SetTPS(30)
+	pf.SetScreenSize(screenW, screenH)
 
 	pf.Init = func() {
 		initGame()
@@ -812,5 +830,5 @@ func main() {
 	pf.Draw = draw
 
 	pixelforge_metrics.Start()
-	pixelforge_ebiten.Run("Pac-Man", screenW, screenH, 3)
+	pixelforge_ebiten.Run()
 }

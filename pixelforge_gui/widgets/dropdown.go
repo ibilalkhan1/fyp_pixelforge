@@ -85,6 +85,27 @@ func (d *Dropdown) Close() { d.open = false }
 // IsOpen reports whether the popover is currently visible.
 func (d *Dropdown) IsOpen() bool { return d.open }
 
+// SetOptions replaces the dropdown's option list. The selected value
+// is retained when present in the new options, otherwise cleared.
+func (d *Dropdown) SetOptions(opts []string) {
+	d.Options = append([]string(nil), opts...)
+	if d.Selected != "" {
+		found := false
+		for _, o := range d.Options {
+			if o == d.Selected {
+				found = true
+				break
+			}
+		}
+		if !found {
+			d.Selected = ""
+		}
+	}
+	if d.open {
+		d.recomputeFlip()
+	}
+}
+
 // SelectByIndex picks the option at idx, fires OnSelect, and closes.
 func (d *Dropdown) SelectByIndex(idx int) {
 	if idx < 0 || idx >= len(d.Options) {

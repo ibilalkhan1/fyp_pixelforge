@@ -96,6 +96,55 @@ func computeChromeLayout(w, h, titleH, leftW, rightW, statusH int) *chromeLayout
 	return l
 }
 
+// LeftGutterRect returns the 4px-wide drag gutter between the left
+// panel and the canvas, in window-pixel space. Empty when the canvas
+// has collapsed.
+func (l *chromeLayout) LeftGutterRect() rect {
+	if l.Canvas.W <= 0 {
+		return rect{}
+	}
+	return rect{X: l.Canvas.X - 2, Y: l.Canvas.Y, W: 4, H: l.Canvas.H}
+}
+
+// RightGutterRect returns the gutter between the canvas and the right
+// panel.
+func (l *chromeLayout) RightGutterRect() rect {
+	if l.Canvas.W <= 0 {
+		return rect{}
+	}
+	return rect{X: l.Canvas.X + l.Canvas.W - 2, Y: l.Canvas.Y, W: 4, H: l.Canvas.H}
+}
+
+// ApplyLeftPanelDelta widens (positive) or narrows (negative) the
+// left panel by delta pixels, clamped to (minLeftPanelW, max). The
+// canvas absorbs the difference.
+func (l *chromeLayout) ApplyLeftPanelDelta(delta int) {
+	want := l.LeftPanelW + delta
+	if want < minLeftPanelW {
+		want = minLeftPanelW
+	}
+	maxLeft := (l.WindowW - minCanvasW - l.RightPanelW)
+	if want > maxLeft {
+		want = maxLeft
+	}
+	l.LeftPanelW = want
+	l.recompute(l.WindowW, l.WindowH)
+}
+
+// ApplyRightPanelDelta widens / narrows the right panel symmetrically.
+func (l *chromeLayout) ApplyRightPanelDelta(delta int) {
+	want := l.RightPanelW + delta
+	if want < minRightPanelW {
+		want = minRightPanelW
+	}
+	maxRight := (l.WindowW - minCanvasW - l.LeftPanelW)
+	if want > maxRight {
+		want = maxRight
+	}
+	l.RightPanelW = want
+	l.recompute(l.WindowW, l.WindowH)
+}
+
 // recompute lays the chrome out for a given window size. Panel widths and
 // title/status heights clamp down so the canvas always retains at least
 // minCanvasW × minCanvasH pixels; if the window is smaller than the chrome

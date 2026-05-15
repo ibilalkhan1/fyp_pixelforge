@@ -35,6 +35,22 @@ type Settings struct {
 	Theme          string   `json:"theme"`
 	RecentProjects []string `json:"recent_projects"`
 
+	// CaptureBudgetFrames sizes the M4 continuous-capture ring buffer.
+	// Default 300 frames (10s @ 30 TPS). Resizing in the Capture
+	// workspace persists here.
+	CaptureBudgetFrames int `json:"capture_budget_frames"`
+
+	// LogicalScale is the integer multiplier the editor's chrome
+	// renders at against the window resolution. 1 keeps M0 behaviour;
+	// 2/3/4 give crisper text on Hi-DPI displays. See U47.
+	LogicalScale int `json:"logical_scale"`
+
+	// LeftPanelW / RightPanelW hold the user-resized panel widths
+	// from U48's drag-resize gutters. Zero means "use the chrome
+	// layout default" (the minimums from chromeLayout).
+	LeftPanelW  int `json:"left_panel_width"`
+	RightPanelW int `json:"right_panel_width"`
+
 	path string // resolved on Load; empty when only in-memory
 
 	mu          sync.Mutex
@@ -46,10 +62,12 @@ type Settings struct {
 // the on-disk file is missing/corrupt.
 func DefaultSettings() *Settings {
 	return &Settings{
-		WindowWidth:    defaultWindowWidth,
-		WindowHeight:   defaultWindowHeight,
-		Theme:          "dark",
-		RecentProjects: []string{},
+		WindowWidth:         defaultWindowWidth,
+		WindowHeight:        defaultWindowHeight,
+		Theme:               "dark",
+		RecentProjects:      []string{},
+		CaptureBudgetFrames: 300,
+		LogicalScale:        1,
 	}
 }
 
@@ -190,5 +208,19 @@ func (s *Settings) sanitize() {
 	}
 	if s.RecentProjects == nil {
 		s.RecentProjects = []string{}
+	}
+	if s.CaptureBudgetFrames <= 0 {
+		s.CaptureBudgetFrames = 300
+	}
+	if s.LogicalScale < 1 {
+		s.LogicalScale = 1
+	} else if s.LogicalScale > 4 {
+		s.LogicalScale = 4
+	}
+	if s.LeftPanelW < 0 {
+		s.LeftPanelW = 0
+	}
+	if s.RightPanelW < 0 {
+		s.RightPanelW = 0
 	}
 }

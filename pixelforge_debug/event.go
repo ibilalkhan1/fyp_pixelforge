@@ -14,3 +14,7 @@ func Target() pievent.Target[Event] {
 }
 
 var target = pievent.NewTarget[Event]()
+
+func init() {
+	pievent.RegisterTarget("debug.main", target)
+}

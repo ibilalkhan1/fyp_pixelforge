@@ -24,10 +24,28 @@ var Sheet = pifont.Sheet{
 	BgColor: 0,
 }
 
-// Print writes text on the screen using the Pico-8 font.
+// activeSheet, when non-nil, replaces Sheet for Print() calls. U49
+// adds this seam so editor startup can dispatch to a higher-DPI font
+// (golang.org/x/image/font/basicfont via pifont.NewSystemSheet) when
+// the loaded editor.pforge theme requests it.
+var activeSheet *pifont.Sheet
+
+// SetActiveSheet swaps the active font sheet. Pass nil to revert to
+// the default cofont sheet.
+func SetActiveSheet(sheet *pifont.Sheet) { activeSheet = sheet }
+
+// ActiveSheet returns the currently active sheet (or nil when the
+// default cofont sheet is in use). Exposed for tests.
+func ActiveSheet() *pifont.Sheet { return activeSheet }
+
+// Print writes text on the screen using the active font sheet (or the
+// default cofont sheet when no override is set).
 //
 // Returns the x, y position where you can continue writing text.
 func Print(text string, x, y int) (currentX, currentY int) {
+	if activeSheet != nil {
+		return activeSheet.Print(text, x, y)
+	}
 	return Sheet.Print(text, x, y)
 }
 

@@ -1,7 +1,7 @@
 ---
 title: "feat: M4 Continuous Capture Spine + M3 hybrid cleanup + editor polish"
 type: feat
-status: active
+status: completed
 date: 2026-05-15
 origin: docs/plans/2026-05-15-001-feat-pixelforge-no-code-editor-plan.md
 parent_units: M4, M3.1, M3.2

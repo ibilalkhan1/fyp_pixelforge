@@ -129,4 +129,7 @@ func init() {
 	}
 	Target().SubscribeAll(onKey)
 	DebugTarget().SubscribeAll(onKey)
+
+	pievent.RegisterTarget("key.main", target)
+	pievent.RegisterTarget("key.debug", debugTarget)
 }

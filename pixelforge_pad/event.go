@@ -41,3 +41,8 @@ var target = pievent.NewTarget[EventConnection]()
 func ConnectionTarget() pievent.Target[EventConnection] {
 	return target
 }
+
+func init() {
+	pievent.RegisterTarget("pad.button", buttonTarget)
+	pievent.RegisterTarget("pad.connection", target)
+}

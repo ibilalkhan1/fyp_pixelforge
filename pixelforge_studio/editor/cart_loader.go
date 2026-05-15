@@ -5,6 +5,8 @@ import (
 	"embed"
 	"log"
 
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_cofont"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_font"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_project"
 )
 
@@ -36,12 +38,36 @@ func LoadEmbeddedEditorProject() *pixelforge_project.Project {
 // loadEditorTheme returns the theme the cart uses for its chrome.
 // Sourced from the embedded editor.pforge fixture (R2 dogfooding);
 // falls back to DefaultEditorTheme if the fixture fails to load.
+//
+// Side effect: if theme.FontName == "system" (or a TTF face name),
+// the cofont active-sheet is swapped to pixelforge_font.NewSystemSheet
+// so every subsequent cofont.Print call dispatches there.
 func loadEditorTheme() *EditorTheme {
 	p := LoadEmbeddedEditorProject()
+	var th *EditorTheme
 	if p == nil {
-		return DefaultEditorTheme()
+		th = DefaultEditorTheme()
+	} else {
+		th = themeFromProject(p.Theme)
 	}
-	return themeFromProject(p.Theme)
+	applyFontTheme(th.FontName)
+	return th
+}
+
+// applyFontTheme dispatches the cofont active-sheet based on a theme's
+// FontName field. Unknown names log a warning and fall back to the
+// cofont default.
+func applyFontTheme(name string) {
+	switch name {
+	case "", "cofont":
+		pixelforge_cofont.SetActiveSheet(nil)
+	case "system":
+		sheet := pixelforge_font.NewSystemSheet()
+		pixelforge_cofont.SetActiveSheet(&sheet)
+	default:
+		log.Printf("pixelforge_studio: unknown font theme %q — falling back to cofont", name)
+		pixelforge_cofont.SetActiveSheet(nil)
+	}
 }
 
 func themeFromProject(t pixelforge_project.Theme) *EditorTheme {

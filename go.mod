@@ -6,6 +6,7 @@ require (
 	github.com/hajimehoshi/ebiten/v2 v2.9.9
 	github.com/shirou/gopsutil/v4 v4.25.9
 	github.com/stretchr/testify v1.11.1
+	golang.org/x/image v0.31.0
 )
 
 require (

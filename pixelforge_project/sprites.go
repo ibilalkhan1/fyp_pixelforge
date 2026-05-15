@@ -47,6 +47,10 @@ type AnimationClip struct {
 	// Frames is an ordered list of frame indices into the parent
 	// SpriteAsset's frame grid. The grid is row-major
 	// (Width/FrameW columns × Height/FrameH rows).
+	//
+	// When ClipPath is non-empty, Frames index into that clip strip
+	// instead of the parent sheet — that's the M4 capture-promoted
+	// cliplet path.
 	Frames []int `json:"frames"`
 
 	// FPS is the per-clip playback rate. Independent of the project
@@ -55,4 +59,16 @@ type AnimationClip struct {
 
 	// LoopMode is "loop" (default), "once", or "ping_pong".
 	LoopMode string `json:"loop_mode"`
+
+	// ClipPath is an optional override that points to a standalone
+	// strip PNG (relative to the project's *-assets/ directory).
+	// Captured cliplets (M4 U38) populate this; hand-authored
+	// animations leave it empty so the runtime falls back to the
+	// parent sheet's frame grid.
+	ClipPath string `json:"clip_path,omitempty"`
+
+	// Durations is an optional per-frame override in TPS ticks.
+	// Captured cliplets default to one tick per frame; hand-authored
+	// animations leave the slice nil and use FPS only.
+	Durations []int `json:"durations,omitempty"`
 }

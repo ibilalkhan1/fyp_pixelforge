@@ -47,4 +47,9 @@ func init() {
 	}
 	moveTarget.SubscribeAll(onMove)
 	moveDebugTarget.SubscribeAll(onMove)
+
+	pievent.RegisterTarget("mouse.button", buttonTarget)
+	pievent.RegisterTarget("mouse.button.debug", buttonDebugTarget)
+	pievent.RegisterTarget("mouse.move", moveTarget)
+	pievent.RegisterTarget("mouse.move.debug", moveDebugTarget)
 }

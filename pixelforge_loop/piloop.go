@@ -18,3 +18,8 @@ var (
 	target      = pievent.NewTarget[Event]()
 	debugTarget = pievent.NewTarget[Event]()
 )
+
+func init() {
+	pievent.RegisterTarget("loop.main", target)
+	pievent.RegisterTarget("loop.debug", debugTarget)
+}

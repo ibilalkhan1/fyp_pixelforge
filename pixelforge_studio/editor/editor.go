@@ -13,6 +13,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 
+	pguiwidgets "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_gui/widgets"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_project"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/editor/widgets"
 )
@@ -50,6 +51,12 @@ type Editor struct {
 	currentProjectPath string
 	statusMessage      string
 
+	// M3.1 canvas-resident chrome (U43). Lives alongside the native
+	// menuBar/statusMessage path during the migration; the cart's
+	// render layer dispatches to these when canvas chrome is enabled.
+	canvasMenuBar   *pguiwidgets.MenuBar
+	canvasStatusBar *pguiwidgets.StatusBar
+
 	assetBrowser      *AssetBrowser
 	canvas            *Canvas
 	tool              Tool
@@ -71,6 +78,35 @@ type Editor struct {
 	// terminate, when set, makes Update return ebiten.Termination
 	// (clean shutdown). File → Quit flips this after a dirty-check.
 	terminate bool
+
+	// M5 project listeners — external subsystems (scripting runtime)
+	// subscribe here to be notified on project replacement.
+	projectListeners []ProjectListener
+}
+
+// ProjectListener is the contract the scripting runtime (and any
+// future per-project subsystem) implements to react to project
+// replacement. Editor.SetProject fires OnProjectChanged on every
+// registered listener, in registration order.
+type ProjectListener interface {
+	OnProjectChanged(p *pixelforge_project.Project)
+}
+
+// RegisterProjectListener subscribes l to project-change notifications.
+// Duplicate listeners (same pointer) are ignored.
+func (e *Editor) RegisterProjectListener(l ProjectListener) {
+	if l == nil {
+		return
+	}
+	for _, existing := range e.projectListeners {
+		if existing == l {
+			return
+		}
+	}
+	e.projectListeners = append(e.projectListeners, l)
+	// Fire once on registration so a newly-attached listener sees
+	// the current project immediately.
+	l.OnProjectChanged(e.project)
 }
 
 // New constructs a fresh Editor with default settings and an empty
@@ -99,13 +135,55 @@ func NewWithSettings(s *Settings) *Editor {
 		canvas:        NewCanvas(),
 		tool:          ToolSelect,
 	}
+	// Apply persisted panel widths from settings (U48) before the
+	// first recompute so the chrome opens at the user's last layout.
+	if s.LeftPanelW > 0 {
+		e.chrome.LeftPanelW = s.LeftPanelW
+	}
+	if s.RightPanelW > 0 {
+		e.chrome.RightPanelW = s.RightPanelW
+	}
 	e.fileMenu = NewFileMenu(e)
-	e.menuBar = widgets.NewMenuBar(e.buildMenuDefs())
+	defs := e.buildMenuDefs()
+	e.menuBar = widgets.NewMenuBar(defs)
+	e.canvasMenuBar = pguiwidgets.NewMenuBar(translateMenuDefs(defs), pguiwidgets.MenuBarOptions{})
+	e.canvasStatusBar = pguiwidgets.NewStatusBar()
 	e.installDefaultWorkspaces()
 	e.cart = newEditorCart()
 	e.cart.SetTheme(loadEditorTheme())
 	e.chromeVis = newChromeVisibility()
 	return e
+}
+
+// CanvasMenuBar exposes the canvas-resident menu bar that mirrors the
+// native bank's content. Lives in parallel with menuBar during the M3.1
+// migration; the cart's render layer dispatches here when canvas chrome
+// is enabled.
+func (e *Editor) CanvasMenuBar() *pguiwidgets.MenuBar { return e.canvasMenuBar }
+
+// CanvasStatusBar exposes the canvas-resident status bar (U43).
+func (e *Editor) CanvasStatusBar() *pguiwidgets.StatusBar { return e.canvasStatusBar }
+
+// translateMenuDefs maps the editor's native widgets.MenuDef to the
+// canvas widget bank's pguiwidgets.MenuDef. Field-for-field copy; the
+// canvas bank intentionally mirrors the native shape so this stays
+// trivial.
+func translateMenuDefs(in []widgets.MenuDef) []pguiwidgets.MenuDef {
+	out := make([]pguiwidgets.MenuDef, len(in))
+	for i, m := range in {
+		items := make([]pguiwidgets.MenuItem, len(m.Items))
+		for j, it := range m.Items {
+			items[j] = pguiwidgets.MenuItem{
+				Label:     it.Label,
+				Shortcut:  it.Shortcut,
+				OnSelect:  it.OnSelect,
+				Separator: it.Separator,
+				Disabled:  it.Disabled,
+			}
+		}
+		out[i] = pguiwidgets.MenuDef{Label: m.Label, Items: items}
+	}
+	return out
 }
 
 // Cart exposes the editor's logical Pixelforge canvas wrapper for
@@ -157,8 +235,14 @@ func (e *Editor) KeyMap() *KeyMap { return e.keymap }
 func (e *Editor) Project() *pixelforge_project.Project { return e.project }
 
 // SetProject replaces the in-memory project. Clears the current
-// selection, dirty flag, and selected sprite/audio.
+// selection, dirty flag, and selected sprite/audio. Fires every
+// registered ProjectListener so per-project subsystems (the M5
+// scripting runtime in particular) can teardown and re-instantiate.
 func (e *Editor) SetProject(p *pixelforge_project.Project) {
+	if e.project == p && p != nil {
+		// Same pointer — listeners don't need to restart.
+		return
+	}
 	e.project = p
 	e.selectedEntityID = ""
 	e.selectedSpriteName = ""
@@ -166,6 +250,9 @@ func (e *Editor) SetProject(p *pixelforge_project.Project) {
 	e.dirty = false
 	if e.assetBrowser != nil {
 		e.assetBrowser.InvalidateCache()
+	}
+	for _, l := range e.projectListeners {
+		l.OnProjectChanged(p)
 	}
 }
 
@@ -346,11 +433,97 @@ func (e *Editor) Quit() {
 	e.terminate = true
 }
 
-// Layout reports the inner game-canvas dimensions. The studio renders
-// at native window resolution, so we hand back the window dimensions
-// unchanged — no internal pixel scaling.
+// Layout reports the inner game-canvas dimensions.
+//
+// The studio renders chrome at "logical" pixel resolution defined as
+// (windowW / LogicalScale, windowH / LogicalScale). Setting
+// LogicalScale=1 keeps M0-M3 behaviour (chrome paints at full window
+// resolution). Setting it to 2/3/4 lets 4K displays render the chrome
+// at integer-multiple DPI without blurring the cofont glyphs.
+//
+// The clamp at the end guards against absurd window-to-scale combos:
+// if a 4× scale on a small window would leave less than 320×200 for
+// the chrome to lay out, fall back to 1×.
 func (e *Editor) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return outsideWidth, outsideHeight
+	scale := 1
+	if e.settings != nil && e.settings.LogicalScale > 0 {
+		scale = e.settings.LogicalScale
+	}
+	if scale < 1 {
+		scale = 1
+	}
+	if scale > 4 {
+		scale = 4
+	}
+	logicalW := outsideWidth / scale
+	logicalH := outsideHeight / scale
+	// Hard floor on minimum logical canvas area so chrome doesn't
+	// collapse to unusable dimensions at high scale + small window.
+	minLogicalW, minLogicalH := 320, 200
+	if logicalW < minLogicalW || logicalH < minLogicalH {
+		return outsideWidth, outsideHeight
+	}
+	return logicalW, logicalH
+}
+
+// EffectiveLogicalScale returns the LogicalScale value actually in use
+// after clamping. Exposed for tests and the View → Scale menu.
+func (e *Editor) EffectiveLogicalScale() int {
+	if e.settings == nil {
+		return 1
+	}
+	scale := e.settings.LogicalScale
+	if scale < 1 {
+		return 1
+	}
+	if scale > 4 {
+		return 4
+	}
+	return scale
+}
+
+// ResizeLeftPanel applies a horizontal delta to the left panel and
+// persists the new width via settings.
+func (e *Editor) ResizeLeftPanel(delta int) {
+	if e.chrome == nil {
+		return
+	}
+	e.chrome.ApplyLeftPanelDelta(delta)
+	if e.settings != nil {
+		e.settings.LeftPanelW = e.chrome.LeftPanelW
+		e.settings.MarkDirty()
+	}
+}
+
+// ResizeRightPanel mirrors ResizeLeftPanel for the right gutter.
+func (e *Editor) ResizeRightPanel(delta int) {
+	if e.chrome == nil {
+		return
+	}
+	e.chrome.ApplyRightPanelDelta(delta)
+	if e.settings != nil {
+		e.settings.RightPanelW = e.chrome.RightPanelW
+		e.settings.MarkDirty()
+	}
+}
+
+// SetLogicalScale updates the chrome's render scale and persists it
+// via the debounced settings writer.
+func (e *Editor) SetLogicalScale(n int) {
+	if e.settings == nil {
+		return
+	}
+	if n < 1 {
+		n = 1
+	}
+	if n > 4 {
+		n = 4
+	}
+	if e.settings.LogicalScale == n {
+		return
+	}
+	e.settings.LogicalScale = n
+	e.settings.MarkDirty()
 }
 
 // selectedEntity resolves the current selection against the project.

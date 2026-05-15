@@ -1,3 +1,9 @@
+// retire in M3.3 — the canvas-resident equivalents
+// (canvasDropdownSpriteRef / AudioRef / EventTopic / Enum) ship in
+// pixelforge_studio/editor/inspector_canvas_dropdowns.go (U45). This
+// native file stays compiled until the inspector's dispatch path is
+// fully migrated and parity tests verify the canvas dropdowns reach
+// feature equivalence. See docs/plans/2026-05-15-004-... U46.
 package widgets
 
 import (
