@@ -1,31 +1,28 @@
+// Pixelforge Studio — no-code visual game editor.
+//
+// The studio main.go is intentionally tiny: it loads user settings,
+// sizes the window, and asks Ebitengine to drive the editor. All editor
+// logic lives in the editor package.
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/hajimehoshi/ebiten/v2"
+
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/editor"
 )
 
+const windowTitle = "Pixelforge Studio"
+
 func main() {
-	ebiten.SetWindowTitle("Pixelforge Studio")
-	ebiten.SetWindowSize(1280, 800)
+	settings := editor.LoadSettings()
+
+	ebiten.SetWindowTitle(windowTitle)
+	ebiten.SetWindowSize(settings.WindowWidth, settings.WindowHeight)
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 
-	game := editor.NewEditor()
-
-	// Scan for sprites
-	game.ScanAssetsFolder("pixelforge_examples")
-
-	state := game.State()
-	fmt.Printf("Pixelforge Studio starting...\n")
-	fmt.Printf("Loaded %d sprites:\n", len(state.Sprites))
-	for i, s := range state.Sprites {
-		fmt.Printf("  %d: %s (%dx%d)\n", i, s.Name, s.Width, s.Height)
-	}
-
-	if err := ebiten.RunGame(game); err != nil {
-		log.Fatal(err)
+	if err := ebiten.RunGame(editor.NewWithSettings(settings)); err != nil {
+		log.Fatalf("pixelforge studio: %v", err)
 	}
 }
