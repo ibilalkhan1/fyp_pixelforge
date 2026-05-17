@@ -1,13 +1,27 @@
 ---
 title: "feat: M6 Paula Audio Without Trackers + M5 Follow-ups (per-entity scoping, custom Kinds, persistent breakpoints)"
 type: feat
-status: active
+status: partially_superseded
+partially_superseded_by: docs/plans/2026-05-17-001-refactor-pixelforge-studio-imgui-migration-plan.md
+partially_superseded_on: 2026-05-17
 date: 2026-05-16
 origin: docs/plans/2026-05-15-001-feat-pixelforge-no-code-editor-plan.md
 parent_units: M6
 ---
 
 # feat: M6 Paula Audio + Selected M5 Follow-ups
+
+> **⚠ PARTIALLY SUPERSEDED — 2026-05-17.** The Paula audio editor
+> **UX** described here — comic-strip cell grids, 4-channel mixer
+> lane indicators, envelope curves, session grids — **remains
+> authoritative**. The specific widget implementations
+> (`CellGrid`, `MixerLane` as `pixelforge_gui` widgets) are
+> obsolete; rebuild on Dear ImGui primitives (`imgui.BeginTable` for
+> cell grids, `imgui.PlotLines` / custom `DrawList` for VU meters
+> and envelope curves). The M5 follow-up items (per-entity scoping,
+> custom Kinds, persistent breakpoints) follow the same pattern —
+> behavior is authoritative; widget substrate moves to ImGui. See
+> **[`docs/plans/2026-05-17-001-refactor-pixelforge-studio-imgui-migration-plan.md`](2026-05-17-001-refactor-pixelforge-studio-imgui-migration-plan.md)**.
 
 ## Summary
 

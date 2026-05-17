@@ -1,13 +1,25 @@
 ---
 title: "feat: Editor-as-Pixelforge-Cart + pixelforge_gui widget growth (M3, hybrid)"
 type: feat
-status: active
+status: superseded
+superseded_by: docs/plans/2026-05-17-001-refactor-pixelforge-studio-imgui-migration-plan.md
+superseded_on: 2026-05-17
 date: 2026-05-15
 origin: docs/plans/2026-05-15-001-feat-pixelforge-no-code-editor-plan.md
 parent_units: M3
 ---
 
 # feat: Editor-as-Pixelforge-Cart + pixelforge_gui Growth (M3, Hybrid)
+
+> **⚠ SUPERSEDED — 2026-05-17.** This plan's central thesis — that
+> `pixelforge_gui` grows into a full editor widget catalog and the
+> editor renders itself as a Pixelforge cart — has been retired.
+> The studio chrome migrates to Dear ImGui via `cimgui-go` instead.
+> See **[`docs/plans/2026-05-17-001-refactor-pixelforge-studio-imgui-migration-plan.md`](2026-05-17-001-refactor-pixelforge-studio-imgui-migration-plan.md)**
+> for the active plan. `pixelforge_gui` is frozen at its current
+> shape for engine-side consumers (`pixelforge_scope/`,
+> `pixelforge_examples/gui/`); `editor.pforge` survives as a theme +
+> dock-layout fixture, not a render tree.
 
 ## Summary
 

@@ -2,7 +2,13 @@ module github.com/ibilalkhan1/fyp_pixelforge
 
 go 1.24.2
 
+// cimgui-go is vendored at third_party/cimgui-go so the studio build
+// pins to a known snapshot (includes pre-compiled Dear ImGui static
+// libs for linux/macos/windows). See docs/plans/2026-05-17-001-*.md U1.
+replace github.com/AllenDang/cimgui-go => ./third_party/cimgui-go
+
 require (
+	github.com/AllenDang/cimgui-go v0.0.0-00010101000000-000000000000
 	github.com/hajimehoshi/ebiten/v2 v2.9.9
 	github.com/shirou/gopsutil/v4 v4.25.9
 	github.com/stretchr/testify v1.11.1

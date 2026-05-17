@@ -1,11 +1,12 @@
 // Package editor is the top-level Pixelforge Studio editor. It hosts the
-// editor window, owns the project model, and orchestrates the panels that
-// surface every engine subsystem the studio exposes.
+// editor window, owns the project model, and orchestrates the panels
+// that surface every engine subsystem the studio exposes.
 //
-// During M0 and M1 the editor renders all chrome at native window
-// resolution via Ebitengine primitives (ebitenutil.DebugPrintAt,
-// vector.DrawFilledRect). M3 migrates chrome onto a Pixelforge canvas as
-// part of the editor-as-cart milestone.
+// U2 of the ImGui migration replaced the native chrome (chrome.go,
+// chrome_visibility.go) with cimgui-go calls; chrome lives in
+// imgui_chrome.go. Asset browser / inspector / canvas content still
+// render through their native widget code, painted into rects ImGui
+// carves out per frame (see Editor.panelRects).
 package editor
 
 import (
@@ -13,7 +14,6 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 
-	pguiwidgets "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_gui/widgets"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_project"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/editor/widgets"
 )
@@ -30,11 +30,12 @@ const (
 	defaultWindowHeight = 800
 )
 
-// Editor implements ebiten.Game. State is intentionally narrow at M1:
-// chrome layout, settings, keymap, in-memory project, current
-// selection, and the inspector. Later milestones append fields.
+// Editor implements ebiten.Game. State is intentionally narrow:
+// settings, keymap, in-memory project, current selection, and the
+// inspector. ImGui owns chrome geometry; panelRects is the live
+// per-frame map from panel name to screen rect, used by Draw to place
+// the existing native asset browser / inspector / canvas widgets.
 type Editor struct {
-	chrome    *chromeLayout
 	settings  *Settings
 	keymap    *KeyMap
 	project   *pixelforge_project.Project
@@ -44,36 +45,31 @@ type Editor struct {
 	dirty            bool
 
 	// M1.5 surfaces.
-	menuBar            *widgets.MenuBar
 	filePicker         *widgets.FilePicker
 	confirmDialog      *ConfirmDialog
 	fileMenu           *FileMenu
 	currentProjectPath string
 	statusMessage      string
 
-	// M3.1 canvas-resident chrome (U43). Lives alongside the native
-	// menuBar/statusMessage path during the migration; the cart's
-	// render layer dispatches to these when canvas chrome is enabled.
-	canvasMenuBar   *pguiwidgets.MenuBar
-	canvasStatusBar *pguiwidgets.StatusBar
-
-	assetBrowser      *AssetBrowser
-	canvas            *Canvas
-	tool              Tool
+	assetBrowser       *AssetBrowser
+	canvas             *Canvas
+	tool               Tool
 	selectedSpriteName string
 	selectedAudioName  string
 
 	// M2 workspaces.
-	workspaces       []Workspace
-	activeWorkspace  int
-	tabStripHeight   int
-	tabStripRegistered bool
+	workspaces      []Workspace
+	activeWorkspace int
 
-	// M3 editor cart: logical Pixelforge canvas + canvas-resident chrome.
+	// M3 editor cart: logical Pixelforge canvas used by the canvas-
+	// resident chrome path. The cart itself disappears in U9.
 	cart *editorCart
 
-	// M3 always-on game + Esc-toggle for workspace chrome visibility.
-	chromeVis *chromeVisibility
+	// chromeHidden — Esc toggle that hides editor chrome to make the
+	// Scene panel feel fullscreen. Replaces the old chromeVisibility
+	// object that owned both this flag and an off-screen game canvas;
+	// the game-canvas concern moves to U5 (ImGui texture preview).
+	chromeHidden bool
 
 	// terminate, when set, makes Update return ebiten.Termination
 	// (clean shutdown). File → Quit flips this after a dirty-check.
@@ -82,6 +78,18 @@ type Editor struct {
 	// M5 project listeners — external subsystems (scripting runtime)
 	// subscribe here to be notified on project replacement.
 	projectListeners []ProjectListener
+
+	// ImGui frame host. Attached by main.go after construction via
+	// AttachImguiBackend. Nil-safe: the editor still runs without a
+	// backend attached (existing tests rely on this).
+	imgui *imguiHost
+
+	// panelRects holds the screen-space rect for each ImGui panel
+	// captured during the current frame's buildChrome. Editor.Draw
+	// uses these to place native widget content inside the ImGui
+	// panel bodies. See imgui_chrome.go for capture; PanelRect for
+	// the lookup.
+	panelRects map[string]widgets.Rect
 }
 
 // ProjectListener is the contract the scripting runtime (and any
@@ -116,14 +124,13 @@ func New() *Editor {
 }
 
 // NewWithSettings constructs an Editor bound to a specific settings
-// instance — the editor mutates it (via window-resize observers and
-// recent-project pushes) and triggers debounced autosaves through it.
+// instance — the editor mutates it (via recent-project pushes) and
+// triggers debounced autosaves through it.
 func NewWithSettings(s *Settings) *Editor {
 	if s == nil {
 		s = DefaultSettings()
 	}
 	e := &Editor{
-		chrome:    defaultChromeLayout(),
 		settings:  s,
 		keymap:    DefaultKeyMap(),
 		project:   pixelforge_project.NewProject("untitled"),
@@ -135,79 +142,28 @@ func NewWithSettings(s *Settings) *Editor {
 		canvas:        NewCanvas(),
 		tool:          ToolSelect,
 	}
-	// Apply persisted panel widths from settings (U48) before the
-	// first recompute so the chrome opens at the user's last layout.
-	if s.LeftPanelW > 0 {
-		e.chrome.LeftPanelW = s.LeftPanelW
-	}
-	if s.RightPanelW > 0 {
-		e.chrome.RightPanelW = s.RightPanelW
-	}
 	e.fileMenu = NewFileMenu(e)
-	defs := e.buildMenuDefs()
-	e.menuBar = widgets.NewMenuBar(defs)
-	e.canvasMenuBar = pguiwidgets.NewMenuBar(translateMenuDefs(defs), pguiwidgets.MenuBarOptions{})
-	e.canvasStatusBar = pguiwidgets.NewStatusBar()
 	e.installDefaultWorkspaces()
 	e.cart = newEditorCart()
 	e.cart.SetTheme(loadEditorTheme())
-	e.chromeVis = newChromeVisibility()
 	return e
 }
 
-// CanvasMenuBar exposes the canvas-resident menu bar that mirrors the
-// native bank's content. Lives in parallel with menuBar during the M3.1
-// migration; the cart's render layer dispatches here when canvas chrome
-// is enabled.
-func (e *Editor) CanvasMenuBar() *pguiwidgets.MenuBar { return e.canvasMenuBar }
-
-// CanvasStatusBar exposes the canvas-resident status bar (U43).
-func (e *Editor) CanvasStatusBar() *pguiwidgets.StatusBar { return e.canvasStatusBar }
-
-// translateMenuDefs maps the editor's native widgets.MenuDef to the
-// canvas widget bank's pguiwidgets.MenuDef. Field-for-field copy; the
-// canvas bank intentionally mirrors the native shape so this stays
-// trivial.
-func translateMenuDefs(in []widgets.MenuDef) []pguiwidgets.MenuDef {
-	out := make([]pguiwidgets.MenuDef, len(in))
-	for i, m := range in {
-		items := make([]pguiwidgets.MenuItem, len(m.Items))
-		for j, it := range m.Items {
-			items[j] = pguiwidgets.MenuItem{
-				Label:     it.Label,
-				Shortcut:  it.Shortcut,
-				OnSelect:  it.OnSelect,
-				Separator: it.Separator,
-				Disabled:  it.Disabled,
-			}
-		}
-		out[i] = pguiwidgets.MenuDef{Label: m.Label, Items: items}
-	}
-	return out
-}
-
 // Cart exposes the editor's logical Pixelforge canvas wrapper for
-// canvas-resident workspace code (U28-U33).
+// canvas-resident workspace code. Deprecated in U2 (no longer wired to
+// the chrome path); fully removed in U9.
 func (e *Editor) Cart() *editorCart { return e.cart }
 
 // ChromeHidden reports whether workspace chrome is currently hidden via
-// the Esc toggle.
-func (e *Editor) ChromeHidden() bool {
-	if e.chromeVis == nil {
-		return false
-	}
-	return e.chromeVis.Hidden()
-}
+// the Esc toggle. With ImGui chrome the toggle is decorative for now —
+// U3 (DockSpace) and U5 (scene-as-texture) will use it to maximise the
+// Scene panel.
+func (e *Editor) ChromeHidden() bool { return e.chromeHidden }
 
 // ToggleChromeVisibility flips the chrome-hidden state. Bound to Esc;
 // callers should invoke this only when no modal is currently visible
 // (modal precedence is enforced by handleEscape).
-func (e *Editor) ToggleChromeVisibility() {
-	if e.chromeVis == nil {
-		return
-	}
-	e.chromeVis.Toggle()
-}
+func (e *Editor) ToggleChromeVisibility() { e.chromeHidden = !e.chromeHidden }
 
 // handleEscape routes Esc with modal precedence: open modals dismiss
 // first; otherwise the chrome-visibility toggle fires.
@@ -315,11 +271,13 @@ func (e *Editor) ConfirmDialog() *ConfirmDialog { return e.confirmDialog }
 // FileMenu exposes the editor's file-menu actions for testing.
 func (e *Editor) FileMenu() *FileMenu { return e.fileMenu }
 
-// ChromeCanvasRect returns the central canvas region in window-pixel
-// space. External workspaces (e.g. the palette package) use this to
-// size their sub-panels without recomputing chrome themselves.
+// ChromeCanvasRect returns the Scene panel's screen rect. External
+// workspaces (e.g. the palette package) use this to size their sub-
+// panels without needing to query ImGui directly.
+//
+// Returns the zero rect before the first frame's buildChrome runs.
 func (e *Editor) ChromeCanvasRect() widgets.Rect {
-	return e.chrome.canvasRectWidgets()
+	return e.PanelRect(PanelScene)
 }
 
 // AssetBrowserComponent exposes the editor's asset browser so external
@@ -340,46 +298,37 @@ func (e *Editor) PromptIfDirty(title, message string, action func()) {
 	e.confirmDialog.Show(title, message, action)
 }
 
-// Update advances the editor one tick. Menu bar, modals, and active
-// workspace all receive input here.
+// Update advances the editor one tick. ImGui chrome builds first (so
+// panel rects and io.WantCaptureKeyboard reflect this frame's input),
+// then modals + workspace input dispatch on top.
 func (e *Editor) Update() error {
 	if e.terminate {
 		return ebiten.Termination
 	}
 
-	// U33: keep the always-on game canvas allocated to match the
-	// project's screen size. The game canvas updates at TPS regardless
-	// of editor activity; this Ensure call is cheap when sizes match.
-	if e.chromeVis != nil && e.project != nil {
-		e.chromeVis.EnsureGameCanvas(e.project.ScreenWidth, e.project.ScreenHeight)
-	}
+	// ImGui frame brackets the whole tick so the chrome built below
+	// sits inside one Begin/EndFrame pair. defer guarantees EndFrame
+	// fires even on the early-return paths modals take.
+	e.imgui.beginFrame()
+	defer e.imgui.endFrame()
+	e.imgui.buildContent()
+	e.buildChrome()
 
-	// Process keyboard shortcuts. Shortcuts are skipped when a modal
-	// owns input.
+	// Suppress native shortcuts while a modal owns input or ImGui owns
+	// keyboard focus (e.g. a text input has focus). Keeps the editor's
+	// Ctrl+S etc. from firing when the user is typing into an ImGui
+	// widget.
 	modalOwnsInput := e.filePicker.Visible() || e.confirmDialog.Visible()
-
-	if !modalOwnsInput {
+	if shouldDispatchShortcuts(modalOwnsInput, e.imguiCapturesKeyboard()) {
 		e.handleShortcuts()
 	}
 
-	// Modals take precedence; only one is visible at a time in M1.5.
-	w, h := e.chrome.WindowW, e.chrome.WindowH
-	if w == 0 {
-		w = defaultWindowWidth
-	}
-	if h == 0 {
-		h = defaultWindowHeight
-	}
+	// Modals take precedence; only one is visible at a time.
+	w, h := e.viewportSize()
 	if e.confirmDialog.Update(w, h) {
 		return nil
 	}
 	if e.filePicker.Update(w, h) {
-		return nil
-	}
-
-	// Menu bar grabs input when its label or dropdown is hovered.
-	menuRect := widgets.Rect{X: 0, Y: 0, W: w, H: widgets.MenuBarHeight}
-	if e.menuBar.Update(menuRect) {
 		return nil
 	}
 
@@ -390,42 +339,44 @@ func (e *Editor) Update() error {
 	return nil
 }
 
-// Draw paints the chrome and panel content onto the framebuffer
-// Ebitengine hands us. The chrome layout is recomputed each frame so
-// window resizes apply without an explicit hook.
+// Draw paints the editor onto the framebuffer Ebitengine hands us.
+// Native widget content (asset browser, inspector, scene/canvas) is
+// drawn into the rects ImGui captured during Update; ImGui chrome
+// composes last so its menu bar / status bar / panel titles sit above.
 func (e *Editor) Draw(screen *ebiten.Image) {
-	w, h := screen.Bounds().Dx(), screen.Bounds().Dy()
-	e.chrome.recompute(w, h)
 	screen.Fill(themeBackground)
 
-	// Render the canvas-resident workspace chrome into the editor
-	// cart's Pixelforge canvas. The active workspace decides whether
-	// to drive its content through the cart (R1 dogfooding) or stay
-	// on the native path. The cart's contents are blitted into the
-	// chrome's canvas region before the rest of the native chrome
-	// paints on top.
-	if e.cart != nil {
-		ws := e.activeWorkspaceImpl()
-		if cw, ok := ws.(CanvasWorkspace); ok && cw != nil {
-			e.cart.renderInto(e)
-			e.cart.blitToScreen(screen, e.chrome.canvasRectWidgets())
-			_ = cw
+	// Native widget content goes into the ImGui panel rects captured
+	// during Update.
+	if rect := e.PanelRect(PanelAssets); rect.W > 0 && rect.H > 0 && e.assetBrowser != nil {
+		e.assetBrowser.Draw(screen, rect, e)
+		e.assetBrowser.Update(rect, e)
+	}
+	if rect := e.PanelRect(PanelInspector); rect.W > 0 && rect.H > 0 {
+		if entity := e.selectedEntity(); entity != nil {
+			if e.inspector.Draw(screen, rect, e.project, entity) {
+				e.MarkDirty()
+			}
+		}
+	}
+	if rect := e.PanelRect(PanelScene); rect.W > 0 && rect.H > 0 {
+		if ws := e.activeWorkspaceImpl(); ws != nil {
+			ws.Draw(screen, rect, e)
 		}
 	}
 
-	e.chrome.draw(screen, e)
-
-	// Menu bar sits on top of the chrome's title region.
-	menuRect := widgets.Rect{X: 0, Y: 0, W: w, H: widgets.MenuBarHeight}
-	e.menuBar.Draw(screen, menuRect)
-
-	// Modals render after everything else.
+	// Modals render after panel content, before ImGui chrome.
 	if e.filePicker.Visible() {
 		e.filePicker.Draw(screen)
 	}
 	if e.confirmDialog.Visible() {
+		w, h := screen.Bounds().Dx(), screen.Bounds().Dy()
 		e.confirmDialog.Draw(screen, w, h)
 	}
+
+	// ImGui composes last so its menu bar / status bar / panel titles
+	// sit above everything else.
+	e.imgui.draw(screen)
 }
 
 // Quit triggers a graceful shutdown after a dirty-check.
@@ -433,18 +384,38 @@ func (e *Editor) Quit() {
 	e.terminate = true
 }
 
+// viewportSize returns the current logical viewport dimensions. Used
+// by modals that size themselves to the editor's frame.
+func (e *Editor) viewportSize() (int, int) {
+	w, h := defaultWindowWidth, defaultWindowHeight
+	if e.settings != nil {
+		if e.settings.WindowWidth > 0 {
+			w = e.settings.WindowWidth
+		}
+		if e.settings.WindowHeight > 0 {
+			h = e.settings.WindowHeight
+		}
+	}
+	return w, h
+}
+
 // Layout reports the inner game-canvas dimensions.
 //
-// The studio renders chrome at "logical" pixel resolution defined as
+// The studio renders at "logical" pixel resolution defined as
 // (windowW / LogicalScale, windowH / LogicalScale). Setting
-// LogicalScale=1 keeps M0-M3 behaviour (chrome paints at full window
-// resolution). Setting it to 2/3/4 lets 4K displays render the chrome
-// at integer-multiple DPI without blurring the cofont glyphs.
+// LogicalScale=1 keeps the default behaviour (chrome paints at full
+// window resolution). Setting it to 2/3/4 lets 4K displays render the
+// chrome at integer-multiple DPI without blurring.
 //
 // The clamp at the end guards against absurd window-to-scale combos:
 // if a 4× scale on a small window would leave less than 320×200 for
 // the chrome to lay out, fall back to 1×.
 func (e *Editor) Layout(outsideWidth, outsideHeight int) (int, int) {
+	// ImGui needs the unscaled outside dimensions so its display size
+	// matches the OS window. Forward before computing the editor's own
+	// logical-scale return value.
+	e.imgui.layout(outsideWidth, outsideHeight)
+
 	scale := 1
 	if e.settings != nil && e.settings.LogicalScale > 0 {
 		scale = e.settings.LogicalScale
@@ -480,31 +451,6 @@ func (e *Editor) EffectiveLogicalScale() int {
 		return 4
 	}
 	return scale
-}
-
-// ResizeLeftPanel applies a horizontal delta to the left panel and
-// persists the new width via settings.
-func (e *Editor) ResizeLeftPanel(delta int) {
-	if e.chrome == nil {
-		return
-	}
-	e.chrome.ApplyLeftPanelDelta(delta)
-	if e.settings != nil {
-		e.settings.LeftPanelW = e.chrome.LeftPanelW
-		e.settings.MarkDirty()
-	}
-}
-
-// ResizeRightPanel mirrors ResizeLeftPanel for the right gutter.
-func (e *Editor) ResizeRightPanel(delta int) {
-	if e.chrome == nil {
-		return
-	}
-	e.chrome.ApplyRightPanelDelta(delta)
-	if e.settings != nil {
-		e.settings.RightPanelW = e.chrome.RightPanelW
-		e.settings.MarkDirty()
-	}
 }
 
 // SetLogicalScale updates the chrome's render scale and persists it

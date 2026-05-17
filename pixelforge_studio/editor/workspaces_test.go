@@ -1,7 +1,6 @@
 package editor
 
 import (
-	"image/color"
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -105,21 +104,9 @@ func TestEditor_WorkspaceStateSurvivesSwitch(t *testing.T) {
 	assert.Equal(t, 42, sw.state, "state survives switching away and back")
 }
 
-// handleTabStripClick maps click X to workspace index. After New(),
-// tab order is scene, behavior, audio, capture, procgen.
-func TestEditor_HandleTabStripClick(t *testing.T) {
-	e := New()
-	area := widgets.Rect{X: 0, Y: 0, W: 800, H: tabStripH}
-	// First tab spans roughly X=[8, 108) → scene.
-	e.handleTabStripClick(area, 20, 5)
-	assert.Equal(t, "scene", e.ActiveWorkspaceName())
-	// Second tab spans roughly X=[108, 208) → behavior.
-	e.handleTabStripClick(area, 120, 5)
-	assert.Equal(t, "behavior", e.ActiveWorkspaceName())
-}
+// (TestEditor_HandleTabStripClick removed in U2 — the native tab
+// strip is gone; workspace switching now flows through the ImGui View
+// menu and, in U3, DockSpace tab handling.)
 
 // Compile-time assertion that SceneWorkspace satisfies the interface.
 var _ Workspace = (*SceneWorkspace)(nil)
-
-// Suppress unused-import warning when color is imported elsewhere only.
-var _ = color.RGBA{}

@@ -1,13 +1,24 @@
 ---
 title: "feat: Pixelforge editor interactivity bootstrap (M1.5) + palette/ColorTables surface (M2)"
 type: feat
-status: active
+status: partially_superseded
+partially_superseded_by: docs/plans/2026-05-17-001-refactor-pixelforge-studio-imgui-migration-plan.md
+partially_superseded_on: 2026-05-17
 date: 2026-05-15
 origin: docs/plans/2026-05-15-001-feat-pixelforge-no-code-editor-plan.md
 parent_units: U1-U9
 ---
 
 # feat: Pixelforge Editor Interactivity Bootstrap (M1.5) + Palette/ColorTables Surface (M2)
+
+> **⚠ PARTIALLY SUPERSEDED — 2026-05-17.** The M1.5 / M2 feature
+> targets — file menu, asset browser, click-to-place tools,
+> palette grid, ColorTable matrices, palette presets, paint-to-place
+> tiles — **remain authoritative**. Their pgui-based widget
+> implementations described here are obsolete; build on Dear ImGui
+> primitives (`imgui.MenuItem`, `imgui.Begin` panels, `imgui.Image`
+> swatches, `imgui.BeginTable` matrices) instead. See
+> **[`docs/plans/2026-05-17-001-refactor-pixelforge-studio-imgui-migration-plan.md`](2026-05-17-001-refactor-pixelforge-studio-imgui-migration-plan.md)**.
 
 ## Summary
 

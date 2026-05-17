@@ -1,13 +1,27 @@
 ---
 title: "feat: M5 Visual Scripting — Step lanes, Event sheets, recorded-demo, debugger, View-as-Go"
 type: feat
-status: active
+status: partially_superseded
+partially_superseded_by: docs/plans/2026-05-17-001-refactor-pixelforge-studio-imgui-migration-plan.md
+partially_superseded_on: 2026-05-17
 date: 2026-05-16
 origin: docs/plans/2026-05-15-001-feat-pixelforge-no-code-editor-plan.md
 parent_units: M5
 ---
 
 # feat: M5 Coroutine-Step Visual Scripting + Event Sheets
+
+> **⚠ PARTIALLY SUPERSEDED — 2026-05-17.** The visual scripting
+> **UX** described here — horizontal step lanes (not node graphs),
+> two-column event sheets with indent-based grouping, recorded-demo
+> capture, debugger overlay, View-as-Go panel — **remains
+> authoritative**. The specific widget implementations
+> (`StepCard`, `RuleRow`, `NodeGraphView` as `pixelforge_gui`
+> widgets) are obsolete; rebuild on Dear ImGui primitives
+> (`imgui.BeginChild` per lane, `imgui.BeginDragDropSource` for
+> reorder, `imgui.BeginTable` for event sheets,
+> `ImGuiColorTextEdit` for the View-as-Go pane). See
+> **[`docs/plans/2026-05-17-001-refactor-pixelforge-studio-imgui-migration-plan.md`](2026-05-17-001-refactor-pixelforge-studio-imgui-migration-plan.md)**.
 
 ## Summary
 

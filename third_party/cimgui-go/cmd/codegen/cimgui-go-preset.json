@@ -1,0 +1,140 @@
+{
+        "PackagePath": "github.com/AllenDang/cimgui-go",
+        "SkipFuncs": [
+                "igInputText$",
+                "igInputTextWithHint$",
+                "igInputTextMultiline$",
+                "ImVec1_GetX$",
+                "ImVec2_GetX$",
+                "ImVec2_GetY$",
+                "ImVec4_GetX$",
+                "ImVec4_GetY$",
+                "ImVec4_GetW$",
+                "ImVec4_GetZ$",
+                "ImRect_GetMin$",
+                "ImRect_GetMax$",
+                "ImPlotPoint_SetX$",
+                "ImPlotPoint_SetY$",
+                "ImPlotPoint_GetX$",
+                "ImPlotPoint_GetY$"
+        ],
+        "SkipStructs": [
+                "ImVec2$",
+                "ImVec2ih$",
+                "ImVec4$",
+                "ImColor$",
+                "ImRect$",
+                "ImPlotTime$",
+                "ImPlotPoint$"
+        ],
+        "SkipMethods": [
+                "ImVec1$",
+                "ImVec2$",
+                "ImVec2ih$",
+                "ImVec4$",
+                "ImColor$",
+                "ImRect$",
+                "ImPlotTime$"
+        ],
+        "SkipTypedefs": [
+                "ImS8",
+                "ImS16",
+                "ImS32",
+                "ImS64",
+                "ImU8",
+                "ImU16",
+                "ImU32",
+                "ImU64",
+                "ImGuiInputTextCallback$"
+        ],
+        "SkipFiles": [
+                "imgui_freetype"
+        ],
+        "TypedefsPoolSize": 32,
+        "TypedefsCustomPoolSizes": {
+        },
+        "Replace": {
+                "igGetDrawData":           "CurrentDrawData",
+                "igGetDrawListSharedData": "CurrentDrawListSharedData",
+                "igGetFont":               "CurrentFont",
+                "igGetIO_Nil":             "CurrentIO",
+                "igGetPlatformIO_Nil":     "CurrentPlatformIO",
+                "igGetPlatformIO":         "CurrentPlatformIO",
+                "igGetStyle":              "CurrentStyle",
+                "igGetMouseCursor":        "CurrentMouseCursor",
+                "igGetFontBaked":          "GetFontBaked",
+                "igGetItemFlags":          "LastItemFlags",
+                "Get_TexID":               "GetTexID",
+                "ImAxis":                  "AxisEnum",
+                "GetItem_ID":              "ItemByID"
+        },
+        "TrimPrefix": [
+                "ImGuizmo",
+                "imnodes",
+                "ImNodes",
+                "ImPlot",
+                "ImGui",
+                "Im",
+                "ig"
+        ],
+        "OriginReplace": {
+                "TextEditor_GetText": "TextEditor_GetText_alloc"
+        },
+        "CustomFinalizer": {
+                "TextEditor_GetText": "TextEditor_GetText_free"
+        },
+        "DefaultArgReplace": {
+                "FLT_MIN":    "igGET_FLT_MIN()",
+                "FLT_MAX":    "igGET_FLT_MAX()",
+                "nullptr":    "0",
+                "NULL":       "0",
+                "((void*)0)": "0",
+                "IMPLOT_AUTO_COL": "{0,0,0,-1}",
+                "ImPlotSpec()":    "*ImPlotSpec_ImPlotSpec()"
+        },
+        "DefaultArgArbitraryValue": {
+                "text_end":   "0",
+                "text_end_": "0"
+        },
+        "ExtraCGOPreamble": [
+                "#include \"../imgui/extra_types.h\""
+        ],
+        "InternalFiles": [
+                "imgui_internal"
+        ],
+        "InternalPrefix": "Internal",
+        "SimpleTypes": {
+                "ImU8":      ["byte", "C.ImU8"],
+                "ImU16":     ["uint16", "C.ImU16"],
+                "ImU32":     ["uint32", "C.ImU32"],
+                "ImU64":     ["uint64", "C.ImU64"],
+                "ImS8":      ["int", "C.ImS8"],
+                "ImS16":     ["int16", "C.ImS16"],
+                "ImS32":     ["int", "C.ImS32"],
+                "ImS64":     ["int64", "C.ImS64"],
+                "ImWchar":   ["Wchar", "C.ImWchar", "imgui"],
+                "ImWchar*":  ["*Wchar", "(*C.ImWchar)", "imgui"],
+                "ImWchar16": ["uint16", "C.ImWchar16", "imgui"]
+        },
+        "SimplePtrTypes": {
+                "ImU8":  ["byte", "C.ImU8"],
+                "ImU16": ["uint16", "C.ImU16"],
+                "ImU32": ["uint32", "C.ImU32"],
+                "ImU64": ["uint64", "C.ImU64"],
+                "ImS8":  ["int8", "C.ImS8"],
+                "ImS16": ["int16", "C.ImS16"],
+                "ImS32": ["int32", "C.ImS32"],
+                "ImS64": ["int64", "C.ImS64"]
+
+        },
+        "WrappableTypes": {
+                "ImVec2":      ["Vec2", "C.ImVec2_c", "imgui"],
+                "ImVec4":      ["Vec4", "C.ImVec4_c", "imgui"],
+                "ImColor":     ["Color", "C.ImColor_c", "imgui"],
+                "ImRect":      ["Rect", "C.ImRect_c", "imgui"],
+                "ImPlotPoint": ["PlotPoint", "C.ImPlotPoint", "implot"],
+                "ImPlotTime":  ["PlotTime", "C.ImPlotTime", "implot"]
+
+        },
+        "NonPODUsedSuffix": "_c"
+}

@@ -1,8 +1,6 @@
 package editor
 
 import (
-	"image/color"
-
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/editor/widgets"
@@ -119,52 +117,15 @@ func (s *SceneWorkspace) DrawCanvas(rel widgets.Rect, e *Editor) {
 	}
 }
 
-// Update dispatches mouse input to the canvas.
+// Update dispatches mouse input to the canvas, using the Scene panel
+// rect ImGui captured this frame.
 func (s *SceneWorkspace) Update(e *Editor) {
-	area := e.chrome.canvasRectWidgets()
+	area := e.PanelRect(PanelScene)
 	if e.canvas != nil {
 		e.canvas.Update(area, e)
 	}
 }
 
-// drawTabStrip paints the workspace tab strip below the menu bar.
-func (e *Editor) drawTabStrip(dst *ebiten.Image, area widgets.Rect) {
-	if area.W <= 0 || area.H <= 0 {
-		return
-	}
-	vectorFill(dst, area, colTabStripBg)
-	x := area.X + 8
-	for i, w := range e.workspaces {
-		label := w.DisplayName()
-		tabW := 100
-		tab := widgets.Rect{X: x, Y: area.Y, W: tabW, H: area.H}
-		if i == e.activeWorkspace {
-			vectorFill(dst, tab, colTabStripActive)
-			// Accent stripe at the bottom.
-			vectorFill(dst, widgets.Rect{X: tab.X, Y: tab.Y + tab.H - 2, W: tab.W, H: 2},
-				color.RGBA{R: 0x46, G: 0x86, B: 0xff, A: 0xff})
-		}
-		debugPrint(dst, label, tab.X+12, tab.Y+3)
-		x += tabW
-	}
-}
-
-// handleTabStripClick maps a click in the tab strip to a workspace
-// switch.
-func (e *Editor) handleTabStripClick(area widgets.Rect, mx, my int) {
-	if !area.Contains(mx, my) {
-		return
-	}
-	relX := mx - area.X - 8
-	idx := relX / 100
-	if idx >= 0 && idx < len(e.workspaces) {
-		e.activeWorkspace = idx
-	}
-}
-
-const tabStripH = 22
-
-var (
-	colTabStripBg     = color.RGBA{R: 0x18, G: 0x18, B: 0x22, A: 0xff}
-	colTabStripActive = color.RGBA{R: 0x2a, G: 0x2a, B: 0x36, A: 0xff}
-)
+// (drawTabStrip / handleTabStripClick removed in U2 — the native tab
+// strip is replaced by the ImGui menu bar's View menu and, in U3, by
+// DockSpace tab handling.)

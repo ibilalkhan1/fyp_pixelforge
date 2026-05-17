@@ -11,6 +11,7 @@ package main
 import (
 	"log"
 	"os"
+	"slices"
 
 	"github.com/hajimehoshi/ebiten/v2"
 
@@ -22,6 +23,11 @@ import (
 
 const windowTitle = "Pixelforge Studio"
 
+// imguiDemoFlag toggles the cimgui-go demo window. U1 of the ImGui
+// migration plan uses this as the smoke signal that cimgui-go links and
+// composes correctly. Removed once real chrome ships in U2.
+const imguiDemoFlag = "--imgui-demo"
+
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "test" {
 		runTestSubcommand(os.Args[2:])
@@ -30,11 +36,22 @@ func main() {
 
 	settings := editor.LoadSettings()
 
-	ebiten.SetWindowTitle(windowTitle)
-	ebiten.SetWindowSize(settings.WindowWidth, settings.WindowHeight)
+	// Detect (and strip) the --imgui-demo flag so it doesn't confuse
+	// any downstream argv consumers.
+	showImguiDemo := slices.Contains(os.Args[1:], imguiDemoFlag)
+
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 
+	// Build the cimgui-go Ebiten backend before RunGame. CreateWindow
+	// inside the backend drives ebiten.SetWindowTitle/Size, so the
+	// editor's existing window-sizing path moves here.
+	imguiBackend, err := editor.NewEbitenImguiBackend(windowTitle, settings.WindowWidth, settings.WindowHeight)
+	if err != nil {
+		log.Fatalf("pixelforge studio: %v", err)
+	}
+
 	e := editor.NewWithSettings(settings)
+	e.AttachImguiBackend(imguiBackend, showImguiDemo)
 	palette.RegisterWith(e)
 	capture.RegisterWith(e)
 	scripting.RegisterWith(e)

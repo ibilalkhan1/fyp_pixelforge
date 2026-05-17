@@ -27,6 +27,19 @@ func debugPrint(dst *ebiten.Image, s string, x, y int) {
 	ebitenutil.DebugPrintAt(dst, s, x, y)
 }
 
+// debugLineHeight is the vertical pixel height of one line of
+// ebitenutil.DebugPrintAt output. Native widget code uses it to lay
+// out single-line text inside a widgets.Rect.
+const debugLineHeight = 16
+
+// strokeRectAt outlines the supplied widgets.Rect with a 1-pixel
+// border in c. Native widget helper carried over from the deleted
+// chrome.go so callers (canvas.go, asset_browser.go) keep their
+// existing signatures.
+func strokeRectAt(dst *ebiten.Image, r widgets.Rect, c color.RGBA) {
+	vector.StrokeRect(dst, float32(r.X), float32(r.Y), float32(r.W), float32(r.H), 1, c, false)
+}
+
 // Inspector renders the right panel: the selected entity's components,
 // with one auto-generated widget per field driven by the pfcomponent
 // registry.

@@ -1,12 +1,23 @@
 ---
 title: "feat: Pixelforge no-code visual game editor (replaces pixelforge_studio)"
 type: feat
-status: active
+status: partially_superseded
+partially_superseded_by: docs/plans/2026-05-17-001-refactor-pixelforge-studio-imgui-migration-plan.md
+partially_superseded_on: 2026-05-17
 date: 2026-05-15
 origin: docs/ideation/2026-05-15-pixelforge-editor-ideation.md
 ---
 
 # feat: Pixelforge No-Code Visual Game Editor
+
+> **⚠ PARTIALLY SUPERSEDED — 2026-05-17.** M0 and M1 shipped — that
+> history stands. The GUI implementation strategy for M2 through M7
+> (panel chrome, inspector widgets, palette UI, audio editor,
+> scripting workspace) has shifted from `pixelforge_gui` growth to
+> Dear ImGui via `cimgui-go`. **Milestone feature targets in this
+> plan remain authoritative**, but their implementations now land on
+> ImGui primitives. See **[`docs/plans/2026-05-17-001-refactor-pixelforge-studio-imgui-migration-plan.md`](2026-05-17-001-refactor-pixelforge-studio-imgui-migration-plan.md)**
+> for the new substrate.
 
 ## Summary
 
