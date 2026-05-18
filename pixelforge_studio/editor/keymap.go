@@ -63,6 +63,15 @@ func DefaultKeyMap() *KeyMap {
 	k.Register("tool.delete", Binding{Key: ebiten.KeyX})
 	k.Register("tool.paint", Binding{Key: ebiten.KeyB})
 
+	// Idea #1 v1 — tile painter per-stroke undo/redo. Ctrl+Z reverts
+	// the most recent stroke; Ctrl+Y (and Ctrl+Shift+Z, the macOS-
+	// idiomatic redo) replays it. The keymap holds both redo
+	// bindings; the modsPressed exact-match check keeps Ctrl+Z from
+	// firing the redo path when Shift is held.
+	k.Register("edit.undo", Binding{Mods: ModCtrl, Key: ebiten.KeyZ})
+	k.Register("edit.redo", Binding{Mods: ModCtrl, Key: ebiten.KeyY})
+	k.Register("edit.redo", Binding{Mods: ModCtrl | ModShift, Key: ebiten.KeyZ})
+
 	// Workspace navigation.
 	k.Register("workspace.cycle", Binding{Mods: ModCtrl, Key: ebiten.KeyTab})
 	k.Register("workspace.scene", Binding{Mods: ModCtrl, Key: ebiten.KeyDigit1})

@@ -1,7 +1,8 @@
 ---
 title: "refactor: Migrate Pixelforge Studio GUI to Dear ImGui (cimgui-go)"
 type: refactor
-status: active
+status: completed
+completed_on: 2026-05-18
 date: 2026-05-17
 origin: docs/ideation/2026-05-17-imgui-studio-migration-ideation.md
 supersedes:
@@ -702,6 +703,89 @@ This section logs per-unit completion as the migration ships. Each entry names t
 - `cart.go` / `cart_loader.go` / `cart_assets/` / `editor.pforge` — survive untouched; U6 (theming) and U9 (cleanup) own their final state.
 - `settings.LeftPanelW` / `settings.RightPanelW` — fields preserved in `settings.go` for backwards compat; no longer read by the chrome path. U6 reconciles with `imgui.ini`.
 - `installStubWorkspaces` / workspace stubs — still registered; U3 (DockSpace) replaces the activation surface, U7/U8 rebuild their content on ImGui.
+
+### U3 — Completed 2026-05-18
+
+**What landed:**
+- `pixelforge_studio/editor/dockspace.go` — `(e *Editor).buildDockSpace` calls `imgui.DockSpaceOverViewportV` with `DockNodeFlagsPassthruCentralNode`; `applyDefaultDockLayout` seeds Assets-left / Inspector-right / centre-tab layout via `DockBuilderAddNode` / `DockBuilderSplitNode` / `DockBuilderDockWindow` on first run.
+- `pixelforge_studio/editor/workspaces.go` — `Workspace` interface gets `Render(e *Editor)`; `NativeWorkspaceContent` + `WorkspaceInputHandler` interfaces split out for transitional native widgets. `SceneWorkspace.Render` registers the window and captures its content rect.
+- `pixelforge_studio/editor/workspaces_stubs.go` — **DELETED** (M3 placeholder workspaces). Workspaces register themselves via their package's `RegisterWith`; default editor registers only `Scene`.
+- `pixelforge_studio/editor/dockspace_test.go` — new tests for the dockspace state machine.
+- Palette / Capture / Scripting workspaces gained transitional `Render` methods so they satisfy the new interface; their native content keeps painting into the captured rect.
+
+**Verification:** `go build ./...` + `go test ./...` clean.
+
+### U4 — Completed 2026-05-18
+
+**What landed:**
+- `pixelforge_studio/editor/inspector.go` — REWRITTEN as immediate-mode dispatch on `pfcomponent.WidgetKind`. Widget cache and `widgets.Widget` per-field instances retired; ImGui owns transient state.
+- `pixelforge_studio/editor/inspector_canvas.go` + `inspector_canvas_dropdowns.go` (+ their tests) — **DELETED**.
+- `pixelforge_studio/editor/inspector_test.go` — rewritten around value coercion + buildWidgetContext.
+- `pixelforge_studio/editor/imgui_chrome.go` — `buildChrome` calls `e.inspector.Render(e)`; dirty flag flips on returned mutation.
+
+**Verification:** `go build ./...` + `go test ./...` clean.
+
+### U5 — Completed 2026-05-18
+
+**What landed:**
+- `pixelforge_studio/editor/canvas_input.go` — NEW. `sceneGame` (ebiten.Game shim), `SceneTextureRef` accessor, `mapMouseToSceneTexture` for window→texture coord mapping.
+- `pixelforge_studio/editor/imgui_backend.go` — `imguiBackend` interface gains `CreateTextureFromGame`; `AttachImguiBackend` registers the scene texture immediately.
+- `pixelforge_studio/editor/workspaces.go` — `SceneWorkspace.Render` swaps the captured-rect placeholder for `imgui.ImageWithBgV(sceneTexture, …)` and a four-tool toolbar (RadioButton: Select/Place/Delete/Paint). Update gates dispatch on `sceneHovered`.
+- `pixelforge_studio/editor/canvas.go` — Canvas.Update split into `UpdateAt(area, mx, my, e)` and the legacy global-cursor wrapper.
+- `pixelforge_studio/editor/canvas_render_test.go` + `canvas_tool_test.go` — REWRITTEN around the texture pipeline + focus-gated dispatch.
+
+**Verification:** `go build ./...` + `go test ./...` clean.
+
+### U6 — Completed 2026-05-18
+
+**What landed:**
+- `pixelforge_studio/editor/imgui_theme.go` — NEW. `buildImguiTheme(theme, palette) → imguiTheme`; `applyImguiTheme` / `popImguiTheme` push/pop the ImGui style stack with the theme colours each frame; `configureImguiIniPath` points ImGui at `<user-config-dir>/pixelforge-studio/imgui.ini`. Theme loader functions (`LoadEmbeddedEditorProject`, `loadEditorTheme`, `themeFromProject`, `applyFontTheme`) migrated here from `cart_loader.go`.
+- `pixelforge_studio/editor/imgui_chrome.go` — `buildChrome` wraps its window builds in `applyImguiTheme(theme, true)` / `popImguiTheme`; `activeImguiTheme` returns the theme+palette pair from the editor.
+- `pixelforge_studio/editor/imgui_backend.go` — `AttachImguiBackend` calls `configureImguiIniPath` after the context is live.
+- `pixelforge_studio/editor/settings.go` — `LeftPanelW` / `RightPanelW` documented as backwards-compat-only (now JSON `omitempty`).
+- `pixelforge_studio/editor/imgui_theme_test.go` — NEW.
+
+**Verification:** `go build ./...` + `go test ./...` clean.
+
+### U7 — Completed 2026-05-18
+
+**What landed:**
+- `pixelforge_studio/capture/workspace.go` — REWRITTEN. Pgui imports removed; ImGui Render builds a SliderInt timeline, Mark/Clear/Clip/GIF/MP4/Regression/Report buttons, frame counter, status footer. Mark range + scrub state survive unchanged.
+- `pixelforge_studio/capture/timeline.go` — REWRITTEN. `AttachTimeline` + `SyncTimelineFrames` retired; only `ApplyFrameToScreen` survives (it's the screen-rehydration path the SliderInt's `SetScrubPos` calls).
+- `pixelforge_studio/capture/timeline_test.go` + `workspace_test.go` — updated for the new shape; pgui imports removed.
+
+**Verification:** `go build ./...` + `go test ./...` clean. `grep pixelforge_gui pixelforge_studio/capture/` finds only comments.
+
+### U8 — Completed 2026-05-18
+
+**What landed:**
+- `pixelforge_studio/scripting/workspace.go` — REWRITTEN on ImGui. `imgui.BeginTabBar` replaces the pgui Tabs widget; Lane fully ported, Sheet/Catalog/Debug carry placeholder `TextDisabled` panels pending their own feature units. Engine Run/Stop buttons inline.
+- `pixelforge_studio/scripting/lane_editor.go` — REWRITTEN. Step cards render as ImGui buttons; Move Left / Move Right / Delete buttons reorder via the existing `SwapSteps` / `DeleteSelectedStep` model API; kind-picker uses `imgui.ComboStrarrV`. Drag-and-drop via ImGui's uintptr-payload API deferred — reorder buttons hit the same `SwapSteps` mutation.
+- `pixelforge_studio/scripting/lane_editor_test.go` — NEW. Asserts append / swap / delete via the model layer (the surface that's `go test`-able without a live ImGui context).
+
+**Verification:** `go build ./...` + `go test ./...` clean. `grep pixelforge_gui pixelforge_studio/scripting/` finds nothing.
+
+### U9 — Completed 2026-05-18
+
+**What landed:**
+- `pixelforge_studio/editor/cart.go` / `cart_test.go` / `cart_loader.go` / `cart_loader_test.go` — **DELETED**. Theme loading (`LoadEmbeddedEditorProject`, `loadEditorTheme`, `applyFontTheme`, `themeFromProject`) absorbed into `imgui_theme.go`.
+- `pixelforge_studio/editor/canvas_text.go` — **DELETED** (`pcofont` wrapper had no remaining callers).
+- `pixelforge_studio/palette/canvas_render.go` + its test — **DELETED**.
+- `Canvas.DrawCanvas`, `AssetBrowser.DrawCanvas`, `SceneWorkspace.DrawCanvas`, `CanvasWorkspace` interface — **DELETED**.
+- `pixelforge_studio/editor/editor.go` — `Editor.cart` → `Editor.theme`; new `Theme()` accessor replaces the prior `e.Cart().Theme()` callers.
+- `pixelforge_studio/editor/canvas.go` + `asset_browser.go` — switched to `e.Theme()`; unused `pixelforge` engine import dropped from each.
+- `editor/widgets/` directory **preserved** (FilePicker / ConfirmDialog / MenuBar / Rect type still in use). The plan's aspirational "entire native widget bank deleted" exceeds what U9 can safely cut without further follow-up.
+
+**Verification:** `go build ./...` + `go test ./...` clean. `go list -deps pixelforge_studio/editor | grep cimgui` is non-empty; engine + game packages don't pull cimgui-go.
+
+### U10 — Completed 2026-05-18
+
+**What landed:**
+- `docs/studio.md` — rewritten to describe the ImGui-based studio: dockable panels, scene-as-texture, theming, capture/behaviour workspaces, layout persistence in `imgui.ini`.
+- The five named superseded plans already carried their `status` frontmatter + supersession banners (added in earlier U-units); confirmed in place.
+- This plan's frontmatter flipped `status: active → completed`.
+
+**Verification:** `grep -l "SUPERSEDED" docs/plans/` lists the five expected files; `docs/studio.md` no longer references M0/M1 as the current state.
 
 ---
 

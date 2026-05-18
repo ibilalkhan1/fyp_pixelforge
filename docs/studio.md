@@ -1,40 +1,51 @@
 # Pixelforge Studio
 
-> **Status: M1 — Foundation rewrite in progress.** The legacy studio
-> documented in this file's previous revision has been replaced by a
-> ground-up rebuild. This document will return with screenshots and a
-> full user guide when the M3 milestone (Editor-as-Pixelforge-Cart)
-> lands. Until then, see the plan and schema reference linked below.
+> **Status: ImGui migration shipped.** The studio's chrome now renders
+> through Dear ImGui via `cimgui-go/backend/ebiten-backend`. Dockable
+> panels, persistent layouts, and an ImGui inspector replaced the M0–M2
+> native chrome and the M3 cart-resident UI experiment. The Pixelforge
+> engine itself is untouched and remains free of cgo / cimgui-go in its
+> dependency graph.
 
-## Where things stand (M0 + M1 complete)
+## Tech stack
 
-The new studio is structured as eight milestones; M0 (teardown + new
-shell) and M1 (`.pforge` schema + component registry) have shipped.
-Concretely, today's binary:
+- **Pixelforge engine** — pure-Go retro game runtime (Ebitengine
+  underneath). Game packages import only the engine and Ebitengine.
+- **Studio chrome** — Dear ImGui 1.92.8 docking branch, via the
+  `github.com/AllenDang/cimgui-go` Go bindings and the first-party
+  `backend/ebiten-backend` integration. Pre-compiled static libs ship
+  with cimgui-go; `go build` works without cmake on the supported
+  desktop platforms (linux-x64, macos-arm64/x64, windows-x64).
+- **`pixelforge_gui`** — the engine-side in-game UI package, frozen but
+  preserved for `pixelforge_scope/` and `pixelforge_examples/gui/`. It
+  is *not* used by the studio.
 
-- Opens a 1280×800 window with title bar, asset-browser placeholder,
-  canvas placeholder, inspector placeholder, and status bar.
-- Loads and persists user settings (window size, theme, recent
-  projects) under your platform's user config directory.
-- Carries a complete `.pforge` JSON schema covering screen size,
-  palette + 4 ColorTables + presets + animations, sprites, audio,
-  scenes/entities/components, behavior graphs, and event subscriptions.
-- Provides a reflection-driven component registry (`pfcomponent`) that
-  auto-emits inspector widgets from `pf:"..."` struct tags.
-- Exports a self-contained Go project that builds and runs on any
-  machine — the hardcoded `/home/tux/...` `replace` directive that
-  blocked v1 export is gone, replaced by auto-detected vendor /
-  dev-replace / published-version strategies.
-- Renders an auto-generated inspector for any selected entity using
-  widgets derived from registered component tags.
+## What the studio gives you today
 
-## What's not yet implemented
-
-Palette editing UI, asset import pipeline, audio editor, visual
-scripting, continuous capture, and procedural level graphs all live
-behind upcoming milestones M2–M7. The plan at
-[`docs/plans/2026-05-15-001-feat-pixelforge-no-code-editor-plan.md`](plans/2026-05-15-001-feat-pixelforge-no-code-editor-plan.md)
-documents milestone scope and dependencies.
+- **Dockable workspace layout.** The editor window is a single ImGui
+  DockSpace. Assets, Inspector, Scene, Capture, Behavior, Palette, and
+  any future workspace register as ImGui windows; users drag them
+  between dock slots, tab them together, or float them inside the main
+  window. The user's arrangement persists in `imgui.ini` under the
+  platform user-config directory, alongside `settings.json`.
+- **Scene as a docked image panel.** The running Pixelforge canvas
+  renders to an off-screen texture (`backend.CreateTextureFromGame`)
+  and shows inside an `imgui.Image` in the Scene window. Tools (Select,
+  Place, Delete, Paint) live in a toolbar above the image; clicks are
+  routed through to the canvas only when the image is focused +
+  hovered, so toolbar and other-dock clicks don't fire scene tools.
+- **Reflection-driven inspector.** Selecting an entity surfaces one
+  `imgui.CollapsingHeader` per component and dispatches one ImGui
+  widget per `pfcomponent.FieldMetadata` — slider, combo, color,
+  checkbox, vector2, etc., all picked from the `pf:"..."` struct tag.
+  Edits write back directly through the component's value map.
+- **Theming.** Chrome colours come from the loaded `editor.pforge`
+  theme palette (slot indices → ImGui Vec4 via the project's palette).
+  Replacing the embedded fixture changes the editor's look without a
+  recompile.
+- **Capture + behaviour workspaces** rebuilt on ImGui. The substrate
+  (recorder, ring buffer, behaviour graph runtime) is unchanged; only
+  the editor surface ported.
 
 ## Running today
 
@@ -42,9 +53,21 @@ documents milestone scope and dependencies.
 go run ./pixelforge_studio
 ```
 
-You'll see the chrome with placeholder labels. Project load/save is in
-place via the API; UI for file → open/save lands with M2.
+The studio opens with the dockspace populated by Assets / Inspector /
+Scene / Capture / Behavior / Palette windows. File menu and Ctrl+S /
+Ctrl+O still drive load/save. Layout you arrange this session
+re-opens the same way next session.
 
 ## Project file format
 
-See [`pforge-schema.md`](pforge-schema.md) for the v1 wire format.
+See [`pforge-schema.md`](pforge-schema.md) for the v1 wire format. The
+schema is unchanged by the ImGui migration.
+
+## Migration history
+
+The ImGui migration is tracked in
+[`docs/plans/2026-05-17-001-refactor-pixelforge-studio-imgui-migration-plan.md`](plans/2026-05-17-001-refactor-pixelforge-studio-imgui-migration-plan.md).
+Plans 2026-05-15-001 / 002, 2026-05-16-001 / 002 are
+**partially superseded** — their feature targets still apply, but their
+widget-implementation details are replaced by ImGui equivalents. Plan
+2026-05-15-003 (editor-as-cart + GUI growth) is **fully superseded**.

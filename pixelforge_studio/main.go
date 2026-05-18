@@ -15,8 +15,10 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/blackboard"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/capture"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/editor"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/input"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/palette"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/scripting"
 )
@@ -55,6 +57,8 @@ func main() {
 	palette.RegisterWith(e)
 	capture.RegisterWith(e)
 	scripting.RegisterWith(e)
+	input.RegisterWith(e)
+	blackboard.RegisterWith(e)
 
 	if err := ebiten.RunGame(e); err != nil {
 		log.Fatalf("pixelforge studio: %v", err)

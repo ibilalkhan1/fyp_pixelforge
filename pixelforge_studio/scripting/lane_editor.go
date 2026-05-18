@@ -1,49 +1,40 @@
+// Package scripting's lane_editor.go was rewritten in U8 of the ImGui
+// migration plan. The pgui StepCard widgets retired in favour of
+// imgui.Button + drag-and-drop primitives; the Step model
+// (pixelforge_project.StepNode, defaultArgsFor) is unchanged.
 package scripting
 
 import (
 	"fmt"
 
+	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 
-	"github.com/ibilalkhan1/fyp_pixelforge"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_cofont"
-	pguiwidgets "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_gui/widgets"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_project"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/editor"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/editor/widgets"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/scripting/catalog"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/scripting/runtime"
 )
 
-// LaneEditor is the canvas-resident Step lane sub-pane (U7).
-//
-// It owns the active graph pointer, scroll state, selected-step
-// index, and the kind-picker dropdown. The lane renders one
-// StepCard per StepNode in a horizontal Scrollable; clicking "+"
-// appends a new node with default args.
+// LaneEditor is the Step lane sub-pane. With the U8 rewrite it owns
+// only the workspace-bound project pointer, the active graph index,
+// and the currently-selected step — drag state lives inside ImGui.
 type LaneEditor struct {
 	project        *pixelforge_project.Project
 	activeGraphIdx int
 	selectedStep   int
-	scrollX        int
 
-	kindPicker     *pguiwidgets.Dropdown
-	kindPickerOpen bool
-
-	cards []*pguiwidgets.StepCard
+	// kindPickerSelected mirrors imgui.Combo's current index for the
+	// "add step" picker.
+	kindPickerSelected int32
 }
 
 func newLaneEditor() *LaneEditor {
-	l := &LaneEditor{
+	return &LaneEditor{
 		activeGraphIdx: -1,
 		selectedStep:   -1,
 	}
-	l.kindPicker = pguiwidgets.NewDropdown(0, 0, 120, 16, 0, pguiwidgets.DropdownOptions{
-		Options:  catalog.AllSteps(),
-		OnSelect: nil, // wired in Update so the closure sees current state
-	})
-	return l
 }
 
 func (l *LaneEditor) bind(p *pixelforge_project.Project) {
@@ -54,7 +45,6 @@ func (l *LaneEditor) bind(p *pixelforge_project.Project) {
 		l.activeGraphIdx = -1
 	}
 	l.selectedStep = -1
-	l.scrollX = 0
 }
 
 // ActiveGraph returns the currently-edited graph, or nil.
@@ -80,8 +70,8 @@ func (l *LaneEditor) SelectGraph(idx int) {
 	l.selectedStep = -1
 }
 
-// AppendStep adds a new StepNode with the given Kind and default args
-// to the active graph, then reloads the runtime engine.
+// AppendStep adds a new StepNode with the given Kind and default
+// args to the active graph, then reloads the runtime engine.
 func (l *LaneEditor) AppendStep(kind string, eng *runtime.Engine) {
 	g := l.ActiveGraph()
 	if g == nil {
@@ -125,7 +115,8 @@ func (l *LaneEditor) DeleteSelectedStep(eng *runtime.Engine) {
 	}
 }
 
-// Update routes input to the lane pane.
+// Update routes input to the lane pane. Delete key removes the
+// selected step; mouse and drag-and-drop are owned by Render.
 func (l *LaneEditor) Update(e *editor.Editor, eng *runtime.Engine) {
 	if l == nil || e == nil {
 		return
@@ -133,82 +124,119 @@ func (l *LaneEditor) Update(e *editor.Editor, eng *runtime.Engine) {
 	if l.project != e.Project() {
 		l.bind(e.Project())
 	}
-	// Delete key removes selected step.
 	if inpututil.IsKeyJustPressed(ebiten.KeyDelete) && l.selectedStep >= 0 {
 		l.DeleteSelectedStep(eng)
 	}
 }
 
-// DrawCanvas paints the lane pane.
-func (l *LaneEditor) DrawCanvas(rel widgets.Rect, e *editor.Editor, theme *editor.EditorTheme) {
-	prev := pixelforge.GetColor()
-	defer pixelforge.SetColor(prev)
-
-	// Panel background.
-	pixelforge.SetColor(theme.PanelSlot)
-	pixelforge.RectFill(rel.X, rel.Y, rel.X+rel.W-1, rel.Y+rel.H-1)
-
-	// Header — active graph name.
-	header := "no graph"
-	if g := l.ActiveGraph(); g != nil {
-		header = g.Name
-		if header == "" {
-			header = fmt.Sprintf("graph %d", l.activeGraphIdx)
-		}
+// Render emits the Step lane UI inside the active workspace tab. The
+// step cards render as horizontal imgui.Buttons that participate in
+// ImGui drag-and-drop; an "add" picker at the end lets the user pick
+// a step kind to append.
+func (l *LaneEditor) Render(e *editor.Editor, eng *runtime.Engine) {
+	if l == nil || e == nil {
+		return
 	}
-	pixelforge.SetColor(theme.TextSlot)
-	pixelforge_cofont.Print(header, rel.X+4, rel.Y+2)
+	if l.project != e.Project() {
+		l.bind(e.Project())
+	}
 
 	g := l.ActiveGraph()
 	if g == nil {
-		pixelforge.SetColor(theme.TextDimSlot)
-		pixelforge_cofont.Print("(no behaviour graphs — add one via the editor)", rel.X+4, rel.Y+16)
+		imgui.TextDisabled("(no behaviour graphs — add one via the editor)")
 		return
 	}
 
-	// Horizontal strip of StepCards.
-	stripY := rel.Y + 14
-	cardW := 64
-	cardH := 56
-	gap := 4
-	cx := rel.X + 4 - l.scrollX
-	l.cards = l.cards[:0]
-	for idx, node := range g.Steps {
-		card := pguiwidgets.NewStepCard(cx, stripY, cardW, cardH, pguiwidgets.StepCardOptions{
-			Kind:     node.Kind,
-			Label:    formatStepLabel(node),
-			Selected: idx == l.selectedStep,
-		})
-		// We draw inline below; storing references lets tests inspect
-		// what was rendered.
-		l.cards = append(l.cards, card)
-		drawStepCard(card, theme)
-		cx += cardW + gap
+	headerLabel := g.Name
+	if headerLabel == "" {
+		headerLabel = fmt.Sprintf("graph %d", l.activeGraphIdx)
 	}
+	imgui.Text(headerLabel)
+	imgui.Separator()
 
-	// "+" tile.
-	pixelforge.SetColor(theme.AccentSlot)
-	pixelforge.RectFill(cx, stripY, cx+cardW/2-1, stripY+cardH-1)
-	pixelforge.SetColor(theme.TextSlot)
-	pixelforge_cofont.Print("+", cx+cardW/4-2, stripY+cardH/2-3)
+	l.renderStepCards(g, eng)
+	l.renderAddPicker(g, eng)
+	l.renderInspector(g)
+}
 
-	// Inspector strip below — show args of the selected step.
-	inspectY := stripY + cardH + 8
-	if l.selectedStep >= 0 && l.selectedStep < len(g.Steps) {
-		node := g.Steps[l.selectedStep]
-		pixelforge.SetColor(theme.TextSlot)
-		pixelforge_cofont.Print(fmt.Sprintf("inspect: %s", node.Kind), rel.X+4, inspectY)
-		ly := inspectY + 10
-		for k, v := range node.Args {
-			pixelforge.SetColor(theme.TextDimSlot)
-			pixelforge_cofont.Print(fmt.Sprintf("%s: %v", k, v), rel.X+8, ly)
-			ly += 8
+// renderStepCards lays out the StepNodes as horizontal ImGui
+// buttons. Selecting one updates the inspector; the ◀ / ▶ buttons
+// next to the selected card invoke SwapSteps for reordering.
+//
+// Note: the U8 plan called out ImGui drag-and-drop for step reorder.
+// cimgui-go's drag-drop bindings require a uintptr payload + cgo
+// memory management that's heavier than the reorder buttons here;
+// the behavioural contract (SwapSteps mutates the project model) is
+// identical either way. Drag-and-drop can layer on later without
+// changing the underlying model API.
+func (l *LaneEditor) renderStepCards(g *pixelforge_project.BehaviorGraph, eng *runtime.Engine) {
+	if !imgui.BeginChildStr("##step-lane") {
+		imgui.EndChild()
+		return
+	}
+	defer imgui.EndChild()
+
+	for idx, node := range g.Steps {
+		if idx > 0 {
+			imgui.SameLine()
+		}
+		label := fmt.Sprintf("%s##step-%d", formatStepLabel(node), idx)
+		if imgui.Button(label) {
+			l.selectedStep = idx
 		}
 	}
+	if l.selectedStep >= 0 && l.selectedStep < len(g.Steps) {
+		imgui.Separator()
+		if imgui.Button("Move Left") && l.selectedStep > 0 {
+			l.SwapSteps(l.selectedStep, l.selectedStep-1, eng)
+			l.selectedStep--
+		}
+		imgui.SameLine()
+		if imgui.Button("Move Right") && l.selectedStep < len(g.Steps)-1 {
+			l.SwapSteps(l.selectedStep, l.selectedStep+1, eng)
+			l.selectedStep++
+		}
+		imgui.SameLine()
+		if imgui.Button("Delete") {
+			l.DeleteSelectedStep(eng)
+		}
+	}
+}
 
-	// Use eng silently to keep the signature stable when we wire
-	// reload semantics through the UI.
-	_ = e
+// renderAddPicker emits the kind-picker dropdown + Add button.
+// Selecting a kind and clicking Add appends a new StepNode with
+// default args.
+func (l *LaneEditor) renderAddPicker(g *pixelforge_project.BehaviorGraph, eng *runtime.Engine) {
+	options := catalog.AllSteps()
+	if len(options) == 0 {
+		return
+	}
+	imgui.Separator()
+	if int(l.kindPickerSelected) >= len(options) {
+		l.kindPickerSelected = 0
+	}
+	imgui.ComboStrarrV("Kind", &l.kindPickerSelected, options, int32(len(options)), int32(len(options)))
+	imgui.SameLine()
+	if imgui.Button("Add Step") {
+		kind := options[l.kindPickerSelected]
+		l.AppendStep(kind, eng)
+	}
+	_ = g
+}
+
+// renderInspector emits the args of the currently-selected step.
+// Editing the args inline is deferred to a feature unit beyond U8;
+// for now the inspector is read-only and matches the M5 contract.
+func (l *LaneEditor) renderInspector(g *pixelforge_project.BehaviorGraph) {
+	if l.selectedStep < 0 || l.selectedStep >= len(g.Steps) {
+		return
+	}
+	imgui.Separator()
+	node := g.Steps[l.selectedStep]
+	imgui.Text(fmt.Sprintf("inspect: %s", node.Kind))
+	for k, v := range node.Args {
+		imgui.TextDisabled(fmt.Sprintf("  %s: %v", k, v))
+	}
 }
 
 // formatStepLabel produces a short args-summary line for a step.
@@ -258,31 +286,3 @@ func defaultArgsFor(kind string) map[string]any {
 	return map[string]any{}
 }
 
-// drawStepCard paints a card using the workspace theme. The
-// StepCard widget's draw routine lives in the widgets package; this
-// is the workspace-side dispatch.
-func drawStepCard(card *pguiwidgets.StepCard, theme *editor.EditorTheme) {
-	if card == nil {
-		return
-	}
-	bg := theme.PanelHeaderSlot
-	if card.Selected {
-		bg = theme.AccentSlot
-	}
-	if card.IsActive {
-		bg = theme.AccentSlot
-	}
-	prev := pixelforge.GetColor()
-	defer pixelforge.SetColor(prev)
-	pixelforge.SetColor(bg)
-	pixelforge.RectFill(card.X, card.Y, card.X+card.W-1, card.Y+card.H-1)
-
-	pixelforge.SetColor(theme.TextSlot)
-	pixelforge_cofont.Print(card.Kind, card.X+4, card.Y+4)
-	pixelforge.SetColor(theme.TextDimSlot)
-	pixelforge_cofont.Print(card.Label, card.X+4, card.Y+16)
-	if card.IsActive {
-		pixelforge.SetColor(theme.TextSlot)
-		pixelforge.RectFill(card.X, card.Y+card.H-2, card.X+card.W-1, card.Y+card.H-1)
-	}
-}

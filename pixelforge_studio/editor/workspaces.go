@@ -1,35 +1,56 @@
 package editor
 
 import (
+	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/hajimehoshi/ebiten/v2"
 
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_project"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/editor/widgets"
 )
 
-// Workspace is the surface that fills the center chrome region. M1.5
-// ships the Scene workspace; M2 adds the Palette workspace.
+// Workspace is the contract for a dockable editor surface. U3 of the
+// ImGui migration replaced the tab-strip switcher with an ImGui
+// DockSpace; a workspace is now "a set of registered ImGui windows"
+// rather than a panel that owns the canvas. Each frame, every
+// registered workspace's Render is called inside the dockspace; ImGui
+// handles tab grouping when multiple windows share a dock node, and
+// the user's docking choices persist via imgui.ini.
+//
+// Workspaces whose body content still renders through native
+// ebitenutil/vector calls (the M2 palette, the M4 capture pre-U7
+// rewrite, the M5 scripting pre-U8 rewrite, and the M1.5 scene pre-U5
+// rewrite) use Render() purely to register the ImGui window and
+// capture its inner content rect; Editor.Draw then dispatches the
+// native widget code into that rect.
 type Workspace interface {
 	Name() string
 	DisplayName() string
+	Render(e *Editor)
+}
+
+// NativeWorkspaceContent is the optional contract pre-rewrite
+// workspaces use to dispatch their existing ebitenutil/vector drawing
+// into the rect Render() captured. Editor.Draw type-asserts each
+// registered workspace against this interface and routes accordingly.
+// Workspaces fully ported to ImGui (post-U5/U7/U8) won't implement it.
+type NativeWorkspaceContent interface {
 	Draw(dst *ebiten.Image, area widgets.Rect, e *Editor)
+}
+
+// WorkspaceInputHandler is the optional contract a workspace
+// implements when it consumes input outside of its own ImGui Render
+// call. The editor dispatches to the focused workspace's Update()
+// each frame; SceneWorkspace uses this to route mouse coords through
+// the texture-mapped canvas tool dispatch (U5).
+type WorkspaceInputHandler interface {
 	Update(e *Editor)
 }
 
-// CanvasWorkspace is implemented by workspaces that render their chrome
-// through the editor's Pixelforge cart (R1 dogfooding). The editor's
-// Draw routes the cart render through these workspaces in addition to
-// the native Draw path, so the workspace can choose whichever surface
-// best fits the moment (M3 ships both paths side-by-side).
-type CanvasWorkspace interface {
-	Workspace
-	// DrawCanvas renders the workspace's canvas-resident chrome into
-	// the cart's logical canvas. rel is the workspace region inside
-	// the canvas (top-left at 0,0; sized to the canvas's dimensions).
-	DrawCanvas(rel widgets.Rect, e *Editor)
-}
-
 // RegisterWorkspace adds w to the editor's workspace registry. Idempotent
-// — re-registering by name replaces the existing entry.
+// — re-registering by name replaces the existing entry. Replacement
+// (vs. append) is load-bearing: capture.RegisterWith and
+// scripting.RegisterWith call this with their real workspace, which
+// supersedes any earlier registration of the same name.
 func (e *Editor) RegisterWorkspace(w Workspace) {
 	for i := range e.workspaces {
 		if e.workspaces[i].Name() == w.Name() {
@@ -43,24 +64,36 @@ func (e *Editor) RegisterWorkspace(w Workspace) {
 // Workspaces returns the registered workspaces in registration order.
 func (e *Editor) Workspaces() []Workspace { return e.workspaces }
 
-// ActiveWorkspaceName returns the active workspace's name, or "".
-func (e *Editor) ActiveWorkspaceName() string {
-	if w := e.activeWorkspaceImpl(); w != nil {
-		return w.Name()
-	}
-	return ""
-}
+// ActiveWorkspaceName returns the workspace whose window currently
+// owns ImGui focus, or the last name SetActiveWorkspaceByName routed
+// to. With DockSpace there is no single "active" workspace — every
+// docked window renders every frame — but the M2 surface that used
+// activeWorkspace for status bar text still asks via this accessor.
+func (e *Editor) ActiveWorkspaceName() string { return e.activeWorkspace }
 
-// SetActiveWorkspaceByName switches to the named workspace. Unknown
+// SetActiveWorkspaceByName focuses the matching ImGui window. Unknown
 // names are a no-op + status-bar warning.
+//
+// With DockSpace, "active" means "currently focused" — SetWindowFocus
+// brings the workspace's dock tab to front. The editor records the
+// name so ActiveWorkspaceName still returns a meaningful value to
+// status-bar and test callers.
 func (e *Editor) SetActiveWorkspaceByName(name string) {
-	for i, w := range e.workspaces {
+	var found Workspace
+	for _, w := range e.workspaces {
 		if w.Name() == name {
-			e.activeWorkspace = i
-			return
+			found = w
+			break
 		}
 	}
-	e.SetStatusMessage("unknown workspace: " + name)
+	if found == nil {
+		e.SetStatusMessage("unknown workspace: " + name)
+		return
+	}
+	e.activeWorkspace = name
+	if e.imgui != nil && e.imgui.live {
+		imgui.SetWindowFocusStr(found.DisplayName())
+	}
 }
 
 // CycleWorkspace advances to the next registered workspace.
@@ -68,64 +101,261 @@ func (e *Editor) CycleWorkspace() {
 	if len(e.workspaces) == 0 {
 		return
 	}
-	e.activeWorkspace = (e.activeWorkspace + 1) % len(e.workspaces)
-}
-
-func (e *Editor) activeWorkspaceImpl() Workspace {
-	if e.activeWorkspace < 0 || e.activeWorkspace >= len(e.workspaces) {
-		return nil
+	idx := 0
+	for i, w := range e.workspaces {
+		if w.Name() == e.activeWorkspace {
+			idx = (i + 1) % len(e.workspaces)
+			break
+		}
 	}
-	return e.workspaces[e.activeWorkspace]
+	e.SetActiveWorkspaceByName(e.workspaces[idx].Name())
 }
 
-// installDefaultWorkspaces registers M1.5's Scene workspace plus the
-// M3 stub workspaces (Behavior, Audio, Capture, Procgen) so the tab
-// strip is stable from M3 onwards. The Palette workspace (M2) is
-// registered by the palette package; the studio main wires it after
-// New() returns.
+// activeWorkspaceImpl returns the workspace currently named "active",
+// or nil. Used by Editor.Update to route input to the focused
+// workspace's Update() — only the focused workspace owns input so we
+// don't race tools across multiple workspaces.
+func (e *Editor) activeWorkspaceImpl() Workspace {
+	for _, w := range e.workspaces {
+		if w.Name() == e.activeWorkspace {
+			return w
+		}
+	}
+	return nil
+}
+
+// SetPanelRect records a panel's content-region rect for the current
+// frame. Workspaces call this from inside their Render() so
+// Editor.Draw can dispatch native widget content into the rect ImGui
+// carved out. Stable identifier is the panel name used as the ImGui
+// window title.
+func (e *Editor) SetPanelRect(name string, r widgets.Rect) {
+	e.ensurePanelRects()
+	e.panelRects[name] = r
+}
+
+// CaptureCurrentWindowRect is the helper workspaces invoke inside
+// their Render() after imgui.Begin succeeds. It captures the inner
+// content region (where native widget code should paint) and records
+// it under name. Called between imgui.Begin and imgui.End.
+func (e *Editor) CaptureCurrentWindowRect(name string) {
+	pos := imgui.CursorScreenPos()
+	avail := imgui.ContentRegionAvail()
+	e.SetPanelRect(name, widgets.Rect{
+		X: int(pos.X), Y: int(pos.Y),
+		W: int(avail.X), H: int(avail.Y),
+	})
+}
+
+// installDefaultWorkspaces registers the Scene workspace. M4–M7
+// workspaces register themselves via their package's RegisterWith;
+// with DockSpace, every registered workspace renders simultaneously
+// (tabbed into the central node by default), so the M3 stub
+// placeholders that filled the tab strip are no longer needed.
 func (e *Editor) installDefaultWorkspaces() {
 	e.RegisterWorkspace(&SceneWorkspace{})
-	e.installStubWorkspaces()
+	e.activeWorkspace = "scene"
 }
 
-// SceneWorkspace is the M1.5 viewport workspace. It defers drawing and
-// input to the editor's canvas.
+// SceneWorkspace is the central viewport workspace. U3 keeps the
+// native canvas drawing path (PanelRect("Scene") → canvas.Draw); U5
+// replaces it with an ImGui Image rendered from CreateTextureFromGame.
 type SceneWorkspace struct{}
 
 // Name is the stable workspace identifier.
 func (s *SceneWorkspace) Name() string { return "scene" }
 
-// DisplayName is the tab strip label.
+// DisplayName is the ImGui window title (also the dock-builder key).
 func (s *SceneWorkspace) DisplayName() string { return "Scene" }
 
-// Draw renders the scene viewport.
+// Render builds the Scene workspace's ImGui window. U5 replaced the
+// native canvas overlay with an imgui.Image rendered from the
+// editor's sceneTexture, which the cimgui-go backend repaints each
+// frame by calling sceneGame.Draw. A small toolbar (Select / Place /
+// Delete / Paint) sits above the image; the rest is the scaled
+// preview.
 //
-// M3 hybrid: this still paints via the native overlay path so the
-// transition is smooth. The canvas-resident equivalent lives in
-// DrawCanvas and is invoked by the editor cart Render phase.
-func (s *SceneWorkspace) Draw(dst *ebiten.Image, area widgets.Rect, e *Editor) {
-	if e.canvas != nil {
-		e.canvas.Draw(dst, area, e)
+// SceneWorkspace.Render captures the image's screen rect — not the
+// window's content rect — into PanelRect so SceneWorkspace.Update can
+// map mouse coords onto the texture without confusing toolbar clicks
+// for scene clicks.
+func (s *SceneWorkspace) Render(e *Editor) {
+	if e == nil || e.imgui == nil || !e.imgui.live {
+		return
+	}
+	flags := imgui.WindowFlagsNoScrollbar
+	if !imgui.BeginV(s.DisplayName(), nil, flags) {
+		imgui.End()
+		e.SetPanelRect(s.DisplayName(), widgets.Rect{})
+		return
+	}
+	defer imgui.End()
+	s.renderToolbar(e)
+	s.renderPreview(e)
+}
+
+// renderToolbar emits the four tool radio buttons (Select, Place,
+// Delete, Paint) at the top of the Scene window. Clicking one sets
+// the editor's active tool.
+//
+// Idea #1 v1 extends the toolbar with a Paint-tool sub-mode picker
+// (brush/bucket/rectangle radios) and a tile palette panel, both
+// rendered inline when ToolPaint is active. Keeping the painter UI
+// in the Scene workspace rather than the inspector matches the
+// plan's "U6 deviation note" — the painter lives where the canvas
+// dispatch can reach it.
+func (s *SceneWorkspace) renderToolbar(e *Editor) {
+	tools := []struct {
+		label string
+		tool  Tool
+	}{
+		{"Select", ToolSelect},
+		{"Place", ToolPlace},
+		{"Delete", ToolDelete},
+		{"Paint", ToolPaint},
+	}
+	current := e.Tool()
+	for i, t := range tools {
+		if i > 0 {
+			imgui.SameLine()
+		}
+		if imgui.RadioButtonBool(t.label, current == t.tool) {
+			e.SetTool(t.tool)
+		}
+	}
+	imgui.Separator()
+
+	if current == ToolPaint {
+		s.renderPaintSubModePicker(e)
+		s.renderPaintPalette(e)
+		imgui.Separator()
 	}
 }
 
-// DrawCanvas renders the scene viewport into the cart's Pixelforge
-// canvas. rel is the workspace region in canvas-local coordinates.
-func (s *SceneWorkspace) DrawCanvas(rel widgets.Rect, e *Editor) {
-	if e.canvas != nil {
-		e.canvas.DrawCanvas(rel, e)
+// renderPaintSubModePicker draws the three Paint sub-mode radio
+// buttons (brush/bucket/rectangle) under the main toolbar. Visible
+// only when ToolPaint is active. Clicks route through
+// TilePainter.SetSubMode so any in-progress stroke / rectangle
+// anchor is cleaned up atomically with the mode switch.
+func (s *SceneWorkspace) renderPaintSubModePicker(e *Editor) {
+	painter := e.Painter()
+	if painter == nil {
+		return
+	}
+	modes := []struct {
+		label string
+		mode  PaintSubMode
+	}{
+		{"Brush", PaintBrush},
+		{"Bucket", PaintBucket},
+		{"Rectangle", PaintRectangle},
+	}
+	for i, m := range modes {
+		if i > 0 {
+			imgui.SameLine()
+		}
+		if imgui.RadioButtonBool(m.label, painter.SubMode == m.mode) {
+			painter.SetSubMode(m.mode)
+		}
 	}
 }
 
-// Update dispatches mouse input to the canvas, using the Scene panel
-// rect ImGui captured this frame.
+// renderPaintPalette draws the tile palette panel under the sub-mode
+// picker. v1 uses the fallback numbered-button palette because the
+// sheet-decoder pipeline that would render real tile thumbnails
+// hasn't landed yet (see tile_palette.go header).
+func (s *SceneWorkspace) renderPaintPalette(e *Editor) {
+	palette := e.Palette()
+	if palette == nil {
+		return
+	}
+	scene := e.activeScene()
+	var layer *pixelforge_project.TilemapLayer
+	if scene != nil && len(scene.Tilemaps) > 0 {
+		layer = &scene.Tilemaps[0]
+	}
+	palette.Render(layer)
+}
+
+// renderPreview emits the imgui.Image that displays the scene
+// texture, sized to fill the available content region while
+// preserving the texture's aspect ratio. The image's screen rect is
+// captured into PanelRect("Scene") for input mapping.
+func (s *SceneWorkspace) renderPreview(e *Editor) {
+	tex, texW, texH, ok := e.SceneTextureRef()
+	if !ok {
+		// No texture yet (test stub, pre-attach). Fall back to a
+		// transparent placeholder rect so the panel still claims space
+		// and PanelRect callers see the right area.
+		e.CaptureCurrentWindowRect(s.DisplayName())
+		return
+	}
+
+	avail := imgui.ContentRegionAvail()
+	if avail.X <= 0 || avail.Y <= 0 {
+		e.SetPanelRect(s.DisplayName(), widgets.Rect{})
+		return
+	}
+	// Preserve the texture's aspect ratio inside the available rect.
+	aspect := float32(texW) / float32(texH)
+	imgW := avail.X
+	imgH := imgW / aspect
+	if imgH > avail.Y {
+		imgH = avail.Y
+		imgW = imgH * aspect
+	}
+
+	pos := imgui.CursorScreenPos()
+	imgui.ImageWithBgV(
+		tex,
+		imgui.NewVec2(imgW, imgH),
+		imgui.NewVec2(0, 0),
+		imgui.NewVec2(1, 1),
+		imgui.NewVec4(0, 0, 0, 0),
+		imgui.NewVec4(1, 1, 1, 1),
+	)
+	e.SetPanelRect(s.DisplayName(), widgets.Rect{
+		X: int(pos.X), Y: int(pos.Y),
+		W: int(imgW), H: int(imgH),
+	})
+	// Record whether the user is pointing at the scene this frame —
+	// SceneWorkspace.Update reads this to gate tool dispatch.
+	e.sceneHovered = imgui.IsItemHovered() && imgui.IsWindowFocused()
+}
+
+// Update dispatches mouse input to the canvas only when the Scene
+// image is both focused and hovered (U5). Mouse coords are remapped
+// from window-pixel space into texture-pixel space, and the canvas
+// is told its working area is the texture itself — that way the
+// viewBox + entity-marker math operates in the exact same coordinate
+// space sceneGame.Draw paints into. Without this remap, clicks at
+// display coords would miss markers drawn at texture coords whenever
+// the image is shown scaled.
+//
+// When the Scene image isn't focused the canvas Update is skipped so
+// clicks on the toolbar (or in other docked workspaces) don't
+// accidentally place/delete entities.
 func (s *SceneWorkspace) Update(e *Editor) {
-	area := e.PanelRect(PanelScene)
-	if e.canvas != nil {
-		e.canvas.Update(area, e)
+	if e == nil || e.canvas == nil {
+		return
 	}
+	if !e.sceneHovered {
+		return
+	}
+	tex, texW, texH, ok := e.SceneTextureRef()
+	_ = tex
+	if !ok {
+		return
+	}
+	imageRect := e.PanelRect(s.DisplayName())
+	if imageRect.W <= 0 || imageRect.H <= 0 {
+		return
+	}
+	wx, wy := ebiten.CursorPosition()
+	tx, ty, inside := mapMouseToSceneTexture(imageRect, texW, texH, wx, wy)
+	if !inside {
+		return
+	}
+	textureArea := widgets.Rect{X: 0, Y: 0, W: texW, H: texH}
+	e.canvas.UpdateAt(textureArea, tx, ty, e)
 }
-
-// (drawTabStrip / handleTabStripClick removed in U2 — the native tab
-// strip is replaced by the ImGui menu bar's View menu and, in U3, by
-// DockSpace tab handling.)

@@ -12,6 +12,7 @@ import (
 
 	"github.com/AllenDang/cimgui-go/imgui"
 
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_project"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/editor/widgets"
 )
 
@@ -51,11 +52,45 @@ func (e *Editor) buildChrome() {
 		return
 	}
 	e.ensurePanelRects()
+	// U6: push the editor theme onto ImGui's style stack so every
+	// window built this frame uses the loaded editor.pforge colours.
+	// Pop the same count after the frame's windows are built so the
+	// stack is balanced on early returns.
+	theme := e.activeImguiTheme()
+	pushed := applyImguiTheme(theme, true)
+	defer popImguiTheme(pushed, true)
+
 	e.buildMainMenuBar()
 	e.buildStatusBar()
+	// DockSpace must land before any windows that want to dock into
+	// it — buildPanelSkeleton + workspace.Render below register their
+	// windows; the DockSpace decides where they sit.
+	e.buildDockSpace()
 	e.buildPanelSkeleton(PanelAssets)
-	e.buildPanelSkeleton(PanelInspector)
-	e.buildPanelSkeleton(PanelScene)
+	// Inspector owns its own ImGui window via Render (U4) — it builds
+	// imgui.SliderFloat / InputText / Combo widgets directly rather
+	// than painting into a skeleton rect.
+	if e.inspector != nil && e.inspector.Render(e) {
+		e.MarkDirty()
+	}
+	// Scene + every other registered workspace renders its own ImGui
+	// window via Render() — the dockspace pulls them into tabs by
+	// default and the user re-arranges from there.
+	for _, w := range e.workspaces {
+		w.Render(e)
+	}
+}
+
+// activeImguiTheme resolves the theme + project palette pair the
+// chrome should push this frame. The editor owns the loaded theme
+// directly (U9); the active project supplies the palette. Either may
+// be nil — the build helper substitutes default greys.
+func (e *Editor) activeImguiTheme() imguiTheme {
+	var palette *pixelforge_project.PaletteData
+	if e.project != nil {
+		palette = &e.project.Palette
+	}
+	return buildImguiTheme(e.Theme(), palette)
 }
 
 // ensurePanelRects lazily allocates the rect map and clears any rect

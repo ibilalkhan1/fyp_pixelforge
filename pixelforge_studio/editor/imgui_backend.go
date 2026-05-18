@@ -25,6 +25,12 @@ type imguiBackend interface {
 	EndFrame()
 	Draw(screen *ebiten.Image)
 	Layout(outsideWidth, outsideHeight int) (int, int)
+	// CreateTextureFromGame registers an ebiten.Game as a backend
+	// texture. The backend's render pipeline calls game.Update + Draw
+	// each frame, blits the resulting image into the texture, and
+	// makes the TextureRef usable in imgui.Image calls. Used by U5 to
+	// render the Pixelforge scene preview as a docked image panel.
+	CreateTextureFromGame(game ebiten.Game, width, height int) imgui.TextureRef
 }
 
 // imguiHost wraps an imguiBackend with editor-specific concerns: the
@@ -88,6 +94,18 @@ func NewEbitenImguiBackend(title string, width, height int) (*ebitenbackend.Ebit
 // signal that cimgui-go links and composes correctly.
 func (e *Editor) AttachImguiBackend(b imguiBackend, showDemo bool) {
 	e.imgui = newImguiHostWithLiveBackend(b, showDemo)
+	// U5: register the scene preview as a backend texture so the Scene
+	// workspace can render the game canvas via imgui.Image. The texture
+	// dimensions come from the project's logical screen — fallback to
+	// the editor canvas size when no project is loaded.
+	e.sceneGame = newSceneGame(e)
+	e.sceneTexture = b.CreateTextureFromGame(e.sceneGame, scenePreviewW, scenePreviewH)
+	e.sceneTexW, e.sceneTexH = scenePreviewW, scenePreviewH
+	// U6: route ImGui's layout persistence file at the user config
+	// dir so dock arrangement survives restarts (R6). Safe to call
+	// after AttachImguiBackend because CreateBackend stood up the
+	// imgui.Context first.
+	configureImguiIniPath()
 }
 
 // AttachImguiBackendStub wires the editor to a test stub. The chrome

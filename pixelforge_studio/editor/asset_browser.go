@@ -6,7 +6,6 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 
-	"github.com/ibilalkhan1/fyp_pixelforge"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_project"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/editor/widgets"
 )
@@ -245,85 +244,6 @@ var (
 	colAssetRowSelected = color.RGBA{R: 0x2a, G: 0x2a, B: 0x40, A: 0xff}
 )
 
-// DrawCanvas renders the asset browser chrome into the editor cart's
-// canvas using engine primitives. area is the panel rect inside the
-// canvas. The interactive selection state is still mutated through
-// Update (native overlay path) — the canvas-resident render delivers
-// R1 partial dogfooding for the visible chrome.
-func (b *AssetBrowser) DrawCanvas(area widgets.Rect, e *Editor) {
-	if area.W <= 0 || area.H <= 0 || e == nil {
-		return
-	}
-	theme := DefaultEditorTheme()
-	if c := e.Cart(); c != nil && c.Theme() != nil {
-		theme = c.Theme()
-	}
-
-	prevColor := pixelforge.GetColor()
-	defer pixelforge.SetColor(prevColor)
-
-	// Panel background.
-	pixelforge.SetColor(theme.PanelSlot)
-	pixelforge.RectFill(area.X, area.Y, area.X+area.W-1, area.Y+area.H-1)
-
-	sprites := b.Sprites(e.project)
-	audio := b.Audio(e.project)
-
-	y := area.Y
-	// "SPRITES" header.
-	pixelforge.SetColor(theme.PanelHeaderSlot)
-	pixelforge.RectFill(area.X, y, area.X+area.W-1, y+assetHeaderH-1)
-	pixelforge.SetColor(theme.TextSlot)
-	pcofont("SPRITES", area.X+8, y+5)
-	y += assetHeaderH
-
-	if len(sprites) == 0 && len(audio) == 0 {
-		pixelforge.SetColor(theme.TextDimSlot)
-		pcofont("No assets - File > Import", area.X+8, y+8)
-		return
-	}
-
-	for _, s := range sprites {
-		rowY := y - b.scrollOffset
-		if rowY+assetRowH < area.Y || rowY >= area.Y+area.H {
-			y += assetRowH
-			continue
-		}
-		bg := theme.PanelSlot
-		if s.Name == e.SelectedSpriteName() {
-			bg = theme.AccentSlot
-		}
-		pixelforge.SetColor(bg)
-		pixelforge.RectFill(area.X+2, rowY+1, area.X+area.W-3, rowY+assetRowH-2)
-		// Thumbnail placeholder (sprite-data decoding lives on the
-		// native overlay path during M3 hybrid).
-		pixelforge.SetColor(theme.TextDimSlot)
-		pixelforge.RectFill(area.X+4, rowY+4, area.X+36, rowY+assetRowH-6)
-		pixelforge.SetColor(theme.TextSlot)
-		pcofont(s.Name, area.X+44, rowY+8)
-		y += assetRowH
-	}
-
-	// "AUDIO" header.
-	hdrY := y - b.scrollOffset
-	pixelforge.SetColor(theme.PanelHeaderSlot)
-	pixelforge.RectFill(area.X, hdrY, area.X+area.W-1, hdrY+assetHeaderH-1)
-	pixelforge.SetColor(theme.TextSlot)
-	pcofont("AUDIO", area.X+8, hdrY+5)
-	y += assetHeaderH
-
-	for _, a := range audio {
-		rowY := y - b.scrollOffset
-		bg := theme.PanelSlot
-		if a.Name == e.SelectedAudioName() {
-			bg = theme.AccentSlot
-		}
-		pixelforge.SetColor(bg)
-		pixelforge.RectFill(area.X+2, rowY+1, area.X+area.W-3, rowY+assetRowH-2)
-		pixelforge.SetColor(theme.AccentSlot)
-		pixelforge.RectFill(area.X+8, rowY+10, area.X+22, rowY+24)
-		pixelforge.SetColor(theme.TextSlot)
-		pcofont(a.Name, area.X+44, rowY+8)
-		y += assetRowH
-	}
-}
+// (U9 deleted the cart-resident AssetBrowser.DrawCanvas — the asset
+// browser renders through its native Draw path against the
+// PanelRect("Assets") rect ImGui carves out each frame.)

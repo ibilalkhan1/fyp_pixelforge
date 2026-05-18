@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "name": "MarioStripScene",
+  "screen_width": 256,
+  "screen_height": 240,
+  "tps": 60,
+  "created_at": "2026-05-18T00:00:00Z",
+  "modified_at": "2026-05-18T00:00:00Z",
+  "palette": {},
+  "theme": {
+    "background_slot": 1,
+    "panel_slot": 2,
+    "panel_header_slot": 5,
+    "text_slot": 7,
+    "text_dim_slot": 6,
+    "accent_slot": 12,
+    "warning_slot": 9,
+    "font_name": "cofont"
+  },
+  "sprites": [
+    {
+      "name": "hero",
+      "relative_path": "",
+      "width": 8,
+      "height": 8,
+      "frame_w": 8,
+      "frame_h": 8,
+      "origin_x": 0,
+      "origin_y": 0,
+      "animations": []
+    },
+    {
+      "name": "goomba",
+      "relative_path": "",
+      "width": 8,
+      "height": 8,
+      "frame_w": 8,
+      "frame_h": 8,
+      "origin_x": 0,
+      "origin_y": 0,
+      "animations": []
+    },
+    {
+      "name": "ground_tiles",
+      "relative_path": "",
+      "width": 32,
+      "height": 8,
+      "frame_w": 8,
+      "frame_h": 8,
+      "origin_x": 0,
+      "origin_y": 0,
+      "animations": []
+    }
+  ],
+  "audio": [],
+  "scenes": [
+    {
+      "id": "level_1",
+      "name": "Level 1",
+      "entities": [
+        {
+          "id": "mario",
+          "name": "Mario",
+          "position": {"x": 32, "y": 192, "z": 0},
+          "components": [
+            {"type": "Sprite", "values": {"sprite": "hero"}}
+          ],
+          "archetype": "Player",
+          "tile_x": 4,
+          "tile_y": 24
+        },
+        {
+          "id": "goomba1",
+          "name": "Goomba1",
+          "position": {"x": 80, "y": 192, "z": 0},
+          "components": [
+            {"type": "Sprite", "values": {"sprite": "goomba"}}
+          ],
+          "archetype": "Enemy",
+          "tile_x": 10,
+          "tile_y": 24
+        },
+        {
+          "id": "goomba2",
+          "name": "Goomba2",
+          "position": {"x": 160, "y": 192, "z": 0},
+          "components": [
+            {"type": "Sprite", "values": {"sprite": "goomba"}}
+          ],
+          "archetype": "Enemy",
+          "tile_x": 20,
+          "tile_y": 24
+        }
+      ],
+      "tilemaps": [
+        {
+          "name": "ground",
+          "tile_w": 8,
+          "tile_h": 8,
+          "grid": [],
+          "auto_tile_rules": [],
+          "sprite_sheet_ref": "ground_tiles"
+        }
+      ],
+      "grid_width_screens": 16,
+      "grid_height_screens": 1,
+      "spawn_tile": {"col": 4, "row": 24},
+      "default_tile_id": 0
+    }
+  ],
+  "behaviors": [],
+  "bindings": [],
+  "event_subscriptions": [],
+  "extension_hooks": []
+}

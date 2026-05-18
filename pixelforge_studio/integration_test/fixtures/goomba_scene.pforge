@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "name": "GoombaScene",
+  "screen_width": 256,
+  "screen_height": 240,
+  "tps": 60,
+  "created_at": "2026-05-18T00:00:00Z",
+  "modified_at": "2026-05-18T00:00:00Z",
+  "palette": {},
+  "theme": {
+    "background_slot": 1,
+    "panel_slot": 2,
+    "panel_header_slot": 5,
+    "text_slot": 7,
+    "text_dim_slot": 6,
+    "accent_slot": 12,
+    "warning_slot": 9,
+    "font_name": "cofont"
+  },
+  "sprites": [],
+  "audio": [],
+  "scenes": [
+    {
+      "id": "level_1",
+      "name": "Level 1",
+      "entities": [
+        {
+          "id": "player_1",
+          "name": "Mario",
+          "position": {"x": 16, "y": 200, "z": 0},
+          "components": [],
+          "archetype": "Player",
+          "verb_bindings": [
+            {"trigger": "when_damaged", "recipe_name": "take_damage"}
+          ]
+        },
+        {
+          "id": "goomba_1",
+          "name": "Goomba",
+          "position": {"x": 128, "y": 200, "z": 0},
+          "components": [],
+          "archetype": "Enemy",
+          "verb_bindings": [
+            {"trigger": "when_stepped_on", "recipe_name": "die"},
+            {"trigger": "when_destroyed", "recipe_name": "give_points"}
+          ]
+        }
+      ],
+      "tilemaps": []
+    }
+  ],
+  "behaviors": [],
+  "bindings": [],
+  "event_subscriptions": [],
+  "extension_hooks": []
+}

@@ -1,28 +1,24 @@
-// Package scripting hosts the M5 visual-scripting workspace —
-// behaviour authoring surfaces (Step lane editor, Event sheet
-// editor, topic catalog, visual debugger) wired to the runtime
-// engine in scripting/runtime.
+// Package scripting hosts the M5 visual-scripting workspace. U8 of
+// the ImGui migration plan rewrote workspace.go on ImGui primitives:
+// the pgui Tabs widget retired in favour of imgui.BeginTabBar; the
+// canvas-resident render path retired in favour of imgui.Begin/End.
+// The visual-scripting *model* (BehaviorGraph, StepNode, EventSheet)
+// is unchanged — only the editor surface ports.
 package scripting
 
 import (
-	"fmt"
-
+	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 
-	"github.com/ibilalkhan1/fyp_pixelforge"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_cofont"
-	pgui "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_gui"
-	pguiwidgets "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_gui/widgets"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_project"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/editor"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/editor/widgets"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/scripting/runtime"
 )
 
-// Sub-pane identifiers. The Tabs widget keeps the four sub-panes
-// indexable by integer; we re-export the names for tests and keymap
-// handlers.
+// Sub-pane identifiers. With the ImGui rewrite, the tab system is
+// driven by imgui.BeginTabBar; the constants survive for tests and
+// keymap actions that still address sub-panes by index.
 const (
 	PaneLane    = 0
 	PaneSheet   = 1
@@ -30,19 +26,17 @@ const (
 	PaneDebug   = 3
 )
 
-// Workspace is the M5 behaviour workspace. Implements
-// editor.CanvasWorkspace so it slots into the existing tab strip and
-// canvas-resident chrome path.
+// Workspace is the M5 behaviour workspace. Implements editor.Workspace
+// (Name / DisplayName / Render) so it slots into the dockspace.
 type Workspace struct {
 	engine    *runtime.Engine
-	tabs      *pguiwidgets.Tabs
 	activeTab int
 
 	statusLine string
 
-	// Sub-pane state. Per-pane structs are populated by later units
-	// (U7, U9, U11, U13). v1 ships empty placeholders so the shell
-	// renders and switches tabs.
+	// Sub-pane state — Lane is fully ImGui-driven by U8; the
+	// remaining three sub-panes carry their existing state but
+	// render placeholders until their feature units catch up.
 	lane     *LaneEditor
 	sheet    *EventSheetEditor
 	catalog  *TopicCatalog
@@ -53,27 +47,21 @@ type Workspace struct {
 // no engine. The engine is wired by RegisterWith once the editor
 // supplies a project.
 func NewWorkspace() *Workspace {
-	w := &Workspace{}
-	w.tabs = pguiwidgets.NewTabs(0, 0, 0, 0, pguiwidgets.TabsOptions{
-		Labels:   []string{"Lane", "Sheet", "Catalog", "Debug"},
-		Selected: PaneLane,
-		OnSelect: func(idx int) { w.activeTab = idx },
-	})
-	w.lane = newLaneEditor()
-	w.sheet = newEventSheetEditor()
-	w.catalog = newTopicCatalog()
-	w.debugger = newDebugger()
-	return w
+	return &Workspace{
+		lane:     newLaneEditor(),
+		sheet:    newEventSheetEditor(),
+		catalog:  newTopicCatalog(),
+		debugger: newDebugger(),
+	}
 }
 
-// Name is the stable workspace identifier (matches the M3 stub).
+// Name is the stable workspace identifier.
 func (w *Workspace) Name() string { return "behavior" }
 
-// DisplayName is the tab strip label.
+// DisplayName is the dock window title.
 func (w *Workspace) DisplayName() string { return "Behavior" }
 
-// Engine returns the runtime engine bound to the workspace, or nil
-// when no project is loaded.
+// Engine returns the runtime engine bound to the workspace, or nil.
 func (w *Workspace) Engine() *runtime.Engine { return w.engine }
 
 // ActiveTab returns the index of the currently-selected sub-pane.
@@ -85,9 +73,6 @@ func (w *Workspace) SetActiveTab(idx int) {
 		return
 	}
 	w.activeTab = idx
-	if w.tabs != nil {
-		w.tabs.Selected = idx
-	}
 }
 
 // Status returns the workspace's status footer text.
@@ -125,7 +110,79 @@ func (w *Workspace) OnProjectChanged(p *pixelforge_project.Project) {
 	w.debugger.bind(w.engine)
 }
 
-// Update routes input to the active sub-pane and the tabs widget.
+// Render builds the Behavior ImGui window each frame. A tab bar
+// switches between Lane / Sheet / Catalog / Debug sub-panes; Lane
+// fully ports to ImGui under U8, the rest carry placeholders until
+// their feature units rebuild on ImGui.
+func (w *Workspace) Render(e *editor.Editor) {
+	if e == nil {
+		return
+	}
+	flags := imgui.WindowFlagsNoCollapse
+	if !imgui.BeginV(w.DisplayName(), nil, flags) {
+		imgui.End()
+		e.SetPanelRect(w.DisplayName(), widgets.Rect{})
+		return
+	}
+	defer imgui.End()
+	e.CaptureCurrentWindowRect(w.DisplayName())
+
+	if e.Project() == nil {
+		imgui.TextDisabled("(no project)")
+		return
+	}
+
+	w.renderEngineHeader()
+
+	if imgui.BeginTabBar("##scripting-tabs") {
+		w.renderTab("Lane", PaneLane, func() { w.lane.Render(e, w.engine) })
+		w.renderTab("Sheet", PaneSheet, func() { imgui.TextDisabled("event sheet — pending ImGui rewrite") })
+		w.renderTab("Catalog", PaneCatalog, func() { imgui.TextDisabled("topic catalog — pending ImGui rewrite") })
+		w.renderTab("Debug", PaneDebug, func() { imgui.TextDisabled("debugger — pending ImGui rewrite") })
+		imgui.EndTabBar()
+	}
+
+	if w.statusLine != "" {
+		imgui.Separator()
+		imgui.TextDisabled(w.statusLine)
+	}
+}
+
+// renderTab emits one tab in the workspace's tab bar. When the tab
+// is active, body fires inside the tab item; the workspace's
+// activeTab field is updated to keep the keymap-addressable index
+// in sync with the user's pick.
+func (w *Workspace) renderTab(label string, idx int, body func()) {
+	if !imgui.BeginTabItem(label) {
+		return
+	}
+	w.activeTab = idx
+	body()
+	imgui.EndTabItem()
+}
+
+// renderEngineHeader emits the "engine running / stopped" indicator
+// + Run / Stop buttons at the top of the workspace.
+func (w *Workspace) renderEngineHeader() {
+	running := w.engine != nil && w.engine.Running()
+	if running {
+		imgui.Text("engine: running")
+	} else {
+		imgui.TextDisabled("engine: stopped")
+	}
+	imgui.SameLine()
+	if imgui.Button("Run") {
+		w.runEngine()
+	}
+	imgui.SameLine()
+	if imgui.Button("Stop") {
+		w.stopEngine()
+	}
+	imgui.Separator()
+}
+
+// Update routes keymap input to the active sub-pane plus the engine
+// run/stop shortcuts.
 func (w *Workspace) Update(e *editor.Editor) {
 	if e == nil {
 		return
@@ -183,108 +240,8 @@ func (w *Workspace) stopEngine() {
 	w.statusLine = "engine stopped"
 }
 
-// Draw renders the workspace via the native overlay path (used in
-// non-cart code paths and headless tests).
-func (w *Workspace) Draw(dst *ebiten.Image, area widgets.Rect, e *editor.Editor) {
-	if area.W <= 0 || area.H <= 0 {
-		return
-	}
-	if e == nil || e.Project() == nil {
-		ebitenutil.DebugPrintAt(dst, "Behavior - (no project)", area.X+8, area.Y+8)
-		return
-	}
-	running := w.engine != nil && w.engine.Running()
-	ebitenutil.DebugPrintAt(dst,
-		fmt.Sprintf("Behavior — engine: %v, tab: %d", running, w.activeTab),
-		area.X+8, area.Y+8)
-}
-
-// DrawCanvas renders the canvas-resident chrome (panel header, tab
-// strip, sub-pane content, footer).
-func (w *Workspace) DrawCanvas(rel widgets.Rect, e *editor.Editor) {
-	if rel.W <= 0 || rel.H <= 0 || e == nil {
-		return
-	}
-	theme := editor.DefaultEditorTheme()
-	if c := e.Cart(); c != nil && c.Theme() != nil {
-		theme = c.Theme()
-	}
-	prev := pixelforge.GetColor()
-	defer pixelforge.SetColor(prev)
-
-	// Background.
-	pixelforge.SetColor(theme.BackgroundSlot)
-	pixelforge.RectFill(rel.X, rel.Y, rel.X+rel.W-1, rel.Y+rel.H-1)
-
-	// Header.
-	pixelforge.SetColor(theme.PanelHeaderSlot)
-	pixelforge.RectFill(rel.X, rel.Y, rel.X+rel.W-1, rel.Y+15)
-	pixelforge.SetColor(theme.TextSlot)
-	pixelforge_cofont.Print("BEHAVIOR", rel.X+8, rel.Y+4)
-
-	// Engine status indicator.
-	statusText := "stopped"
-	if w.engine != nil && w.engine.Running() {
-		statusText = "running"
-	}
-	pixelforge.SetColor(theme.TextDimSlot)
-	pixelforge_cofont.Print(statusText, rel.X+rel.W-len(statusText)*4-8, rel.Y+4)
-
-	if e.Project() == nil {
-		pixelforge.SetColor(theme.TextDimSlot)
-		pixelforge_cofont.Print("(no project)", rel.X+8, rel.Y+24)
-		return
-	}
-
-	// Tabs strip.
-	w.tabs.X = rel.X + 8
-	w.tabs.Y = rel.Y + 20
-	w.tabs.W = rel.W - 16
-	w.tabs.H = 18
-	w.tabs.Selected = w.activeTab
-	w.drawTabsWidget()
-
-	// Sub-pane content area.
-	paneRect := widgets.Rect{
-		X: rel.X + 8,
-		Y: rel.Y + 42,
-		W: rel.W - 16,
-		H: rel.H - 60,
-	}
-	switch w.activeTab {
-	case PaneLane:
-		w.lane.DrawCanvas(paneRect, e, theme)
-	case PaneSheet:
-		w.sheet.DrawCanvas(paneRect, e, theme)
-	case PaneCatalog:
-		w.catalog.DrawCanvas(paneRect, e, theme)
-	case PaneDebug:
-		w.debugger.DrawCanvas(paneRect, e, theme)
-	}
-
-	// Footer status line.
-	if w.statusLine != "" {
-		pixelforge.SetColor(theme.TextDimSlot)
-		pixelforge_cofont.Print(w.statusLine, rel.X+8, rel.Y+rel.H-12)
-	}
-}
-
-func (w *Workspace) drawTabsWidget() {
-	prevCamX, prevCamY := pixelforge.Camera.X, pixelforge.Camera.Y
-	defer func() {
-		pixelforge.Camera.X, pixelforge.Camera.Y = prevCamX, prevCamY
-	}()
-	pixelforge.Camera.X -= w.tabs.X
-	pixelforge.Camera.Y -= w.tabs.Y
-	if w.tabs.OnDraw != nil {
-		w.tabs.OnDraw(pgui.DrawEvent{Element: w.tabs.Element})
-	}
-}
-
-// RegisterWith installs the behaviour workspace on the editor in
-// place of the M3 stub, registers the keymap actions, and subscribes
-// the workspace as a ProjectListener so it teardowns and re-spins on
-// project changes.
+// RegisterWith installs the behaviour workspace on the editor and
+// subscribes it as a ProjectListener.
 func RegisterWith(e *editor.Editor) *Workspace {
 	if e == nil {
 		return nil

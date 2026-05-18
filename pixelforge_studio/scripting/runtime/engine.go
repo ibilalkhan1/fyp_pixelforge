@@ -316,6 +316,20 @@ func (e *Engine) compileAll() {
 		}
 		e.instances = append(e.instances, inst)
 	}
+
+	// U6 hook: synthesise BehaviorGraphs from per-entity VerbBindings
+	// and compile them through the same compileGraph path. This is the
+	// additive integration point — the project's persisted Behaviors
+	// list is NOT mutated, so save round-trips stay stable. The
+	// synthetic graphs are named "__verb_bindings__:<entityID>" so
+	// they cannot collide with designer-named behaviours.
+	for _, g := range attachVerbBindingsToGraph(e.project) {
+		inst, err := compileGraph(g, e.context, e, e.debugHook)
+		if err != nil {
+			continue
+		}
+		e.instances = append(e.instances, inst)
+	}
 }
 
 func (e *Engine) scheduleRoutines() {

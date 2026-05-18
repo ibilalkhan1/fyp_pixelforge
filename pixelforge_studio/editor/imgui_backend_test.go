@@ -4,6 +4,7 @@ import (
 	"image"
 	"testing"
 
+	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,6 +24,11 @@ type recordingBackend struct {
 	lastDrawScreen *ebiten.Image
 	lastLayoutW    int
 	lastLayoutH    int
+
+	createTextureCalls int
+	lastTextureGame    ebiten.Game
+	lastTextureW       int
+	lastTextureH       int
 
 	calls []string
 }
@@ -49,6 +55,19 @@ func (b *recordingBackend) Layout(outsideWidth, outsideHeight int) (int, int) {
 	b.lastLayoutH = outsideHeight
 	b.calls = append(b.calls, "Layout")
 	return outsideWidth, outsideHeight
+}
+
+// CreateTextureFromGame is the U5 addition to the imguiBackend
+// interface. The test stub records the call so tests can assert on
+// game-texture registration; the returned TextureRef is the zero
+// value because no real GL texture exists in the stub.
+func (b *recordingBackend) CreateTextureFromGame(game ebiten.Game, width, height int) imgui.TextureRef {
+	b.createTextureCalls++
+	b.lastTextureGame = game
+	b.lastTextureW = width
+	b.lastTextureH = height
+	b.calls = append(b.calls, "CreateTextureFromGame")
+	return imgui.TextureRef{}
 }
 
 // TestImguiBackendInitializes verifies the host wrapper accepts a

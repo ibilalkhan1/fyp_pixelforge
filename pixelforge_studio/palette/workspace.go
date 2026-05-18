@@ -3,6 +3,7 @@ package palette
 import (
 	"image/color"
 
+	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
@@ -36,8 +37,27 @@ func NewWorkspace() *Workspace {
 // Name is the stable workspace identifier the editor switches on.
 func (w *Workspace) Name() string { return "palette" }
 
-// DisplayName is the tab strip label.
+// DisplayName is the dock window title.
 func (w *Workspace) DisplayName() string { return "Palette" }
+
+// Render registers the Palette ImGui window inside the dockspace and
+// captures its inner content rect so the native palette grid / matrix /
+// presets sub-panels keep rendering through the editor's draw path.
+// A full ImGui rewrite of the palette workspace is out of scope for
+// the U3 plan; U7/U8-style rebuilds for palette can come later.
+func (w *Workspace) Render(e *editor.Editor) {
+	if e == nil {
+		return
+	}
+	flags := imgui.WindowFlagsNoBackground | imgui.WindowFlagsNoScrollbar
+	if !imgui.BeginV(w.DisplayName(), nil, flags) {
+		imgui.End()
+		e.SetPanelRect(w.DisplayName(), widgets.Rect{})
+		return
+	}
+	defer imgui.End()
+	e.CaptureCurrentWindowRect(w.DisplayName())
+}
 
 // Grid exposes the swatch grid for tests.
 func (w *Workspace) Grid() *Grid { return w.grid }
@@ -65,7 +85,10 @@ func (w *Workspace) Update(e *editor.Editor) {
 	if e.Project() == nil {
 		return
 	}
-	regions := w.layout(e.ChromeCanvasRect())
+	// Palette renders inside its own dockable window now (U3); use the
+	// captured panel rect for the workspace's own DisplayName rather
+	// than the scene canvas rect.
+	regions := w.layout(e.PanelRect(w.DisplayName()))
 	if w.animator.Visible() {
 		w.animator.Update(regions.animator, e.Project(), e)
 		return

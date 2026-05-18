@@ -55,6 +55,22 @@ type Context struct {
 	// PaletteColors carries the active palette ("#RRGGBB" per slot)
 	// so WidgetPaletteColor renders an accurate preview.
 	PaletteColors []string
+
+	// Intents is the sorted list of input-intent topic names (e.g.,
+	// "input/jump") the project's input layer publishes. U8's
+	// character-sheet inspector exposes this list so future verb
+	// parameter forms that target an intent can drop a dropdown over
+	// the live intent set rather than free-text. Populated by the
+	// editor's buildWidgetContext from pixelforge_input.AllIntents.
+	Intents []string
+
+	// VerbRecipes is the sorted list of all registered verb-recipe
+	// names from pixelforge_studio/scripting/catalog. The character-
+	// sheet inspector filters this list per trigger slot at render
+	// time using each TriggerSlot's RelevantRecipes; carrying the
+	// global list here keeps the Context honest about what authoring
+	// can reach.
+	VerbRecipes []string
 }
 
 // Widget is the surface every inspector control implements.

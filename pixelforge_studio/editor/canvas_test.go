@@ -40,18 +40,25 @@ func TestCanvas_PlaceEntityRequiresSprite(t *testing.T) {
 	assert.Contains(t, e.StatusMessage(), "Select a sprite")
 }
 
-// PlaceEntity adds an entity at the given scene-space coordinates.
+// PlaceEntity adds an entity, snapping the supplied pixel coords to
+// the nearest 8×8 tile cell and populating TileX / TileY accordingly.
+// The legacy float64 Position is set to the cell's top-left pixel so
+// the canvas's entity-marker math still resolves a hit-rect for the
+// just-placed entity.
 func TestCanvas_PlaceEntityAddsEntity(t *testing.T) {
 	e := New()
 	e.SetSelectedSpriteName("fruit")
 	scene := e.activeScene()
 	require.NotNil(t, scene)
 
-	ent := e.canvas.PlaceEntity(scene, e, 40, 60)
+	// (40, 64) snaps to cell (5, 8) → top-left pixel (40, 64).
+	ent := e.canvas.PlaceEntity(scene, e, 40, 64)
 	require.NotNil(t, ent)
 	assert.Len(t, scene.Entities, 1)
+	assert.Equal(t, 5, ent.TileX)
+	assert.Equal(t, 8, ent.TileY)
 	assert.Equal(t, float64(40), ent.Position.X)
-	assert.Equal(t, float64(60), ent.Position.Y)
+	assert.Equal(t, float64(64), ent.Position.Y)
 	require.Len(t, ent.Components, 1)
 	assert.Equal(t, "Sprite", ent.Components[0].Type)
 	assert.Equal(t, "fruit", ent.Components[0].Values["sprite"])
@@ -107,6 +114,48 @@ func TestCanvas_WindowToSceneClamps(t *testing.T) {
 	x, y = c.windowToScene(viewBox, p, 999, 999)
 	assert.Equal(t, p.ScreenWidth, x)
 	assert.Equal(t, p.ScreenHeight, y)
+}
+
+// TestPlaceEntity_SnapsToTileCell — clicks at non-cell-aligned scene
+// pixel coords resolve to the containing 8×8 tile cell (TileW=8). The
+// plan's worked example: a click at (47, 193) → cell (5, 24) because
+// 47/8 == 5 and 193/8 == 24.
+func TestPlaceEntity_SnapsToTileCell(t *testing.T) {
+	e := New()
+	e.SetSelectedSpriteName("fruit")
+	scene := e.activeScene()
+	require.NotNil(t, scene)
+	// Configure a Mario-strip level so the clamp doesn't fold a
+	// mid-level click back to the single-screen fallback.
+	scene.GridWidthScreens = 16
+	scene.GridHeightScreens = 1
+
+	ent := e.canvas.PlaceEntity(scene, e, 47, 193)
+	require.NotNil(t, ent)
+	assert.Equal(t, 5, ent.TileX, "47/8 == 5")
+	assert.Equal(t, 24, ent.TileY, "193/8 == 24")
+	// Position mirrors the snapped cell's top-left pixel.
+	assert.Equal(t, float64(40), ent.Position.X)
+	assert.Equal(t, float64(192), ent.Position.Y)
+}
+
+// TestPlaceEntity_OutsideLevelBoundsClamped — a click whose pixel coord
+// resolves to a tile cell past the level's right or bottom edge
+// clamps to the last valid cell. A 16x1-screen level addresses cols
+// 0..511 (16*32 - 1) and rows 0..29.
+func TestPlaceEntity_OutsideLevelBoundsClamped(t *testing.T) {
+	e := New()
+	e.SetSelectedSpriteName("fruit")
+	scene := e.activeScene()
+	require.NotNil(t, scene)
+	scene.GridWidthScreens = 16
+	scene.GridHeightScreens = 1
+
+	// 8000 / 8 == 1000 (way past col 511); 400 / 8 == 50 (past row 29).
+	ent := e.canvas.PlaceEntity(scene, e, 8000, 400)
+	require.NotNil(t, ent)
+	assert.Equal(t, 511, ent.TileX, "clamped to last addressable column (16*32-1)")
+	assert.Equal(t, 29, ent.TileY, "clamped to last addressable row (1*30-1)")
 }
 
 // DeleteEntityAt with no hit returns "".

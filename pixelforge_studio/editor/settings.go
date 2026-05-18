@@ -45,11 +45,13 @@ type Settings struct {
 	// 2/3/4 give crisper text on Hi-DPI displays. See U47.
 	LogicalScale int `json:"logical_scale"`
 
-	// LeftPanelW / RightPanelW hold the user-resized panel widths
-	// from U48's drag-resize gutters. Zero means "use the chrome
-	// layout default" (the minimums from chromeLayout).
-	LeftPanelW  int `json:"left_panel_width"`
-	RightPanelW int `json:"right_panel_width"`
+	// LeftPanelW / RightPanelW were the M2 native chrome's drag-
+	// resize gutter widths. U6 of the ImGui migration handed dock
+	// geometry persistence over to imgui.ini; these fields persist
+	// only for backwards compatibility with settings.json files
+	// written by older builds, and are otherwise unused.
+	LeftPanelW  int `json:"left_panel_width,omitempty"`
+	RightPanelW int `json:"right_panel_width,omitempty"`
 
 	path string // resolved on Load; empty when only in-memory
 

@@ -238,6 +238,27 @@ func (e *Editor) handleShortcuts() {
 		e.SetTool(ToolPaint)
 	}
 
+	// Idea #1 v1 — per-stroke undo/redo for the tile painter. The
+	// stack lives on the editor so both the canvas dispatch (which
+	// pushes commands) and the shortcut handler (which pops them)
+	// see the same instance. MarkDirty fires unconditionally on a
+	// successful pop because reverting/replaying is itself a project
+	// mutation.
+	if e.keymap.JustPressed("edit.undo") {
+		if stack := e.UndoStack(); stack != nil {
+			if cmd := stack.Undo(); cmd != nil {
+				e.MarkDirty()
+			}
+		}
+	}
+	if e.keymap.JustPressed("edit.redo") {
+		if stack := e.UndoStack(); stack != nil {
+			if cmd := stack.Redo(); cmd != nil {
+				e.MarkDirty()
+			}
+		}
+	}
+
 	// Workspace shortcuts.
 	if e.keymap.JustPressed("workspace.cycle") {
 		e.CycleWorkspace()

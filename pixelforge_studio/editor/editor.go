@@ -12,6 +12,7 @@ package editor
 import (
 	"image/color"
 
+	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_project"
@@ -42,7 +43,15 @@ type Editor struct {
 	inspector *Inspector
 
 	selectedEntityID string
-	dirty            bool
+	// selectedSceneID names the Scene whose settings inspector should
+	// render when no entity is selected. Idea #1 v1 U8 introduces the
+	// scene-level inspector panel (grid-size spinners, default-tile
+	// picker, camera config) and needs an explicit "the scene itself is
+	// the selection target" signal — distinct from "an entity inside
+	// the scene is selected". Empty means no scene is selected; the
+	// inspector then falls back to "(no selection)".
+	selectedSceneID string
+	dirty           bool
 
 	// M1.5 surfaces.
 	filePicker         *widgets.FilePicker
@@ -57,13 +66,47 @@ type Editor struct {
 	selectedSpriteName string
 	selectedAudioName  string
 
-	// M2 workspaces.
-	workspaces      []Workspace
-	activeWorkspace int
+	// Idea #1 v1 Paint-tool surface. The painter, undo stack, and
+	// palette are co-owned by the editor so the canvas dispatch, the
+	// Scene workspace's toolbar, and the Ctrl+Z/Y shortcut handlers
+	// all see the same instances. Stack and palette are constructed
+	// in NewWithSettings; nil-safe accessors keep tests that build a
+	// bare Editor via the zero-value path from crashing.
+	painter   *TilePainter
+	undoStack *UndoStack
+	palette   *TilePalette
 
-	// M3 editor cart: logical Pixelforge canvas used by the canvas-
-	// resident chrome path. The cart itself disappears in U9.
-	cart *editorCart
+	// Workspaces registered via RegisterWorkspace. Every workspace's
+	// Render() runs each frame inside the DockSpace (U3); activeWorkspace
+	// names the currently-focused one so the status bar and tests can
+	// answer "which workspace owns input right now".
+	workspaces      []Workspace
+	activeWorkspace string
+
+	// dockspace bookkeeping (U3). Tracks whether the default layout has
+	// been seeded so subsequent frames defer to imgui.ini.
+	dockspace *dockspaceState
+
+	// Scene preview texture (U5). The Scene workspace renders this via
+	// imgui.Image inside its docked window; the backend repaints the
+	// texture each frame by calling sceneGame.Draw against an
+	// off-screen ebiten.Image.
+	sceneGame    *sceneGame
+	sceneTexture imgui.TextureRef
+	sceneTexW    int
+	sceneTexH    int
+
+	// sceneHovered tracks whether the Scene image was both focused and
+	// hovered this frame. SceneWorkspace.Render writes it inside the
+	// image's imgui.IsItemHovered check; SceneWorkspace.Update reads
+	// it to gate tool dispatch so clicks outside the image (or in
+	// other dock tabs) don't fire scene tools.
+	sceneHovered bool
+
+	// theme is the editor's loaded chrome theme. Sourced from the
+	// embedded editor.pforge fixture on construction; activeImguiTheme
+	// converts its palette indices into ImGui Vec4 colours each frame.
+	theme *EditorTheme
 
 	// chromeHidden — Esc toggle that hides editor chrome to make the
 	// Scene panel feel fullscreen. Replaces the old chromeVisibility
@@ -144,15 +187,50 @@ func NewWithSettings(s *Settings) *Editor {
 	}
 	e.fileMenu = NewFileMenu(e)
 	e.installDefaultWorkspaces()
-	e.cart = newEditorCart()
-	e.cart.SetTheme(loadEditorTheme())
+	e.theme = loadEditorTheme()
+	// Idea #1 v1 Paint-tool wiring. Bind painter ↔ palette ↔ stack
+	// here so the canvas dispatch, the Scene workspace's toolbar, and
+	// the Ctrl+Z/Ctrl+Y shortcut handlers all see the same instances.
+	e.painter = NewTilePainter()
+	e.undoStack = NewUndoStack()
+	e.palette = NewTilePalette(e.painter)
 	return e
 }
 
-// Cart exposes the editor's logical Pixelforge canvas wrapper for
-// canvas-resident workspace code. Deprecated in U2 (no longer wired to
-// the chrome path); fully removed in U9.
-func (e *Editor) Cart() *editorCart { return e.cart }
+// Painter returns the editor's tile painter. Nil-safe for zero-value
+// Editors constructed by tests; callers should check for nil.
+func (e *Editor) Painter() *TilePainter {
+	if e == nil {
+		return nil
+	}
+	return e.painter
+}
+
+// UndoStack returns the editor's per-stroke undo stack. Nil-safe.
+func (e *Editor) UndoStack() *UndoStack {
+	if e == nil {
+		return nil
+	}
+	return e.undoStack
+}
+
+// Palette returns the editor's tile palette panel. Nil-safe.
+func (e *Editor) Palette() *TilePalette {
+	if e == nil {
+		return nil
+	}
+	return e.palette
+}
+
+// Theme returns the editor's loaded chrome theme. Sourced from the
+// embedded editor.pforge fixture on construction; reloadable by a
+// future theme-switcher feature unit.
+func (e *Editor) Theme() *EditorTheme {
+	if e.theme == nil {
+		e.theme = DefaultEditorTheme()
+	}
+	return e.theme
+}
 
 // ChromeHidden reports whether workspace chrome is currently hidden via
 // the Esc toggle. With ImGui chrome the toggle is decorative for now —
@@ -201,6 +279,7 @@ func (e *Editor) SetProject(p *pixelforge_project.Project) {
 	}
 	e.project = p
 	e.selectedEntityID = ""
+	e.selectedSceneID = ""
 	e.selectedSpriteName = ""
 	e.selectedAudioName = ""
 	e.dirty = false
@@ -220,6 +299,39 @@ func (e *Editor) SelectEntity(id string) {
 
 // SelectedEntityID returns the current selection, or "".
 func (e *Editor) SelectedEntityID() string { return e.selectedEntityID }
+
+// SelectScene marks the named Scene as the inspector's current target.
+// An empty id clears the scene selection. Setting a scene selection
+// does NOT clear the entity selection — the inspector's dispatch order
+// prefers the entity selection when both are set, so a designer who
+// clicks an entity inside the scene still sees the entity's character
+// sheet rather than scene-level settings.
+//
+// Idea #1 v1 U8 introduces this selection axis so the scene-settings
+// panel has an explicit "the scene itself is what we're editing" hook
+// without having to invent a parallel inspector window.
+func (e *Editor) SelectScene(id string) {
+	e.selectedSceneID = id
+}
+
+// SelectedSceneID returns the currently scene-selected ID, or "".
+func (e *Editor) SelectedSceneID() string { return e.selectedSceneID }
+
+// selectedScene resolves selectedSceneID against the live project.
+// Returns nil when no scene is selected or the ID does not match any
+// scene in the project. Used by the inspector to decide whether to
+// render the scene-settings panel.
+func (e *Editor) selectedScene() *pixelforge_project.Scene {
+	if e.project == nil || e.selectedSceneID == "" {
+		return nil
+	}
+	for si := range e.project.Scenes {
+		if e.project.Scenes[si].ID == e.selectedSceneID {
+			return &e.project.Scenes[si]
+		}
+	}
+	return nil
+}
 
 // IsDirty reports whether the in-memory project has unsaved changes.
 func (e *Editor) IsDirty() bool { return e.dirty }
@@ -332,9 +444,13 @@ func (e *Editor) Update() error {
 		return nil
 	}
 
-	// Active workspace handles its own input.
-	if e.activeWorkspaceImpl() != nil {
-		e.activeWorkspaceImpl().Update(e)
+	// Active workspace handles its own input — only the focused
+	// workspace processes mouse/keyboard so tools don't race across
+	// every docked window each frame.
+	if active := e.activeWorkspaceImpl(); active != nil {
+		if handler, ok := active.(WorkspaceInputHandler); ok {
+			handler.Update(e)
+		}
 	}
 	return nil
 }
@@ -352,17 +468,23 @@ func (e *Editor) Draw(screen *ebiten.Image) {
 		e.assetBrowser.Draw(screen, rect, e)
 		e.assetBrowser.Update(rect, e)
 	}
-	if rect := e.PanelRect(PanelInspector); rect.W > 0 && rect.H > 0 {
-		if entity := e.selectedEntity(); entity != nil {
-			if e.inspector.Draw(screen, rect, e.project, entity) {
-				e.MarkDirty()
-			}
+	// Inspector renders entirely through ImGui now (U4). No native
+	// dispatch here — the inspector's Render() runs inside buildChrome
+	// and flags dirty via MarkDirty().
+	// Every workspace that still renders through the native draw path
+	// (Scene pre-U5; palette / capture / scripting pre-U7/U8) gets its
+	// captured PanelRect dispatched here. Workspaces fully ported to
+	// ImGui don't satisfy NativeWorkspaceContent and are skipped.
+	for _, w := range e.workspaces {
+		native, ok := w.(NativeWorkspaceContent)
+		if !ok {
+			continue
 		}
-	}
-	if rect := e.PanelRect(PanelScene); rect.W > 0 && rect.H > 0 {
-		if ws := e.activeWorkspaceImpl(); ws != nil {
-			ws.Draw(screen, rect, e)
+		rect := e.PanelRect(w.DisplayName())
+		if rect.W <= 0 || rect.H <= 0 {
+			continue
 		}
+		native.Draw(screen, rect, e)
 	}
 
 	// Modals render after panel content, before ImGui chrome.
