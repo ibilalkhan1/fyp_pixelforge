@@ -36,6 +36,15 @@ type SpriteAsset struct {
 	// Animations enumerates named animation clips that select frames
 	// from this sheet. Populated by the M2 importer or hand-authored.
 	Animations []AnimationClip `json:"animations"`
+
+	// SubPalette binds this sprite to one of the project's 4
+	// Sprite sub-palettes (idea #3 v1). The renderer indexes
+	// against the bound sub-palette's slots instead of the full
+	// 64-color base, giving designers NES-style art-direction.
+	// Empty on load defaults to DefaultSubPaletteName ("sprite_0")
+	// via applyDefaults; omitempty so pre-v1 sprites stay byte-
+	// stable through round-trip.
+	SubPalette string `json:"sub_palette,omitempty" pf:"subpalette,family=sprite"`
 }
 
 // AnimationClip names a sequence of frame indices played at a given TPS

@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "name": "NESPaletteFullFixture",
+  "screen_width": 256,
+  "screen_height": 240,
+  "tps": 60,
+  "created_at": "2026-05-18T00:00:00Z",
+  "modified_at": "2026-05-18T00:00:00Z",
+  "palette": {
+    "base": [
+      "#000000", "#ff0000", "#00ff00", "#0000ff",
+      "#ffff00", "#8b4513", "#ff00ff", "#00ffff",
+      "#ff8800", "#88ff00", "#0088ff", "#8800ff",
+      "#888888", "#444444", "#222222", "#cccccc",
+      "#aabbcc", "#a0a0a0", "#909090", "#808080",
+      "#707070", "#606060", "#505050", "#404040",
+      "#303030", "#202020", "#101010", "#0a0a0a",
+      "#fef000", "#ef00fe", "#00effe", "#fefefe",
+      "#dddddd", "#cccccc", "#bbbbbb", "#aaaaaa",
+      "#999999", "#888888", "#777777", "#666666",
+      "#555555", "#444444", "#333333", "#222222",
+      "#111111", "#fefefe", "#dedede", "#cdcdcd",
+      "#bcbcbc", "#ababab", "#9a9a9a", "#898989",
+      "#787878", "#676767", "#565656", "#454545",
+      "#343434", "#232323", "#121212", "#010101",
+      "#fafafa", "#eaeaea", "#dadada", "#cacaca"
+    ]
+  },
+  "theme": {},
+  "sprites": [
+    {"name": "hero", "relative_path": "", "width": 8, "height": 8, "frame_w": 8, "frame_h": 8, "origin_x": 0, "origin_y": 0, "animations": [], "sub_palette": "sprite_0"},
+    {"name": "goomba", "relative_path": "", "width": 8, "height": 8, "frame_w": 8, "frame_h": 8, "origin_x": 0, "origin_y": 0, "animations": [], "sub_palette": "sprite_1"}
+  ],
+  "audio": [],
+  "scenes": [{"id": "main", "name": "Main", "entities": []}],
+  "behaviors": [],
+  "bindings": [],
+  "event_subscriptions": [],
+  "extension_hooks": []
+}

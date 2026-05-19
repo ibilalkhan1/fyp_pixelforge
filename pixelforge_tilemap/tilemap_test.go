@@ -44,7 +44,7 @@ func newSheet(t *testing.T, n, tileW, tileH int) pixelforge.Canvas {
 
 func TestRender_EmptyGrid(t *testing.T) {
 	sheet := newSheet(t, 4, 8, 8)
-	layer := &pixelforge_project.TilemapLayer{
+	layer := &pixelforge_project.TileAtlas{
 		TileW: 8, TileH: 8,
 		Grid: [][]int{
 			{0, 0, 0},
@@ -62,7 +62,7 @@ func TestRender_EmptyGrid(t *testing.T) {
 
 func TestRender_SingleTile(t *testing.T) {
 	sheet := newSheet(t, 4, 8, 8)
-	layer := &pixelforge_project.TilemapLayer{
+	layer := &pixelforge_project.TileAtlas{
 		TileW: 8, TileH: 8,
 		Grid:  [][]int{{1}},
 	}
@@ -83,7 +83,7 @@ func TestRender_SingleTile(t *testing.T) {
 
 func TestRender_3x3Grid(t *testing.T) {
 	sheet := newSheet(t, 8, 8, 8)
-	layer := &pixelforge_project.TilemapLayer{
+	layer := &pixelforge_project.TileAtlas{
 		TileW: 8, TileH: 8,
 		Grid: [][]int{
 			{1, 2, 3},
@@ -141,7 +141,7 @@ func TestRender_RespectsCameraOffset(t *testing.T) {
 	// Row of 16 cells; the cell at col=15 sits at scene-coord 120.
 	row := make([]int, 16)
 	row[15] = 1
-	layer := &pixelforge_project.TilemapLayer{
+	layer := &pixelforge_project.TileAtlas{
 		TileW: 8, TileH: 8,
 		Grid:  [][]int{row},
 	}
@@ -170,7 +170,7 @@ func TestRender_BoundsClamp(t *testing.T) {
 	for i := range row {
 		row[i] = 1
 	}
-	layer := &pixelforge_project.TilemapLayer{
+	layer := &pixelforge_project.TileAtlas{
 		TileW: 8, TileH: 8,
 		Grid:  [][]int{row},
 	}
@@ -185,7 +185,7 @@ func TestRender_BoundsClamp(t *testing.T) {
 
 func TestRender_CellIDZeroSkipped(t *testing.T) {
 	sheet := newSheet(t, 4, 8, 8)
-	layer := &pixelforge_project.TilemapLayer{
+	layer := &pixelforge_project.TileAtlas{
 		TileW: 8, TileH: 8,
 		Grid: [][]int{
 			{0, 1, 0, 2, 0},
@@ -215,8 +215,8 @@ func TestRender_NilInputsAreNoOps(t *testing.T) {
 	rec := &recorder{}
 
 	pixelforge_tilemap.RenderWith(nil, &sheet, rec)
-	pixelforge_tilemap.RenderWith(&pixelforge_project.TilemapLayer{TileW: 8, TileH: 8}, nil, rec)
-	pixelforge_tilemap.RenderWith(&pixelforge_project.TilemapLayer{TileW: 0, TileH: 0, Grid: [][]int{{1}}}, &sheet, rec)
+	pixelforge_tilemap.RenderWith(&pixelforge_project.TileAtlas{TileW: 8, TileH: 8}, nil, rec)
+	pixelforge_tilemap.RenderWith(&pixelforge_project.TileAtlas{TileW: 0, TileH: 0, Grid: [][]int{{1}}}, &sheet, rec)
 
 	if len(rec.calls) != 0 {
 		t.Fatalf("nil/zero inputs must produce no calls, got %d", len(rec.calls))
@@ -228,7 +228,7 @@ func TestRender_OutOfRangeIDSkipped(t *testing.T) {
 	// source rect; renderer must skip it rather than panic or read
 	// past the sheet edge.
 	sheet := newSheet(t, 2, 8, 8)
-	layer := &pixelforge_project.TilemapLayer{
+	layer := &pixelforge_project.TileAtlas{
 		TileW: 8, TileH: 8,
 		Grid:  [][]int{{1, 2, 5, 99}},
 	}
@@ -270,7 +270,7 @@ func TestRender_PerformanceBudget(t *testing.T) {
 		}
 		grid[y] = row
 	}
-	layer := &pixelforge_project.TilemapLayer{TileW: 8, TileH: 8, Grid: grid}
+	layer := &pixelforge_project.TileAtlas{TileW: 8, TileH: 8, Grid: grid}
 
 	cd := &countingDrawer{}
 	start := time.Now()
@@ -298,7 +298,7 @@ func TestRender_RaggedGrid(t *testing.T) {
 	// rectangular shape). The renderer must walk each row to its own
 	// length without indexing past it.
 	sheet := newSheet(t, 4, 8, 8)
-	layer := &pixelforge_project.TilemapLayer{
+	layer := &pixelforge_project.TileAtlas{
 		TileW: 8, TileH: 8,
 		Grid: [][]int{
 			{1, 2},

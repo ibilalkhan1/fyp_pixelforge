@@ -107,7 +107,7 @@ func TestScene_ResizePreservesContent(t *testing.T) {
 	scene := Scene{
 		ID:   "main",
 		Name: "Main",
-		Tilemaps: []TilemapLayer{
+		TileAtlases: []TileAtlas{
 			{
 				Name:  "ground",
 				TileW: 8, TileH: 8,
@@ -129,9 +129,9 @@ func TestScene_ResizePreservesContent(t *testing.T) {
 	scene.applyWorldDefaults()
 
 	assert.Equal(t, 24, scene.GridWidthScreens)
-	assert.Equal(t, 7, scene.Tilemaps[0].Grid[0][5],
+	assert.Equal(t, 7, scene.TileAtlases[0].Grid[0][5],
 		"painted cell at (5,0) preserved across grid-width change")
-	assert.Equal(t, 8, scene.Tilemaps[0].TileW)
+	assert.Equal(t, 8, scene.TileAtlases[0].TileW)
 }
 
 // TestScene_ResizeClampsSpawn: SpawnTile {300, 0} on an 8-screen
@@ -160,11 +160,11 @@ func TestScene_ResizeClampsSpawn_NegativeFloors(t *testing.T) {
 	assert.Equal(t, 0, scene.SpawnTile.Row)
 }
 
-// TestTilemapLayer_SpriteSheetRefOmitempty: a layer without a bound
+// TestTileAtlas_SpriteSheetRefOmitempty: a layer without a bound
 // sprite sheet marshals without a sprite_sheet_ref key. Keeps pre-v1
 // .pforge files' JSON output free of phantom additions.
-func TestTilemapLayer_SpriteSheetRefOmitempty(t *testing.T) {
-	layer := TilemapLayer{
+func TestTileAtlas_SpriteSheetRefOmitempty(t *testing.T) {
+	layer := TileAtlas{
 		Name:  "ground",
 		TileW: 8, TileH: 8,
 		Grid:          [][]int{{0}},
@@ -176,10 +176,10 @@ func TestTilemapLayer_SpriteSheetRefOmitempty(t *testing.T) {
 		"unbound layer must not emit sprite_sheet_ref")
 }
 
-// TestTilemapLayer_SpriteSheetRefRoundTrips: a bound layer round-trips
+// TestTileAtlas_SpriteSheetRefRoundTrips: a bound layer round-trips
 // the reference through marshal -> unmarshal.
-func TestTilemapLayer_SpriteSheetRefRoundTrips(t *testing.T) {
-	layer := TilemapLayer{
+func TestTileAtlas_SpriteSheetRefRoundTrips(t *testing.T) {
+	layer := TileAtlas{
 		Name:           "ground",
 		TileW:          8,
 		TileH:          8,
@@ -191,7 +191,7 @@ func TestTilemapLayer_SpriteSheetRefRoundTrips(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(data), `"sprite_sheet_ref":"tiles_overworld"`)
 
-	var loaded TilemapLayer
+	var loaded TileAtlas
 	require.NoError(t, json.Unmarshal(data, &loaded))
 	assert.Equal(t, "tiles_overworld", loaded.SpriteSheetRef)
 }

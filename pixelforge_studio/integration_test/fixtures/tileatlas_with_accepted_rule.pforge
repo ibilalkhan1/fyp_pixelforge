@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "name": "TileAtlasAcceptedRuleFixture",
+  "screen_width": 256,
+  "screen_height": 240,
+  "tps": 60,
+  "created_at": "2026-05-18T00:00:00Z",
+  "modified_at": "2026-05-18T00:00:00Z",
+  "palette": {},
+  "theme": {},
+  "sprites": [],
+  "audio": [],
+  "scenes": [
+    {
+      "id": "main",
+      "name": "Main",
+      "entities": [],
+      "tile_atlases": [
+        {
+          "name": "ground",
+          "tile_w": 8,
+          "tile_h": 8,
+          "grid": [
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+          ],
+          "auto_tile_rules": [
+            {
+              "pattern": [0, 0, 0, 0, 9, 0, 0, 0, 0],
+              "output": 9,
+              "count": 4
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "behaviors": [],
+  "bindings": [],
+  "event_subscriptions": [],
+  "extension_hooks": []
+}

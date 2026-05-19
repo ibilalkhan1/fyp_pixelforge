@@ -8,7 +8,7 @@
 //
 // ResizeGrid is the pure-data helper the panel calls when the
 // designer bumps GridWidthScreens / GridHeightScreens: it grows or
-// shrinks each TilemapLayer.Grid while preserving existing content
+// shrinks each TileAtlas.Grid while preserving existing content
 // and flags entities that fall outside the new bounds. The "force"
 // flag separates the dry-run-with-flagged-entities pass from the
 // commit-after-confirm pass, so the shrink-confirm modal (driven by
@@ -99,8 +99,8 @@ func ResizeGrid(scene *pixelforge_project.Scene, newWidthScreens, newHeightScree
 
 	// Resize each tilemap. Both grow and shrink go through the same
 	// pure helper so the row/column conventions match exactly.
-	for li := range scene.Tilemaps {
-		layer := &scene.Tilemaps[li]
+	for li := range scene.TileAtlases {
+		layer := &scene.TileAtlases[li]
 		layer.Grid = resizeLayerGrid(layer.Grid, newCols, newRows, scene.DefaultTileID)
 	}
 

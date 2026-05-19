@@ -27,6 +27,7 @@ import (
 	"text/template"
 
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_project"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/capsuleruntime"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/modulepath"
 )
 
@@ -66,6 +67,14 @@ type Options struct {
 	// set, sprite and audio assets are copied from its sibling
 	// `*-assets/` directory. When empty, no assets are copied.
 	ProjectSourcePath string
+
+	// Credits is the CC-BY attribution data the auto-injected
+	// Credits screen renders. Empty (the default) produces a
+	// no-op credits literal — the menu system suppresses the
+	// Credits entry when the slice is empty. Build pipelines
+	// call assetlibrary.AssembleCredits(p, lib) and pass the
+	// result here.
+	Credits []capsuleruntime.CreditEntry
 }
 
 // Generate writes an exported game to outDir. Returns the resolved
@@ -106,7 +115,15 @@ func Generate(p *pixelforge_project.Project, outDir string, opts Options) (modul
 	}
 
 	// Render templates first, so a parse error fails before any disk write.
-	mainSrc, err := renderMainGo(p)
+	modulePath := opts.ModulePath
+	if modulePath == "" {
+		modulePath = "exported-game"
+	}
+	mainSrc, err := renderMainGo(p, modulePath)
+	if err != nil {
+		return modulepath.Detection{}, err
+	}
+	capsuleSrc, err := renderCapsuleGo(p, opts.Credits)
 	if err != nil {
 		return modulepath.Detection{}, err
 	}
@@ -115,8 +132,13 @@ func Generate(p *pixelforge_project.Project, outDir string, opts Options) (modul
 		return modulepath.Detection{}, err
 	}
 
-	// Write generated source.
+	// Write generated source. capsule.go shares package main so
+	// the //go:embed directives resolve against project.pforge +
+	// assets/ in outDir (no subpackage shuffle needed).
 	if err := os.WriteFile(filepath.Join(outDir, "main.go"), mainSrc, 0o644); err != nil {
+		return detection, err
+	}
+	if err := os.WriteFile(filepath.Join(outDir, "capsule.go"), capsuleSrc, 0o644); err != nil {
 		return detection, err
 	}
 	if err := os.WriteFile(filepath.Join(outDir, "go.mod"), goModSrc, 0o644); err != nil {
@@ -132,7 +154,22 @@ func Generate(p *pixelforge_project.Project, outDir string, opts Options) (modul
 		return detection, err
 	}
 
-	// Copy assets.
+	// Copy assets — and ensure the assets/ directory always exists.
+	// The capsule template carries `//go:embed all:assets`, which
+	// requires at least one file under assets/; an empty project
+	// would otherwise fail to compile with "no matching files
+	// found". We drop a sentinel .keep file so the directory is
+	// always non-empty without polluting the embedded FS with
+	// runtime-visible junk (the loaders skip names starting with
+	// '.' implicitly — they're never registered as sprite or audio
+	// assets).
+	assetsRoot := filepath.Join(outDir, "assets")
+	if err := os.MkdirAll(assetsRoot, 0o755); err != nil {
+		return detection, fmt.Errorf("codegen: mkdir assets: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(assetsRoot, ".keep"), []byte{}, 0o644); err != nil {
+		return detection, fmt.Errorf("codegen: write assets/.keep: %w", err)
+	}
 	if opts.ProjectSourcePath != "" {
 		if err := copyAssets(p, opts.ProjectSourcePath, outDir); err != nil {
 			return detection, err
@@ -183,6 +220,26 @@ func resolveStrategy(opts Options) modulepath.Detection {
 type mainTemplateData struct {
 	TemplateVersion string
 	ProjectName     string
+	ModulePath      string
+}
+
+// capsuleTemplateData carries the per-project data the Capsule
+// template needs to emit typed constants for scenes + items, plus
+// the CC-BY credits assetlibrary assembled.
+type capsuleTemplateData struct {
+	TemplateVersion string
+	ProjectName     string
+	SceneIDs        []capsuleIDEntry
+	ItemIDs         []capsuleIDEntry
+	Credits         []capsuleruntime.CreditEntry
+}
+
+// capsuleIDEntry is one identifier the Capsule template stamps as
+// a typed constant. Raw is the on-disk string; Camel is the
+// CamelCase Go identifier the constant name uses.
+type capsuleIDEntry struct {
+	Raw   string
+	Camel string
 }
 
 // goModTemplateData is the value passed to goModTemplate.
@@ -192,7 +249,10 @@ type goModTemplateData struct {
 	EngineReplacePath    string
 }
 
-func renderMainGo(p *pixelforge_project.Project) ([]byte, error) {
+func renderMainGo(p *pixelforge_project.Project, modulePath string) ([]byte, error) {
+	if modulePath == "" {
+		modulePath = "exported-game"
+	}
 	tpl, err := template.New("main").Parse(mainGoTemplate)
 	if err != nil {
 		return nil, err
@@ -201,6 +261,7 @@ func renderMainGo(p *pixelforge_project.Project) ([]byte, error) {
 	if err := tpl.Execute(&buf, mainTemplateData{
 		TemplateVersion: TemplateVersion,
 		ProjectName:     p.Name,
+		ModulePath:      modulePath,
 	}); err != nil {
 		return nil, err
 	}
@@ -212,6 +273,82 @@ func renderMainGo(p *pixelforge_project.Project) ([]byte, error) {
 		return nil, fmt.Errorf("codegen: gofmt failed on generated main.go: %w\nsource:\n%s", err, buf.String())
 	}
 	return formatted, nil
+}
+
+// renderCapsuleGo composes the capsule.go bytes the generator
+// writes alongside main.go. Capsule.go is the real engine wiring
+// — main.go just delegates to it. See capsuleGoTemplate for the
+// rendered shape.
+func renderCapsuleGo(p *pixelforge_project.Project, credits []capsuleruntime.CreditEntry) ([]byte, error) {
+	tpl, err := template.New("capsule").Parse(capsuleGoTemplate)
+	if err != nil {
+		return nil, err
+	}
+	data := capsuleTemplateData{
+		TemplateVersion: TemplateVersion,
+		ProjectName:     p.Name,
+		Credits:         credits,
+	}
+	for _, scene := range p.Scenes {
+		if scene.ID == "" {
+			continue
+		}
+		data.SceneIDs = append(data.SceneIDs, capsuleIDEntry{
+			Raw: scene.ID, Camel: toCapsuleCamel(scene.ID),
+		})
+	}
+	for _, item := range p.Items {
+		if item.ID == "" {
+			continue
+		}
+		data.ItemIDs = append(data.ItemIDs, capsuleIDEntry{
+			Raw: item.ID, Camel: toCapsuleCamel(item.ID),
+		})
+	}
+	var buf bytes.Buffer
+	if err := tpl.Execute(&buf, data); err != nil {
+		return nil, err
+	}
+	formatted, err := format.Source(buf.Bytes())
+	if err != nil {
+		return nil, fmt.Errorf("codegen: gofmt failed on generated capsule.go: %w\nsource:\n%s", err, buf.String())
+	}
+	return formatted, nil
+}
+
+// toCapsuleCamel converts a scene-or-item identifier (lowercase
+// snake / dot / dash) into the CamelCase Go identifier the
+// SceneID*/ItemID* constants use. "level_1" → "Level1";
+// "boss.intro" → "BossIntro"; "title-screen" → "TitleScreen".
+func toCapsuleCamel(raw string) string {
+	var out []byte
+	capitalise := true
+	for i := 0; i < len(raw); i++ {
+		c := raw[i]
+		switch {
+		case c == '_' || c == '-' || c == '.' || c == '/':
+			capitalise = true
+		case capitalise && c >= 'a' && c <= 'z':
+			out = append(out, c-32)
+			capitalise = false
+		case capitalise && c >= 'A' && c <= 'Z':
+			out = append(out, c)
+			capitalise = false
+		case (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'):
+			out = append(out, c)
+			capitalise = false
+		default:
+			// Skip non-identifier chars.
+		}
+	}
+	if len(out) == 0 {
+		return "Anonymous"
+	}
+	// Numeric leading char isn't a valid identifier; prefix with X.
+	if out[0] >= '0' && out[0] <= '9' {
+		return "X" + string(out)
+	}
+	return string(out)
 }
 
 func renderGoMod(opts Options, d modulepath.Detection) ([]byte, error) {

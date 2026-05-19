@@ -49,8 +49,13 @@ func TestPainter_SingleTileStrokeNoRule(t *testing.T) {
 // Repeating the same (pattern → output) twice promotes a rule to the
 // activation threshold. We drive the synth directly so the test
 // doesn't drift with painter heuristics.
-func TestAutoTile_PatternPaintedTwicePromotesRule(t *testing.T) {
-	layer := &pixelforge_project.TilemapLayer{
+// TestAutoTile_PatternPaintedThricePromotesRule: idea #2 v1 bumps
+// the activation threshold from 2 to 3 to align with the
+// docs/solutions/auto-tile-heuristic.md invariant. Painting the same
+// 3x3 pattern three times promotes the rule; painting it twice does
+// not (covered by TestAutoTile_PatternPaintedTwiceDoesNotPromote).
+func TestAutoTile_PatternPaintedThricePromotesRule(t *testing.T) {
+	layer := &pixelforge_project.TileAtlas{
 		Grid: [][]int{
 			{1, 1, 1},
 			{1, 0, 1},
@@ -59,11 +64,10 @@ func TestAutoTile_PatternPaintedTwicePromotesRule(t *testing.T) {
 	}
 	synth := NewAutoTileRuleSynth()
 
-	// Two strokes that each paint (1,1) with value 5 against the same
-	// neighborhood. Each stroke also paints a neighboring sentinel
-	// cell so it's not a single-tile stroke (which the plan excludes).
-	synth.RecordStroke(layer, []PaintCell{{X: 1, Y: 1, Value: 5}, {X: 0, Y: 0, Value: 5}})
-	synth.RecordStroke(layer, []PaintCell{{X: 1, Y: 1, Value: 5}, {X: 0, Y: 0, Value: 5}})
+	stroke := []PaintCell{{X: 1, Y: 1, Value: 5}, {X: 0, Y: 0, Value: 5}}
+	synth.RecordStroke(layer, stroke)
+	synth.RecordStroke(layer, stroke)
+	synth.RecordStroke(layer, stroke)
 
 	promoted := false
 	for _, r := range layer.AutoTileRules {
@@ -72,12 +76,12 @@ func TestAutoTile_PatternPaintedTwicePromotesRule(t *testing.T) {
 			break
 		}
 	}
-	assert.True(t, promoted)
+	assert.True(t, promoted, "third stroke crosses AutoTileActivationThreshold=3")
 }
 
 // Two distinct patterns with the same output remain separate entries.
 func TestAutoTile_DistinctPatternsKeepSeparateRules(t *testing.T) {
-	layer := &pixelforge_project.TilemapLayer{
+	layer := &pixelforge_project.TileAtlas{
 		Grid: [][]int{
 			{1, 2, 0},
 			{0, 0, 0},
@@ -96,7 +100,7 @@ func TestAutoTile_DistinctPatternsKeepSeparateRules(t *testing.T) {
 // Out-of-range cellAt returns -1 (wildcard) — used by patternMatches
 // when the painter examines cells near the grid edge.
 func TestAutoTile_CellAtOutOfRange(t *testing.T) {
-	layer := &pixelforge_project.TilemapLayer{Grid: [][]int{{1, 2}}}
+	layer := &pixelforge_project.TileAtlas{Grid: [][]int{{1, 2}}}
 	assert.Equal(t, -1, cellAt(layer, -1, 0))
 	assert.Equal(t, -1, cellAt(layer, 0, -1))
 	assert.Equal(t, -1, cellAt(layer, 99, 0))
@@ -114,7 +118,7 @@ func TestAutoTile_PatternMatchesWildcards(t *testing.T) {
 
 // Painting the same value into the same cell is a no-op.
 func TestPainter_SameValueIsNoOp(t *testing.T) {
-	layer := &pixelforge_project.TilemapLayer{}
+	layer := &pixelforge_project.TileAtlas{}
 	p := NewPainter()
 	assert.True(t, p.Paint(layer, 5, 5, 8))
 	assert.False(t, p.Paint(layer, 5, 5, 8))
@@ -127,13 +131,13 @@ func TestEnsureLayer_CreatesWhenAbsent(t *testing.T) {
 	require.NotNil(t, layer)
 	assert.Equal(t, 16, layer.TileW)
 	assert.Equal(t, 16, layer.TileH)
-	assert.Len(t, scene.Tilemaps, 1)
+	assert.Len(t, scene.TileAtlases, 1)
 }
 
 // Manual edit of a rule's Output mutates the synthesized output for
 // subsequent matching strokes.
 func TestAutoTile_ManualRuleEditOverrides(t *testing.T) {
-	layer := &pixelforge_project.TilemapLayer{}
+	layer := &pixelforge_project.TileAtlas{}
 	synth := NewAutoTileRuleSynth()
 	// Seed a single rule (count=2 promotes immediately).
 	pattern := neighborhood(layer, 5, 5)
@@ -169,6 +173,6 @@ func TestTilemap_RoundTripsThroughProject(t *testing.T) {
 
 	loaded, err := pixelforge_project.LoadReader(newByteReader(data))
 	require.NoError(t, err)
-	require.Len(t, loaded.Scenes[0].Tilemaps, 1)
-	assert.Equal(t, 7, loaded.Scenes[0].Tilemaps[0].Grid[3][2])
+	require.Len(t, loaded.Scenes[0].TileAtlases, 1)
+	assert.Equal(t, 7, loaded.Scenes[0].TileAtlases[0].Grid[3][2])
 }

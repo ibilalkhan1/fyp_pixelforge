@@ -79,7 +79,7 @@ type TilePainter struct {
 	ActiveTileID int
 
 	currentStroke []CellDiff
-	strokeLayer   *pixelforge_project.TilemapLayer
+	strokeLayer   *pixelforge_project.TileAtlas
 	stroking      bool
 	strokeCells   map[strokeKey]struct{}
 
@@ -147,7 +147,7 @@ func (p *TilePainter) SetSubMode(m PaintSubMode) {
 // while a stroke is already open is a no-op (the canvas dispatch
 // guarantees one stroke per mouse-down/up, but the guard makes the
 // API safe for tests).
-func (p *TilePainter) BrushStartStroke(layer *pixelforge_project.TilemapLayer) {
+func (p *TilePainter) BrushStartStroke(layer *pixelforge_project.TileAtlas) {
 	if p == nil || layer == nil {
 		return
 	}
@@ -208,7 +208,7 @@ func (p *TilePainter) BrushEndStroke(stack *UndoStack) *StrokeCommand {
 // nil when the fill was a no-op — clicking on a cell already showing
 // tileID). 4-connected (not 8-connected) is the canonical Tiled / LDtk
 // / Aseprite behavior.
-func (p *TilePainter) BucketFill(layer *pixelforge_project.TilemapLayer, col, row, tileID int, stack *UndoStack) *StrokeCommand {
+func (p *TilePainter) BucketFill(layer *pixelforge_project.TileAtlas, col, row, tileID int, stack *UndoStack) *StrokeCommand {
 	if p == nil || layer == nil {
 		return nil
 	}
@@ -316,7 +316,7 @@ func (p *TilePainter) RectangleAnchorCell() (int, int) {
 // Pre-condition: RectangleAnchor must have been called. The canvas
 // dispatch guarantees this; programmatic callers (tests) must respect
 // the contract.
-func (p *TilePainter) RectangleFill(layer *pixelforge_project.TilemapLayer, endCol, endRow, tileID int, stack *UndoStack) *StrokeCommand {
+func (p *TilePainter) RectangleFill(layer *pixelforge_project.TileAtlas, endCol, endRow, tileID int, stack *UndoStack) *StrokeCommand {
 	if p == nil || layer == nil || !p.rectAnchored {
 		return nil
 	}
@@ -386,7 +386,7 @@ func (p *TilePainter) CancelRectangle() {
 // stroke yet), and writes the new value. Returns true when the cell
 // changed — both "would change" and "was actually changed" collapse
 // here because the dedup gate already drops repeat visits.
-func (p *TilePainter) paintCell(layer *pixelforge_project.TilemapLayer, col, row, tileID int, dedup bool) bool {
+func (p *TilePainter) paintCell(layer *pixelforge_project.TileAtlas, col, row, tileID int, dedup bool) bool {
 	if layer == nil || col < 0 || row < 0 {
 		return false
 	}
@@ -421,7 +421,7 @@ func (p *TilePainter) paintCell(layer *pixelforge_project.TilemapLayer, col, row
 // local here so editor doesn't import palette. The default starting
 // size of 32×32 matches one 256×240 screen at 8×8 tiles — the
 // smallest meaningful grid in the Mario-strip primitive.
-func ensurePainterCapacity(layer *pixelforge_project.TilemapLayer, col, row int) {
+func ensurePainterCapacity(layer *pixelforge_project.TileAtlas, col, row int) {
 	if layer == nil || col < 0 || row < 0 {
 		return
 	}

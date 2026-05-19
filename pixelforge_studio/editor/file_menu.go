@@ -121,6 +121,42 @@ func (m *FileMenu) ExportTo(outDir string) error {
 	return nil
 }
 
+// ImportWAV is the File → Import WAV handler (idea #4 v1 U8).
+// Opens the file picker filtered to .wav; on confirm, dispatches
+// into the editor's AudioImportHandler which calls
+// audiolib.ImportFromFile via the registered runner.
+func (m *FileMenu) ImportWAV() {
+	m.editor.filePicker.Open(widgets.FilePickerOptions{
+		StartPath:  m.openStartPath(),
+		Mode:       widgets.PickOpen,
+		Extensions: []string{".wav"},
+		Title:      "Import WAV",
+		OnConfirm: func(path string) {
+			if h := m.editor.AudioImportHandler(); h != nil {
+				_, _ = h.Import(path)
+			}
+		},
+	})
+}
+
+// ImportPNG is the File → Import PNG handler (idea #3 v1 U3). Opens
+// the file picker filtered to .png; on confirm, dispatches into
+// the editor's ImportHandler which runs palette.ImportWithDiff and
+// queues the U4 diff modal for designer review.
+func (m *FileMenu) ImportPNG() {
+	m.editor.filePicker.Open(widgets.FilePickerOptions{
+		StartPath:  m.openStartPath(),
+		Mode:       widgets.PickOpen,
+		Extensions: []string{".png"},
+		Title:      "Import PNG",
+		OnConfirm: func(path string) {
+			if h := m.editor.ImportHandler(); h != nil {
+				_, _ = h.Import(path)
+			}
+		},
+	})
+}
+
 // Quit asks for confirmation when dirty, then terminates the editor.
 func (m *FileMenu) Quit() {
 	m.editor.PromptIfDirty("Quit without saving?", "The current project has unsaved changes.", func() {
@@ -175,6 +211,9 @@ func (e *Editor) buildMenuDefs() []widgets.MenuDef {
 				{Label: "Save", Shortcut: "Ctrl+S", OnSelect: func() { _ = e.fileMenu.Save() }},
 				{Label: "Save As...", Shortcut: "Ctrl+Shift+S", OnSelect: e.fileMenu.SaveAs},
 				{Separator: true},
+				{Label: "Import PNG...", OnSelect: e.fileMenu.ImportPNG},
+				{Label: "Import WAV...", OnSelect: e.fileMenu.ImportWAV},
+				{Separator: true},
 				{Label: "Export...", Shortcut: "Ctrl+E", OnSelect: e.fileMenu.Export},
 				{Separator: true},
 				{Label: "Quit", Shortcut: "Ctrl+Q", OnSelect: e.fileMenu.Quit},
@@ -192,6 +231,28 @@ func (e *Editor) buildMenuDefs() []widgets.MenuDef {
 			Items: []widgets.MenuItem{
 				{Label: "Scene", Shortcut: "Ctrl+1", OnSelect: func() { e.SetActiveWorkspaceByName("scene") }},
 				{Label: "Palette", Shortcut: "Ctrl+2", OnSelect: func() { e.SetActiveWorkspaceByName("palette") }},
+				{Label: "Audio", Shortcut: "Ctrl+4", OnSelect: func() { e.SetActiveWorkspaceByName("audio") }},
+				{Label: "Dialogue", Shortcut: "Ctrl+5", OnSelect: func() { e.SetActiveWorkspaceByName("dialogue") }},
+				{Label: "Items", Shortcut: "Ctrl+6", OnSelect: func() { e.SetActiveWorkspaceByName("items") }},
+				{Label: "Menus", Shortcut: "Ctrl+7", OnSelect: func() { e.SetActiveWorkspaceByName("menus") }},
+				{Label: "Build", Shortcut: "Ctrl+8", OnSelect: func() { e.SetActiveWorkspaceByName("build") }},
+				{Separator: true},
+				{
+					Label:    "Build on save",
+					Checked:  !e.settings.BuildOnSaveDisabled,
+					OnSelect: e.ToggleBuildOnSave,
+				},
+				{Separator: true},
+				{
+					Label:    "Show 8-sprite-per-scanline overlay",
+					Checked:  e.ScanlineOverlayEnabled(),
+					OnSelect: e.ToggleScanlineOverlay,
+				},
+				{
+					Label:    "Show 2x2 BG palette-block overlay",
+					Checked:  e.PaletteBlockOverlayEnabled(),
+					OnSelect: e.TogglePaletteBlockOverlay,
+				},
 			},
 		},
 		{

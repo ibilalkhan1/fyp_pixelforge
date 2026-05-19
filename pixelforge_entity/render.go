@@ -9,7 +9,7 @@ import (
 )
 
 // Tile dimensions in scene-space pixels. The v1 ScreenRoom plan fixes
-// the world-primitive convention at 8x8; per-layer TilemapLayer.TileW /
+// the world-primitive convention at 8x8; per-layer TileAtlas.TileW /
 // TileH exists in the schema but entity placement always uses the
 // canonical 8x8 cells (per the plan's "Tile size 8x8 base, fixed in v1
 // by editor convention" decision). When a future genre needs a

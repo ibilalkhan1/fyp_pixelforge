@@ -121,13 +121,18 @@ func (g *EbitenGame) Update() error {
 
 	if g.ebitenFrame%(ebitenTPS/pixelforge.TPS()) == (ebitenTPS/pixelforge.TPS())-1 {
 		updateStart := time.Now()
-		if !g.paused {
+		// Idea #6 v1 U3 — the package-level pause gate freezes
+		// EventUpdate / EventLateUpdate dispatch so menu overlays
+		// can hold the underlying scene still while remaining
+		// responsive.
+		gatePaused := piloop.IsPaused()
+		if !g.paused && !gatePaused {
 			pixelforge.Update()
 			piloop.Target().Publish(piloop.EventUpdate)
 		}
 		piloop.DebugTarget().Publish(piloop.EventUpdate)
 
-		if !g.paused {
+		if !g.paused && !gatePaused {
 			piloop.Target().Publish(piloop.EventLateUpdate)
 		}
 		piloop.DebugTarget().Publish(piloop.EventLateUpdate)

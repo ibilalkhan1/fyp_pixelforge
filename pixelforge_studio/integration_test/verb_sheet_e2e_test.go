@@ -87,6 +87,42 @@ func withStringLoopMain(t *testing.T) pievent.Target[string] {
 	return bus
 }
 
+// freshVerbsBus reinstalls a clean "verbs.bus" Target[*VerbEvent]
+// so each test starts with zero subscribers. The default
+// piloop.VerbsBus accumulates subscribers across tests; this helper
+// resets it via the package's ResetVerbsBusForTest hook and
+// returns the new target for test capture.
+func freshVerbsBus(t *testing.T) pievent.Target[*pixelforge_loop.VerbEvent] {
+	t.Helper()
+	pixelforge_loop.ResetVerbsBusForTest()
+	return pixelforge_loop.VerbsBus()
+}
+
+// collectVerbBusTopics subscribes to bus and records each
+// envelope's Topic so callers can assert on the set of recipe
+// topics published during a test run without coupling to the args.
+func collectVerbBusTopics(bus pievent.Target[*pixelforge_loop.VerbEvent]) (snapshot func() []string, unsubscribe func()) {
+	var mu sync.Mutex
+	var topics []string
+	h := bus.SubscribeAll(func(ev *pixelforge_loop.VerbEvent, _ pievent.Handler) {
+		if ev == nil {
+			return
+		}
+		mu.Lock()
+		topics = append(topics, ev.Topic)
+		mu.Unlock()
+	})
+	return func() []string {
+			mu.Lock()
+			defer mu.Unlock()
+			out := make([]string, len(topics))
+			copy(out, topics)
+			return out
+		}, func() {
+			bus.Unsubscribe(h)
+		}
+}
+
 // collectStringPublishes subscribes a recorder to bus and returns a
 // snapshot accessor plus an unsubscribe function. The recorder uses a
 // mutex so it can be called from inside or outside Engine ticks
@@ -396,7 +432,8 @@ func TestE2E_AE7_AdvancedComposedDetectedOnRuleEdit(t *testing.T) {
 // would depend on systems not yet built).
 func TestE2E_GoombaCompleteFlow_StepOnEnemyDiesGivesPoints(t *testing.T) {
 	bus := withStringLoopMain(t)
-	snapshot, unsubscribe := collectStringPublishes(bus)
+	verbsBus := freshVerbsBus(t)
+	snapshot, unsubscribe := collectVerbBusTopics(verbsBus)
 	defer unsubscribe()
 
 	p := loadGoomba(t)
@@ -405,23 +442,23 @@ func TestE2E_GoombaCompleteFlow_StepOnEnemyDiesGivesPoints(t *testing.T) {
 	eng.Start()
 	defer eng.Stop()
 
-	// Trigger the when_stepped_on rule on Goomba.
+	// Trigger the when_stepped_on rule on Goomba via loop.main —
+	// this is the stimulus surface engine subscribers listen on.
 	bus.Publish("stepped_on")
 
-	events := snapshot()
-	assert.Contains(t, events, "stepped_on",
-		"the stimulus event must appear in the bus stream")
-	assert.Contains(t, events, catalog.EventTopicDamageDie,
-		"die recipe must publish %q on loop.main when stepped_on fires",
+	// After plan-008 U2 the recipe payload lands on the dedicated
+	// "verbs.bus" Target[*VerbEvent], not on loop.main. Subscribers
+	// in capsuleruntime read from verbs.bus; this assertion mirrors
+	// what they see in production.
+	topics := snapshot()
+	assert.Contains(t, topics, catalog.EventTopicDamageDie,
+		"die recipe must publish %q on verbs.bus when stepped_on fires",
 		catalog.EventTopicDamageDie)
 
-	// Trigger the when_destroyed rule — Goomba's destruction credits
-	// score via give_points. give_points wraps set_value, so the
-	// observable side-effect at the runtime layer is the ValueRef
-	// write inside Context. The rule still fires (we asserted that
-	// the compiled rule subscribes on loop.main with event=destroyed
-	// inside the verb-binding compile tests); here we simply verify
-	// the engine accepts the stimulus without panicking.
+	// Trigger the when_destroyed rule — give_points wraps set_value
+	// (no bus publish); the runtime-side observable is the ValueRef
+	// write inside Context. The rule still fires; here we simply
+	// verify the engine accepts the stimulus without panicking.
 	assert.NotPanics(t, func() {
 		bus.Publish("destroyed")
 	})

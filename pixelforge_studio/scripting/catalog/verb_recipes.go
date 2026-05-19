@@ -28,7 +28,19 @@ type Recipe struct {
 	// ActionKind is the name of an existing registered ActionBuilder
 	// (see builtin_actions.go). LookupAction(ActionKind) must return a
 	// non-nil builder for the recipe to apply successfully.
+	//
+	// Mutually exclusive with ConditionKind — a Recipe represents
+	// either an action (something the runtime does) or a condition
+	// (something the runtime checks before firing a downstream rule).
 	ActionKind string
+
+	// ConditionKind names a registered ConditionBuilder for
+	// predicate-style recipes (idea #6 v1 U10's has_item is the
+	// canonical example). Mutually exclusive with ActionKind. The
+	// verb-binding compiler routes Recipe-as-condition to the
+	// pre-rule predicate slot; the inspector renders such recipes
+	// under a "Conditions" header rather than the verb dropdown.
+	ConditionKind string
 
 	// DefaultArgs is the baked-in Args map merged with any
 	// per-binding overrides supplied by the designer. Per the JSON
@@ -43,6 +55,14 @@ type Recipe struct {
 	// would hide the recipe from every slot, so registration enforces
 	// at least one entry via the test scenarios.
 	RelevantTriggers []string
+}
+
+// IsCondition reports whether the recipe is a condition-style
+// predicate rather than an action. The inspector renders the two
+// kinds in different sections; the runtime compiler dispatches
+// them through different paths.
+func (r Recipe) IsCondition() bool {
+	return r.ConditionKind != ""
 }
 
 // Verb recipe name constants. Studio surfaces and tests reference
@@ -272,7 +292,12 @@ const (
 	// placeholder recipes publish. Subsystems looking to bind a
 	// concrete behaviour to a verb subscribe here and filter by event
 	// topic string.
-	EventBusTarget = "loop.main"
+	//
+	// "verbs.bus" is a dedicated pievent.Target[*pixelforge_loop.VerbEvent]
+	// registered by pixelforge_loop's init() — distinct from the
+	// engine's typed-enum "loop.main" target so the verb-recipe topic
+	// surface stays orthogonal to the game-loop event surface.
+	EventBusTarget = "verbs.bus"
 )
 
 // gameplayInputTriggers groups the input intent triggers that
@@ -322,6 +347,8 @@ func concat(slices ...[]string) []string {
 
 func init() {
 	RegisterBuiltinRecipes()
+	RegisterBuiltinRPGRecipes()
+	RegisterBuiltinArcadeRecipes()
 }
 
 // RegisterBuiltinRecipes registers the v1 verb recipe set. Exposed as

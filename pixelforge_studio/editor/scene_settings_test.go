@@ -32,7 +32,7 @@ func makeScene(widthScreens, heightScreens int) *pixelforge_project.Scene {
 		Name:              "Main",
 		GridWidthScreens:  widthScreens,
 		GridHeightScreens: heightScreens,
-		Tilemaps: []pixelforge_project.TilemapLayer{
+		TileAtlases: []pixelforge_project.TileAtlas{
 			{
 				Name:  "ground",
 				TileW: 8, TileH: 8,
@@ -47,7 +47,7 @@ func makeScene(widthScreens, heightScreens int) *pixelforge_project.Scene {
 // fills with DefaultTileID (0 when unset).
 func TestResize_Grow_PreservesContent(t *testing.T) {
 	scene := makeScene(16, 1)
-	scene.Tilemaps[0].Grid[10][5] = 3 // paint a marker cell
+	scene.TileAtlases[0].Grid[10][5] = 3 // paint a marker cell
 
 	flagged, err := ResizeGrid(scene, 24, 1, false)
 	require.NoError(t, err)
@@ -55,11 +55,11 @@ func TestResize_Grow_PreservesContent(t *testing.T) {
 
 	assert.Equal(t, 24, scene.GridWidthScreens)
 	require.Equal(t, 24*pixelforge_project.ScreenTilesWide,
-		len(scene.Tilemaps[0].Grid[10]),
+		len(scene.TileAtlases[0].Grid[10]),
 		"row 10 widened to the new column count")
-	assert.Equal(t, 3, scene.Tilemaps[0].Grid[10][5],
+	assert.Equal(t, 3, scene.TileAtlases[0].Grid[10][5],
 		"painted cell at (5, 10) preserved across grow")
-	assert.Equal(t, 0, scene.Tilemaps[0].Grid[10][600],
+	assert.Equal(t, 0, scene.TileAtlases[0].Grid[10][600],
 		"new area defaults to DefaultTileID=0 when unset")
 }
 
@@ -75,11 +75,11 @@ func TestResize_Grow_NewAreaDefaultTile(t *testing.T) {
 	// Every cell of column 600 (well past the original 16*32=512
 	// boundary) should equal the default tile ID.
 	for r := 0; r < pixelforge_project.ScreenTilesTall; r++ {
-		assert.Equal(t, 2, scene.Tilemaps[0].Grid[r][600],
+		assert.Equal(t, 2, scene.TileAtlases[0].Grid[r][600],
 			"row %d new column 600 fills with DefaultTileID", r)
 	}
 	// Pre-existing cells (column 5) retain their zero baseline.
-	assert.Equal(t, 0, scene.Tilemaps[0].Grid[0][5],
+	assert.Equal(t, 0, scene.TileAtlases[0].Grid[0][5],
 		"existing-area cells stay at their original value")
 }
 
@@ -88,14 +88,14 @@ func TestResize_Grow_NewAreaDefaultTile(t *testing.T) {
 // = 256) without panic. Asserts the column count is the new bound.
 func TestResize_Shrink_TruncatesGrid(t *testing.T) {
 	scene := makeScene(16, 1)
-	scene.Tilemaps[0].Grid[0][511] = 9 // marker at the far right
+	scene.TileAtlases[0].Grid[0][511] = 9 // marker at the far right
 
 	_, err := ResizeGrid(scene, 8, 1, false)
 	require.NoError(t, err)
 
 	assert.Equal(t, 8, scene.GridWidthScreens)
 	assert.Equal(t, 8*pixelforge_project.ScreenTilesWide,
-		len(scene.Tilemaps[0].Grid[0]),
+		len(scene.TileAtlases[0].Grid[0]),
 		"row width truncated to 8 screens worth of columns")
 }
 
@@ -121,7 +121,7 @@ func TestResize_Shrink_OutOfBoundsEntitiesFlagged(t *testing.T) {
 	assert.Equal(t, 400, scene.Entities[1].TileX,
 		"flagged entity tile coord preserved on dry-run")
 	assert.Equal(t, 16*pixelforge_project.ScreenTilesWide,
-		len(scene.Tilemaps[0].Grid[0]),
+		len(scene.TileAtlases[0].Grid[0]),
 		"grid not truncated on dry-run")
 }
 

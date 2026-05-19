@@ -24,7 +24,7 @@
       "id": "main",
       "name": "Main",
       "entities": [],
-      "tilemaps": []
+      "tile_atlases": []
     }
   ],
   "behaviors": [],

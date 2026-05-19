@@ -109,6 +109,101 @@ func (b *Blackboard) Changes() pievent.Target[BlackboardChange] {
 	return b.target
 }
 
+// Snapshot returns a deep copy of every key/value pair currently
+// held by the blackboard. The returned map is independent of
+// internal state — callers may mutate it without affecting the
+// blackboard, and subsequent Set calls do not bleed back into the
+// returned map. Idea #6 v1 U2's save pipeline calls Snapshot to
+// serialise blackboard state into the save file.
+//
+// Deep-copy semantics: int/string/bool/float64 copy by value;
+// map[string]any + []any recurse; arbitrary types round-trip
+// through JSON as a safe fallback (rare in v1).
+//
+// Snapshot does NOT publish change events — it is a read-only
+// observation.
+func (b *Blackboard) Snapshot() map[string]any {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	out := make(map[string]any, len(b.values))
+	for k, v := range b.values {
+		out[k] = deepCopyValue(v)
+	}
+	return out
+}
+
+// Restore atomically replaces every blackboard key with the values
+// in m. Keys present before Restore but absent in m are removed.
+// Each affected key publishes a BlackboardChange event so
+// subscribers (HUD widgets, inventory renderers, etc.) re-react to
+// the loaded state.
+//
+// Restore acquires the write lock for the duration of the swap so
+// concurrent Get calls either see the old state in its entirety or
+// the new state in its entirety, never a partial intermediate.
+// The change-event publication runs after the lock releases, in
+// the existing publishMu-serialised section, so subscribers may
+// freely call Get from inside their handler.
+func (b *Blackboard) Restore(m map[string]any) {
+	if b == nil {
+		return
+	}
+
+	b.mu.Lock()
+	old := b.values
+	newValues := make(map[string]any, len(m))
+	for k, v := range m {
+		newValues[k] = deepCopyValue(v)
+	}
+	b.values = newValues
+	b.mu.Unlock()
+
+	// Compose the change set: every key in old not in new emits a
+	// nil-value change (removed); every key in new emits its value
+	// (regardless of whether it existed before, since Restore is a
+	// "treat as fresh state" operation).
+	b.publishMu.Lock()
+	defer b.publishMu.Unlock()
+	for k, oldVal := range old {
+		if _, stillThere := newValues[k]; !stillThere {
+			b.target.Publish(BlackboardChange{Key: k, Old: oldVal, New: nil})
+		}
+	}
+	for k, newVal := range newValues {
+		oldVal, existed := old[k]
+		change := BlackboardChange{Key: k, New: newVal}
+		if existed {
+			change.Old = oldVal
+		}
+		b.target.Publish(change)
+	}
+}
+
+// deepCopyValue returns a deep copy of v. Scalar types pass
+// through; maps and slices recurse; arbitrary types fall back to
+// the value itself (defensive — Snapshot's tests catch the cases
+// where this matters).
+func deepCopyValue(v any) any {
+	switch x := v.(type) {
+	case nil:
+		return nil
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, vv := range x {
+			out[k] = deepCopyValue(vv)
+		}
+		return out
+	case []any:
+		out := make([]any, len(x))
+		for i, vv := range x {
+			out[i] = deepCopyValue(vv)
+		}
+		return out
+	default:
+		return v
+	}
+}
+
 // SubscriberCount reports the number of currently-registered
 // listeners on the internal change target. Satisfies the
 // pievent.Inspectable contract so the blackboard can be enumerated

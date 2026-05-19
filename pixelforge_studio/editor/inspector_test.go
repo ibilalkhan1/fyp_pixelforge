@@ -28,10 +28,17 @@ func withRegistry(t *testing.T) {
 	t.Helper()
 	registryMu.Lock()
 	t.Cleanup(func() {
+		// Restore the production registry so a subsequent test in
+		// the same process (notably registrations_test.go) sees the
+		// init()-time state, not the cleared state this test left
+		// behind.
 		pfcomponent.ResetForTest()
+		pfcomponent.ResetWidgetsForTest()
+		RegisterProductionComponents()
 		registryMu.Unlock()
 	})
 	pfcomponent.ResetForTest()
+	pfcomponent.ResetWidgetsForTest()
 }
 
 // buildWidgetContext snapshots the project's catalogs in alpha order.
@@ -174,6 +181,125 @@ func TestUnknownWidgetKindRendersFallback(t *testing.T) {
 	assert.Equal(t, "3.50", formatFieldValue(3.5))
 	assert.Equal(t, "42", formatFieldValue(42))
 	assert.Equal(t, "1,2", formatFieldValue(map[string]any{"x": 1, "y": 2}))
+}
+
+// TestInspector_DispatchesCustomWidgetToRegisteredDrawer: rendering a
+// component whose field carries pf:"widget=<name>" routes through the
+// pfcomponent widget registry to the registered drawer. Confirms the
+// U2 dispatch wiring: registry lookup → DrawerContext construction →
+// drawer invocation. Without a live ImGui frame the assertion stops
+// at "drawer was called with the expected name and JSONKey," which is
+// the surface contract U5's TileAtlas painter depends on.
+func TestInspector_DispatchesCustomWidgetToRegisteredDrawer(t *testing.T) {
+	withRegistry(t)
+
+	type CustomComp struct {
+		Hook struct{} `json:"-" pf:"widget=test_hook"`
+	}
+	pfcomponent.Register[CustomComp]("CustomComp")
+
+	captured := []pfcomponent.DrawerContext{}
+	pfcomponent.RegisterWidget("test_hook", func(ctx pfcomponent.DrawerContext) bool {
+		captured = append(captured, ctx)
+		return true
+	})
+
+	insp := NewInspector()
+	md, ok := pfcomponent.Get("CustomComp")
+	require.True(t, ok)
+	require.Len(t, md.Fields, 1)
+	assert.Equal(t, pfcomponent.WidgetCustom, md.Fields[0].WidgetKind)
+
+	values := map[string]any{}
+	mutated, fallback := insp.dispatchCustomWidget(values, md.Fields[0], buildWidgetContext(nil), nil)
+
+	require.Len(t, captured, 1, "drawer was invoked exactly once")
+	assert.Equal(t, "Hook", captured[0].FieldName)
+	assert.Equal(t, "", captured[0].JSONKey, "synthetic hook fields carry no wire key")
+	// Owner fallback: when no typed owner is supplied, the values map
+	// is the drawer's view of the component. Verify by writing through
+	// owner and reading via values.
+	if m, ok := captured[0].Owner.(map[string]any); ok {
+		m["__probe"] = true
+		assert.True(t, values["__probe"] == true,
+			"owner falls back to the component's values map when no typed owner is supplied")
+		delete(values, "__probe")
+	} else {
+		t.Fatalf("owner not a map[string]any: %T", captured[0].Owner)
+	}
+	assert.True(t, mutated, "drawer's return value flows back as mutation signal")
+	assert.Empty(t, fallback, "registered drawer returns no fallback label")
+}
+
+// TestInspector_DispatchesCustomWidget_TypedOwnerOverridesValuesMap:
+// when a non-component dispatch path (TileAtlas in U5/U6) calls
+// dispatchCustomWidget with a typed owner, the drawer receives the
+// typed pointer instead of the values map fallback.
+func TestInspector_DispatchesCustomWidget_TypedOwnerOverridesValuesMap(t *testing.T) {
+	withRegistry(t)
+
+	type CustomComp struct {
+		Hook struct{} `json:"-" pf:"widget=typed_hook"`
+	}
+	pfcomponent.Register[CustomComp]("CustomComp2")
+
+	var receivedOwner any
+	pfcomponent.RegisterWidget("typed_hook", func(ctx pfcomponent.DrawerContext) bool {
+		receivedOwner = ctx.Owner
+		return false
+	})
+
+	insp := NewInspector()
+	md, _ := pfcomponent.Get("CustomComp2")
+
+	owner := &CustomComp{}
+	_, _ = insp.dispatchCustomWidget(nil, md.Fields[0], buildWidgetContext(nil), owner)
+
+	assert.Same(t, owner, receivedOwner,
+		"typed owner passed through unchanged when supplied")
+}
+
+// TestInspector_UnregisteredCustomWidget_FallsThroughWithoutPanic: an
+// inspector that encounters a widget=<name> tag with no matching
+// registration must render a fallback (read-only text) rather than
+// panic. The dispatchCustomWidget return value is false (no mutation).
+func TestInspector_UnregisteredCustomWidget_FallsThroughWithoutPanic(t *testing.T) {
+	withRegistry(t)
+
+	field := pfcomponent.FieldMetadata{
+		Name:         "Ghost",
+		JSONKey:      "",
+		WidgetKind:   pfcomponent.WidgetCustom,
+		CustomWidget: "never_registered",
+	}
+	insp := NewInspector()
+	mutated, fallback := insp.dispatchCustomWidget(map[string]any{}, field, buildWidgetContext(nil), nil)
+	assert.False(t, mutated, "no drawer means no mutation")
+	assert.Contains(t, fallback, "never_registered",
+		"fallback label names the missing widget so the inspector can render it as disabled text")
+}
+
+// TestInspector_UnregisteredCustomWidget_LogsOnce: repeated dispatch
+// for the same missing widget logs only once per session — the
+// warnedWidgets map dedupes so a long-running editor doesn't flood
+// the console.
+func TestInspector_UnregisteredCustomWidget_LogsOnce(t *testing.T) {
+	withRegistry(t)
+
+	field := pfcomponent.FieldMetadata{
+		Name:         "Ghost",
+		WidgetKind:   pfcomponent.WidgetCustom,
+		CustomWidget: "missing_once",
+	}
+	insp := NewInspector()
+	_, _ = insp.dispatchCustomWidget(nil, field, buildWidgetContext(nil), nil)
+	_, _ = insp.dispatchCustomWidget(nil, field, buildWidgetContext(nil), nil)
+	_, _ = insp.dispatchCustomWidget(nil, field, buildWidgetContext(nil), nil)
+
+	assert.True(t, insp.warnedWidgets["missing_once"],
+		"first dispatch records the warning")
+	assert.Len(t, insp.warnedWidgets, 1,
+		"repeated dispatches do not multiply the warned set")
 }
 
 // TestMultiEntitySelectionRendersIntersection — the current

@@ -24,6 +24,29 @@ type PaletteData struct {
 	// Animations drive palette slots over time, fired by events or by
 	// the runtime clock. Populated by the M2 palette animator.
 	Animations []PaletteAnimation `json:"animations"`
+
+	// BGSubPalettes is idea #3 v1's NES-style background sub-palette
+	// overlay: 4 named sub-palettes, each carrying 4 indices into
+	// Base[0..63]. Background tiles bind to one sub-palette per 2x2
+	// block via TileAtlas.NESPaletteBlock. Defaults to bg_0..bg_3 on
+	// first load via PaletteData.applyDefaults; omitempty so pre-v1
+	// projects round-trip cleanly.
+	BGSubPalettes [4]SubPalette `json:"bg_sub_palettes,omitempty"`
+
+	// SpriteSubPalettes is the sprite-side sub-palette overlay: 4
+	// named sub-palettes, each carrying 4 indices into Base. Sprites
+	// bind to one sub-palette via SpriteAsset.SubPalette. Defaults to
+	// sprite_0..sprite_3 on first load.
+	SpriteSubPalettes [4]SubPalette `json:"sprite_sub_palettes,omitempty"`
+}
+
+// SubPalette names one of the 8 NES-style overlays carried on
+// PaletteData. The 4 Slots reference indices into PaletteData.Base
+// (0..63). Name is the editor-displayed label and the dropdown value
+// SpriteAsset.SubPalette / per-tile picker resolve against.
+type SubPalette struct {
+	Name  string `json:"name"`
+	Slots [4]int `json:"slots"`
 }
 
 // ColorTablePreset is a named override applied on top of the base

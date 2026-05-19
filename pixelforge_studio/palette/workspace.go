@@ -1,6 +1,7 @@
 package palette
 
 import (
+	"image"
 	"image/color"
 
 	"github.com/AllenDang/cimgui-go/imgui"
@@ -184,9 +185,156 @@ var (
 	colResetButton = color.RGBA{R: 0x44, G: 0x44, B: 0x4c, A: 0xff}
 )
 
-// RegisterWith installs the palette workspace on the editor.
+// RegisterWith installs the palette workspace on the editor, wires
+// the auto-tile rule synth as the AutoTileObserver (idea #2 v1),
+// and installs the PNG-import runner (idea #3 v1) so File → Import
+// PNG flows through palette.ImportWithDiff. Two interfaces, one
+// registration site — the editor stays at the bottom of the import
+// graph.
 func RegisterWith(e *editor.Editor) *Workspace {
 	w := NewWorkspace()
 	e.RegisterWorkspace(w)
+	e.SetAutoTileObserver(newAutoTileObserverAdapter())
+	if h := e.ImportHandler(); h != nil {
+		h.SetRunner(newPNGImportRunner(e))
+	}
 	return w
+}
+
+// pngImportRunner bridges editor.ImportHandler to
+// palette.ImportWithDiff. Holds a reference to the editor so it can
+// reach the active project + ProjectSourcePath at call time
+// (designers can save-as mid-session; the runner must re-read each
+// call rather than caching).
+type pngImportRunner struct {
+	editor *editor.Editor
+}
+
+func newPNGImportRunner(e *editor.Editor) *pngImportRunner {
+	return &pngImportRunner{editor: e}
+}
+
+// ImportPath runs the diff-aware pipeline against a PNG on disk.
+func (r *pngImportRunner) ImportPath(pngPath string) (*editor.PNGImportResult, error) {
+	res, err := ImportWithDiff(
+		pngPath,
+		r.editor.Project(),
+		r.editor.CurrentProjectPath(),
+		"",
+	)
+	if err != nil {
+		return nil, err
+	}
+	return adaptImportResult(&res), nil
+}
+
+// ImportImage runs the in-memory pipeline. Used by tests + the
+// future drag-drop handler.
+func (r *pngImportRunner) ImportImage(img image.Image, pngPath string) (*editor.PNGImportResult, error) {
+	res, err := ImportImageWithDiff(
+		img,
+		pngPath,
+		r.editor.Project(),
+		r.editor.CurrentProjectPath(),
+		"",
+	)
+	if err != nil {
+		return nil, err
+	}
+	return adaptImportResult(&res), nil
+}
+
+// Requantize re-runs the pipeline with a different target sub-
+// palette using the cached original image.
+func (r *pngImportRunner) Requantize(img image.Image, pngPath, targetSubPalette string) (*editor.PNGImportResult, error) {
+	res, err := ImportImageWithDiff(
+		img,
+		pngPath,
+		r.editor.Project(),
+		r.editor.CurrentProjectPath(),
+		targetSubPalette,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return adaptImportResult(&res), nil
+}
+
+// RollbackLastImport truncates the freshly-appended sprite. The
+// editor calls this when the designer picks Reject or Re-quantize.
+func (r *pngImportRunner) RollbackLastImport(idx int) {
+	p := r.editor.Project()
+	if p == nil || idx < 0 {
+		return
+	}
+	if idx >= len(p.Sprites) {
+		return
+	}
+	p.Sprites = p.Sprites[:idx]
+}
+
+// adaptImportResult converts a palette.ImportResult to the editor-
+// boundary shape. Drops the QuantizedIndices payload because the
+// modal only renders the reconstructed preview; tests that need
+// indices use the palette package directly.
+func adaptImportResult(res *ImportResult) *editor.PNGImportResult {
+	out := &editor.PNGImportResult{
+		SpriteName:    res.SpriteName,
+		RegisteredIdx: res.RegisteredIdx,
+		Width:         res.Width,
+		Height:        res.Height,
+	}
+	if res.Diff != nil {
+		out.Diff = &editor.PNGImportDiff{
+			OriginalImage:          res.Diff.OriginalImage,
+			QuantizedReconstructed: res.Diff.QuantizedReconstructed,
+			ChosenSubPalette:       res.Diff.ChosenSubPalette,
+			AutoPicked:             res.Diff.AutoPicked,
+			MeanDeltaE:             res.Diff.MeanDeltaE,
+			Width:                  res.Diff.Width,
+			Height:                 res.Diff.Height,
+		}
+	}
+	return out
+}
+
+// autoTileObserverAdapter wraps palette.AutoTileRuleSynth in the
+// editor.AutoTileObserver interface so the canvas dispatch can call
+// into the synth without the editor package importing palette
+// (which would create a cycle, since palette already imports editor).
+type autoTileObserverAdapter struct {
+	synth *AutoTileRuleSynth
+}
+
+func newAutoTileObserverAdapter() *autoTileObserverAdapter {
+	return &autoTileObserverAdapter{synth: NewAutoTileRuleSynth()}
+}
+
+// RecordStroke translates the editor's AutoTileCell into the synth's
+// PaintCell, runs the observation, and translates promotions back
+// across the boundary.
+func (a *autoTileObserverAdapter) RecordStroke(
+	layer *pixelforge_project.TileAtlas,
+	cells []editor.AutoTileCell,
+) []editor.AutoTilePromotion {
+	if a == nil || a.synth == nil || layer == nil || len(cells) == 0 {
+		return nil
+	}
+	stroke := make([]PaintCell, 0, len(cells))
+	for _, c := range cells {
+		stroke = append(stroke, PaintCell{X: c.X, Y: c.Y, Value: c.Value})
+	}
+	raw := a.synth.RecordStrokeWithPromotions(layer, stroke)
+	if len(raw) == 0 {
+		return nil
+	}
+	out := make([]editor.AutoTilePromotion, 0, len(raw))
+	for _, r := range raw {
+		out = append(out, editor.AutoTilePromotion{
+			RuleIndex: r.RuleIndex,
+			Pattern:   r.Pattern,
+			Output:    r.Output,
+		})
+	}
+	return out
 }

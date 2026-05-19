@@ -16,6 +16,10 @@ import (
 
 // ImportResult summarises the outcome of an Import call. Used by the
 // editor's status messages and the M2 import status modal.
+//
+// Idea #3 v1 U3 added the optional Diff field so the editor's diff
+// modal can render before/after thumbnails + the warning banner.
+// Existing callers that ignore Diff stay compatible.
 type ImportResult struct {
 	SpriteName     string
 	RegisteredIdx  int
@@ -23,6 +27,27 @@ type ImportResult struct {
 	Width, Height  int
 	CollisionBits  int
 	UsedSidecar    bool
+
+	// Diff is populated when the import was run via the diff-aware
+	// entry point (ImportWithDiff or ImportPNGForDiff). Nil for
+	// callers using the original Import signature.
+	Diff *ImportDiff
+}
+
+// ImportDiff carries the side-by-side data the U4 diff modal needs:
+// the original RGBA, the quantizer's index output, a reconstructed
+// preview image (indices mapped back through the palette), the
+// auto- or manually-chosen sub-palette, and the mean per-pixel
+// distance score that drives the warning banner.
+type ImportDiff struct {
+	OriginalImage          image.Image
+	QuantizedIndices       []byte
+	QuantizedReconstructed image.Image
+	ChosenSubPalette       string
+	AutoPicked             bool
+	MeanDeltaE             float64
+	Width                  int
+	Height                 int
 }
 
 // Import runs the palette-aware PNG import pipeline:
@@ -104,6 +129,159 @@ func Import(pngPath string, p *pixelforge_project.Project, projectSourcePath str
 		CollisionBits: bitsSet(collision),
 		UsedSidecar:   sidecarErr == nil && (sidecar.FrameW > 0 || sidecar.FrameH > 0 || len(sidecar.AnimationClips) > 0),
 	}, nil
+}
+
+// ImportWithDiff is the diff-aware sibling of Import. It runs the
+// same pipeline but additionally builds the ImportDiff payload the
+// editor's U4 diff modal needs. When targetSubPalette is empty, the
+// pipeline calls PickBestSubPalette to choose one and records the
+// auto-pick decision in ImportDiff.AutoPicked.
+//
+// Sets the new SpriteAsset's SubPalette field to the chosen value so
+// the imported sprite is bound to a sub-palette from the moment it
+// lands in the project.
+func ImportWithDiff(
+	pngPath string,
+	p *pixelforge_project.Project,
+	projectSourcePath string,
+	targetSubPalette string,
+) (ImportResult, error) {
+	if p == nil {
+		return ImportResult{}, errors.New("import: nil project")
+	}
+	if pngPath == "" {
+		return ImportResult{}, errors.New("import: empty path")
+	}
+
+	img, err := decodePNGFile(pngPath)
+	if err != nil {
+		return ImportResult{}, err
+	}
+	return importImageWithDiff(img, pngPath, p, projectSourcePath, targetSubPalette)
+}
+
+// ImportImageWithDiff is the in-memory variant of ImportWithDiff —
+// the import_handler tests pass synthetic images directly without
+// touching the filesystem. pngPath is recorded on the SpriteAsset's
+// RelativePath; copyAssetFile is skipped when projectSourcePath is
+// empty (the test path) so no disk write happens.
+func ImportImageWithDiff(
+	img image.Image,
+	pngPath string,
+	p *pixelforge_project.Project,
+	projectSourcePath string,
+	targetSubPalette string,
+) (ImportResult, error) {
+	if p == nil {
+		return ImportResult{}, errors.New("import: nil project")
+	}
+	return importImageWithDiff(img, pngPath, p, projectSourcePath, targetSubPalette)
+}
+
+func importImageWithDiff(
+	img image.Image,
+	pngPath string,
+	p *pixelforge_project.Project,
+	projectSourcePath string,
+	targetSubPalette string,
+) (ImportResult, error) {
+	bounds := img.Bounds()
+	w := bounds.Dx()
+	h := bounds.Dy()
+
+	autoPicked := false
+	if targetSubPalette == "" {
+		targetSubPalette, _ = PickBestSubPalette(img, p, FamilySprite)
+		autoPicked = true
+	}
+
+	sidecar, sidecarErr := LoadSidecar(pngPath)
+	frameW, frameH := DetectFrames(img)
+	if sidecar.FrameW > 0 {
+		frameW = sidecar.FrameW
+	}
+	if sidecar.FrameH > 0 {
+		frameH = sidecar.FrameH
+	}
+
+	quantized := quantizeImage(p, img)
+	reconstructed := reconstructFromIndices(quantized, w, h, p)
+	collision := deriveCollisionMask(img, frameW, frameH)
+
+	name := spriteNameFromPath(pngPath)
+	relPath := filepath.ToSlash(filepath.Join("sprites", filepath.Base(pngPath)))
+	if projectSourcePath != "" && pngPath != "" {
+		if err := copyAssetFile(pngPath, projectSourcePath, relPath); err != nil {
+			return ImportResult{}, err
+		}
+	}
+
+	sprite := pixelforge_project.SpriteAsset{
+		Name:          name,
+		RelativePath:  relPath,
+		Width:         w,
+		Height:        h,
+		FrameW:        frameW,
+		FrameH:        frameH,
+		CollisionMask: collision,
+		Animations:    sidecarAnimations(sidecar),
+		SubPalette:    targetSubPalette,
+	}
+	p.Sprites = append(p.Sprites, sprite)
+	idx := len(p.Sprites) - 1
+
+	deltaE := MeanDistanceToSubPalette(img, p, targetSubPalette)
+	diff := &ImportDiff{
+		OriginalImage:          img,
+		QuantizedIndices:       quantized,
+		QuantizedReconstructed: reconstructed,
+		ChosenSubPalette:       targetSubPalette,
+		AutoPicked:             autoPicked,
+		MeanDeltaE:             deltaE,
+		Width:                  w,
+		Height:                 h,
+	}
+
+	return ImportResult{
+		SpriteName:    name,
+		RegisteredIdx: idx,
+		FrameW:        frameW,
+		FrameH:        frameH,
+		Width:         w,
+		Height:        h,
+		CollisionBits: bitsSet(collision),
+		UsedSidecar:   sidecarErr == nil && (sidecar.FrameW > 0 || sidecar.FrameH > 0 || len(sidecar.AnimationClips) > 0),
+		Diff:          diff,
+	}, nil
+}
+
+// reconstructFromIndices renders the post-quantize palette indices
+// back to an RGBA image by walking PaletteData.Base. Used by the
+// diff modal as the "after" panel.
+func reconstructFromIndices(indices []byte, w, h int, p *pixelforge_project.Project) image.Image {
+	out := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			idx := indices[y*w+x]
+			if int(idx) >= pixelforge_project.MaxColors {
+				idx = 0
+			}
+			c, ok := parseHexColor(p.Palette.Base[idx])
+			if !ok {
+				c = color.RGBA{}
+			}
+			if idx == 0 {
+				// Slot 0 is transparent per palette conventions; the
+				// reconstructed preview keeps that transparency so
+				// the diff modal shows the cutout correctly.
+				c.A = 0
+			} else {
+				c.A = 0xff
+			}
+			out.Set(x, y, c)
+		}
+	}
+	return out
 }
 
 // quantizeImage runs the palette quantizer over the full image.

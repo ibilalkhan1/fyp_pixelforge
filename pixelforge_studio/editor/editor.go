@@ -76,6 +76,19 @@ type Editor struct {
 	undoStack *UndoStack
 	palette   *TilePalette
 
+	// Idea #3 v1 U3 — PNG-import orchestration. Owns the pending
+	// ImportResult between File → Import PNG and the U4 diff
+	// modal's Accept/Reject/Re-quantize decision.
+	importHandler      *ImportHandler
+	importDiffModal    *ImportDiffModal
+	audioImportHandler *AudioImportHandler
+
+	// dragDropPoller is the optional per-frame hook plan-008 U11
+	// installs to drain ebiten.DroppedFiles into the ingest
+	// dispatcher. nil = no hook (tests + the studio's
+	// --no-asset-library flag).
+	dragDropPoller func()
+
 	// Workspaces registered via RegisterWorkspace. Every workspace's
 	// Render() runs each frame inside the DockSpace (U3); activeWorkspace
 	// names the currently-focused one so the status bar and tests can
@@ -133,6 +146,37 @@ type Editor struct {
 	// panel bodies. See imgui_chrome.go for capture; PanelRect for
 	// the lookup.
 	panelRects map[string]widgets.Rect
+
+	// Idea #2 v1 U5 — TileAtlas painter widget state lives on the
+	// existing TilePainter (idea #1's plan). SelectedTile,
+	// SetSelectedTile, PaintSubMode, and SetPaintSubMode are
+	// convenience accessors on the editor that proxy to
+	// painter.ActiveTileID / painter.SubMode so there's one source
+	// of truth for the active tile no matter which UI surface
+	// mutates it (toolbar palette in the Scene workspace OR the
+	// inspector's tilepainter widget).
+
+	// Idea #2 v1 U6 / U7 — AutoTile observer + toast queue.
+	// autoTileObserver is the external rule synth (wired by
+	// palette.RegisterWith); queuedPromotion is the most-recent
+	// promotion the dispatch handed off to the toast UX. Both are
+	// session-only; neither persists in the project file.
+	autoTileObserver AutoTileObserver
+	queuedPromotion  *AutoTilePromotion
+
+	// Idea #2 v1 U7 — session-rule suppression. Designers who pick
+	// "No" on a toast insert the rule's signature here; future
+	// strokes that re-promote the same rule consult this map and
+	// stay silent.
+	sessionRuleSuppression map[ruleSignature]struct{}
+}
+
+// ruleSignature is the (Pattern, Output) hash the session-suppression
+// map keys by. Defined in session_state.go (U7); declared here so
+// the field type compiles before U7 lands.
+type ruleSignature struct {
+	Pattern [9]int
+	Output  int
 }
 
 // ProjectListener is the contract the scripting runtime (and any
@@ -194,7 +238,20 @@ func NewWithSettings(s *Settings) *Editor {
 	e.painter = NewTilePainter()
 	e.undoStack = NewUndoStack()
 	e.palette = NewTilePalette(e.painter)
+	e.importHandler = NewImportHandler(e)
+	e.importDiffModal = NewImportDiffModal(e)
+	e.audioImportHandler = NewAudioImportHandler(e)
 	return e
+}
+
+// ImportDiffModal returns the editor's PNG-import diff modal. Used
+// by tests and (in a future UI integration unit) the per-frame
+// Render path that surfaces the popup.
+func (e *Editor) ImportDiffModal() *ImportDiffModal {
+	if e == nil {
+		return nil
+	}
+	return e.importDiffModal
 }
 
 // Painter returns the editor's tile painter. Nil-safe for zero-value
@@ -368,6 +425,50 @@ func (e *Editor) Tool() Tool { return e.tool }
 // SetTool switches the active canvas tool.
 func (e *Editor) SetTool(t Tool) { e.tool = t }
 
+// SelectedTile returns the tile ID the Paint tool's brush /
+// bucket / rect sub-modes write into the active TileAtlas. Defaults
+// to 0 (the "empty" cell — the standard clear-on-paint convention).
+// Session-only state; not persisted in the project file. Proxies to
+// the editor's TilePainter so the toolbar palette and the
+// inspector's tilepainter widget share one source of truth.
+func (e *Editor) SelectedTile() int {
+	if e == nil || e.painter == nil {
+		return 0
+	}
+	return e.painter.ActiveTileID
+}
+
+// SetSelectedTile updates the tile ID the Paint tool writes. Called
+// by the tilepainter inspector widget when the designer clicks a
+// tile in the palette grid. Does NOT mark the project dirty —
+// selection is a transient UI state.
+func (e *Editor) SetSelectedTile(id int) {
+	if e == nil || e.painter == nil {
+		return
+	}
+	e.painter.SetActiveTile(id)
+}
+
+// PaintSubMode returns the active Paint sub-mode (Brush / Bucket /
+// Rect). U6's canvas dispatch reads this when LMB events arrive.
+// Defaults to PaintBrush. Proxies to the TilePainter.
+func (e *Editor) PaintSubMode() PaintSubMode {
+	if e == nil || e.painter == nil {
+		return PaintBrush
+	}
+	return e.painter.SubMode
+}
+
+// SetPaintSubMode updates the active Paint sub-mode. Called by the
+// tilepainter inspector widget's radio buttons. Session-only state;
+// no MarkDirty.
+func (e *Editor) SetPaintSubMode(m PaintSubMode) {
+	if e == nil || e.painter == nil {
+		return
+	}
+	e.painter.SetSubMode(m)
+}
+
 // StatusMessage returns the current status-bar message.
 func (e *Editor) StatusMessage() string { return e.statusMessage }
 
@@ -410,12 +511,27 @@ func (e *Editor) PromptIfDirty(title, message string, action func()) {
 	e.confirmDialog.Show(title, message, action)
 }
 
+// SetDragDropPoller installs an optional per-frame hook the
+// editor invokes once per Update(). Plan-008 U11 uses this seam
+// to drain ebiten.DroppedFiles into the ingest dispatcher; nil
+// disables the hook. Replacing the poller mid-session is safe.
+func (e *Editor) SetDragDropPoller(fn func()) {
+	if e == nil {
+		return
+	}
+	e.dragDropPoller = fn
+}
+
 // Update advances the editor one tick. ImGui chrome builds first (so
 // panel rects and io.WantCaptureKeyboard reflect this frame's input),
 // then modals + workspace input dispatch on top.
 func (e *Editor) Update() error {
 	if e.terminate {
 		return ebiten.Termination
+	}
+
+	if e.dragDropPoller != nil {
+		e.dragDropPoller()
 	}
 
 	// ImGui frame brackets the whole tick so the chrome built below

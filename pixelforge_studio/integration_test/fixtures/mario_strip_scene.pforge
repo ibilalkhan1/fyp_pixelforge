@@ -92,7 +92,7 @@
           "tile_y": 24
         }
       ],
-      "tilemaps": [
+      "tile_atlases": [
         {
           "name": "ground",
           "tile_w": 8,

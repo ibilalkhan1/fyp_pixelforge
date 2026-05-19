@@ -153,10 +153,10 @@ func (c *Canvas) updatePaintTool(scene *pixelforge_project.Scene, viewBox widget
 	// always targets index 0). If the scene has no tilemaps yet we
 	// can't paint — silently no-op so a mistakenly Paint-active
 	// click on an empty scene doesn't crash.
-	if len(scene.Tilemaps) == 0 {
+	if len(scene.TileAtlases) == 0 {
 		return
 	}
-	layer := &scene.Tilemaps[0]
+	layer := &scene.TileAtlases[0]
 	stack := e.UndoStack()
 
 	insideViewbox := viewBox.Contains(mx, my)
@@ -176,12 +176,15 @@ func (c *Canvas) updatePaintTool(scene *pixelforge_project.Scene, viewBox widget
 			}
 		}
 		if inpututil.IsMouseButtonJustReleased(ebiten.MouseButtonLeft) {
-			painter.BrushEndStroke(stack)
+			if cmd := painter.BrushEndStroke(stack); cmd != nil {
+				e.recordStrokeAndQueuePromotions(layer, cmd)
+			}
 		}
 	case PaintBucket:
 		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && insideViewbox {
 			if cmd := painter.BucketFill(layer, col, row, painter.ActiveTileID, stack); cmd != nil {
 				e.MarkDirty()
+				e.recordStrokeAndQueuePromotions(layer, cmd)
 			}
 		}
 	case PaintRectangle:
@@ -190,6 +193,7 @@ func (c *Canvas) updatePaintTool(scene *pixelforge_project.Scene, viewBox widget
 		} else if inpututil.IsMouseButtonJustReleased(ebiten.MouseButtonLeft) && painter.RectangleAnchored() {
 			if cmd := painter.RectangleFill(layer, col, row, painter.ActiveTileID, stack); cmd != nil {
 				e.MarkDirty()
+				e.recordStrokeAndQueuePromotions(layer, cmd)
 			}
 		}
 	}
@@ -232,7 +236,7 @@ func (c *Canvas) handleRightClick(scene *pixelforge_project.Scene, viewBox widge
 // (col, row) of layer's tile grid. Layer's TileW/TileH are the
 // authoritative tile size; falls back to 8 (the v1 default) when
 // the layer hasn't been initialized.
-func scenePxToCell(sceneX, sceneY int, layer *pixelforge_project.TilemapLayer) (int, int) {
+func scenePxToCell(sceneX, sceneY int, layer *pixelforge_project.TileAtlas) (int, int) {
 	tw, th := 8, 8
 	if layer != nil {
 		if layer.TileW > 0 {
@@ -259,10 +263,10 @@ func scenePxToCell(sceneX, sceneY int, layer *pixelforge_project.TilemapLayer) (
 // is defined in cell coords, so we need a cell mapping even when the
 // scene's tilemaps are empty.
 func scenePxToCellScene(sceneX, sceneY int, scene *pixelforge_project.Scene) (int, int) {
-	if scene == nil || len(scene.Tilemaps) == 0 {
+	if scene == nil || len(scene.TileAtlases) == 0 {
 		return scenePxToCell(sceneX, sceneY, nil)
 	}
-	return scenePxToCell(sceneX, sceneY, &scene.Tilemaps[0])
+	return scenePxToCell(sceneX, sceneY, &scene.TileAtlases[0])
 }
 
 // PlaceEntity creates a new entity at the supplied scene-space

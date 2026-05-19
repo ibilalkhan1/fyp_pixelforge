@@ -16,6 +16,11 @@ type MenuItem struct {
 	Separator bool
 	// Disabled items render dim and ignore clicks.
 	Disabled bool
+	// Checked, when true, renders a checkmark glyph before Label.
+	// Carries no behaviour beyond the visual cue; OnSelect is still
+	// the click target. Used by toggle-style menu entries (idea #3
+	// v1 U8 introduces the first ones — the overlay toggles).
+	Checked bool
 }
 
 // MenuDef is one top-level menu (File / Edit / View / Help).

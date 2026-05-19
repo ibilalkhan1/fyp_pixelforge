@@ -71,6 +71,16 @@ type Context struct {
 	// global list here keeps the Context honest about what authoring
 	// can reach.
 	VerbRecipes []string
+
+	// BGSubPaletteNames lists the project's 4 background sub-
+	// palette names (idea #3 v1). Source for the
+	// WidgetSubPalette family=bg dropdown.
+	BGSubPaletteNames []string
+
+	// SpriteSubPaletteNames lists the project's 4 sprite sub-
+	// palette names. Source for the WidgetSubPalette family=sprite
+	// dropdown (e.g. SpriteAsset.SubPalette).
+	SpriteSubPaletteNames []string
 }
 
 // Widget is the surface every inspector control implements.

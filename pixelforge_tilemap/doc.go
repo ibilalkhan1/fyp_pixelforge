@@ -1,4 +1,4 @@
-// Package pixelforge_tilemap renders a pixelforge_project.TilemapLayer to
+// Package pixelforge_tilemap renders a pixelforge_project.TileAtlas to
 // the active pixelforge draw target as a grid of 8x8 sprite slices read
 // from a horizontal sprite-sheet strip.
 //

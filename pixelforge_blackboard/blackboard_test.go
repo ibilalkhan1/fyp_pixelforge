@@ -173,3 +173,133 @@ func TestBlackboard_KeysSnapshot_Stable(t *testing.T) {
 	assert.NotContains(t, again, "extra")
 	assert.NotContains(t, again, "MUTATED")
 }
+
+// ===== idea #6 v1 U2 — Snapshot / Restore =====
+
+func TestSnapshot_EmptyBlackboardReturnsEmptyMap(t *testing.T) {
+	bb := pixelforge_blackboard.New()
+	snap := bb.Snapshot()
+	assert.NotNil(t, snap)
+	assert.Empty(t, snap)
+}
+
+func TestSnapshot_PopulatedBlackboardReturnsAllKeys(t *testing.T) {
+	bb := pixelforge_blackboard.New()
+	bb.Set("score", 100)
+	bb.Set("name", "hero")
+	bb.Set("alive", true)
+	snap := bb.Snapshot()
+	assert.Equal(t, map[string]any{"score": 100, "name": "hero", "alive": true}, snap)
+}
+
+func TestSnapshot_DeepCopiesNestedMaps(t *testing.T) {
+	bb := pixelforge_blackboard.New()
+	bb.Set("inventory", map[string]any{"items": []any{"sword"}})
+	snap := bb.Snapshot()
+
+	// Mutate the snapshot's nested map.
+	inv := snap["inventory"].(map[string]any)
+	inv["items"] = append(inv["items"].([]any), "shield")
+
+	// Original blackboard's value is unchanged.
+	original, _ := bb.Get("inventory")
+	originalItems := original.(map[string]any)["items"].([]any)
+	assert.Len(t, originalItems, 1)
+}
+
+func TestSnapshot_DoesNotPublishEvents(t *testing.T) {
+	bb := pixelforge_blackboard.New()
+	bb.Set("score", 100)
+	received := 0
+	bb.Changes().SubscribeAll(func(c pixelforge_blackboard.BlackboardChange, _ pievent.Handler) { received++ })
+	_ = bb.Snapshot()
+	assert.Equal(t, 0, received, "Snapshot is read-only and publishes nothing")
+}
+
+func TestRestore_ReplacesAllKeys(t *testing.T) {
+	bb := pixelforge_blackboard.New()
+	bb.Set("a", 1)
+	bb.Set("b", 2)
+	bb.Restore(map[string]any{"c": 3, "d": 4})
+
+	_, okA := bb.Get("a")
+	assert.False(t, okA, "Restore drops keys not in the new map")
+	_, okB := bb.Get("b")
+	assert.False(t, okB)
+	v, _ := bb.Get("c")
+	assert.Equal(t, 3, v)
+}
+
+func TestRestore_PublishesChangeEventForEveryNewKey(t *testing.T) {
+	bb := pixelforge_blackboard.New()
+	var seen []string
+	var mu sync.Mutex
+	bb.Changes().SubscribeAll(func(c pixelforge_blackboard.BlackboardChange, _ pievent.Handler) {
+		mu.Lock()
+		seen = append(seen, c.Key)
+		mu.Unlock()
+	})
+	bb.Restore(map[string]any{"a": 1, "b": 2})
+	mu.Lock()
+	defer mu.Unlock()
+	assert.ElementsMatch(t, []string{"a", "b"}, seen)
+}
+
+func TestRestore_PublishesRemovalEventForDroppedKeys(t *testing.T) {
+	bb := pixelforge_blackboard.New()
+	bb.Set("a", 1)
+	bb.Set("b", 2)
+	var removed []string
+	var mu sync.Mutex
+	bb.Changes().SubscribeAll(func(c pixelforge_blackboard.BlackboardChange, _ pievent.Handler) {
+		mu.Lock()
+		if c.New == nil {
+			removed = append(removed, c.Key)
+		}
+		mu.Unlock()
+	})
+	bb.Restore(map[string]any{})
+	mu.Lock()
+	defer mu.Unlock()
+	assert.ElementsMatch(t, []string{"a", "b"}, removed,
+		"every dropped key publishes a removal event with New=nil")
+}
+
+func TestSnapshotRestore_RoundTripPreservesState(t *testing.T) {
+	bb := pixelforge_blackboard.New()
+	bb.Set("score", 100)
+	bb.Set("inventory", map[string]any{"items": []any{"sword", "shield"}})
+	snap := bb.Snapshot()
+
+	// Mutate.
+	bb.Set("score", 999)
+	bb.Set("name", "intruder")
+
+	// Restore the snapshot — score returns to 100, name removed.
+	bb.Restore(snap)
+	v, _ := bb.Get("score")
+	assert.Equal(t, 100, v)
+	_, ok := bb.Get("name")
+	assert.False(t, ok)
+}
+
+func TestRestore_ConcurrentReadDuringRestoreSafe(t *testing.T) {
+	bb := pixelforge_blackboard.New()
+	bb.Set("counter", 0)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			_, _ = bb.Get("counter")
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			bb.Restore(map[string]any{"counter": i})
+		}
+	}()
+	wg.Wait()
+}

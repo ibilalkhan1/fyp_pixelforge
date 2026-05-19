@@ -43,7 +43,7 @@ type CellDiff struct {
 // scenes can reorder Tilemaps and the undo stack must not silently
 // re-target a different layer after a re-order.
 type StrokeCommand struct {
-	Layer *pixelforge_project.TilemapLayer
+	Layer *pixelforge_project.TileAtlas
 	Diffs []CellDiff
 }
 
@@ -158,7 +158,7 @@ func (s *UndoStack) RedoDepth() int {
 // already grow the grid before recording diffs, so by the time
 // Apply/Revert run the cells are in-range; this helper is defensive
 // against future reorderings.
-func writeCell(layer *pixelforge_project.TilemapLayer, col, row, id int) {
+func writeCell(layer *pixelforge_project.TileAtlas, col, row, id int) {
 	if layer == nil || col < 0 || row < 0 {
 		return
 	}

@@ -38,6 +38,22 @@ const (
 	WidgetIntField     WidgetKind = "int_field"
 	WidgetFloatField   WidgetKind = "float_field"
 	WidgetCheckbox     WidgetKind = "checkbox"
+
+	// WidgetCustom is the dispatch token for fields tagged
+	// pf:"widget=<name>". The inspector looks up <name> in the
+	// widget registry (see widget_registry.go) and invokes the
+	// registered Drawer. Reusable extension seam — idea #4's patch-
+	// cast surface and idea #6's dialogue-tree editor both register
+	// their own drawers via this primitive.
+	WidgetCustom WidgetKind = "custom"
+
+	// WidgetSubPalette is the dispatch token for fields tagged
+	// pf:"subpalette,family=bg" or pf:"subpalette,family=sprite"
+	// (idea #3 v1 U4). The inspector renders a combo populated
+	// from the project's BGSubPaletteNames or SpriteSubPaletteNames
+	// (whichever the family token selects) and writes the picked
+	// name back to the underlying string field.
+	WidgetSubPalette WidgetKind = "subpalette"
 )
 
 // FieldMetadata describes one field on a registered component as far as
@@ -77,6 +93,11 @@ type FieldMetadata struct {
 	// struct. Inspector treats anonymous fields like flattened
 	// composites — the parent's fields list already includes them.
 	Anonymous bool
+
+	// CustomWidget is the registered widget name a WidgetCustom
+	// field dispatches to (e.g. "tilepainter" for the tile-atlas
+	// painter). Empty for any non-custom widget kind.
+	CustomWidget string
 }
 
 // TypeMetadata is the full per-type registry entry.
@@ -123,8 +144,17 @@ func collectFields(t reflect.Type, _ string) ([]FieldMetadata, error) {
 		}
 		jsonTag := f.Tag.Get("json")
 		jsonKey, jsonOpts := splitJSONTag(jsonTag)
+		pfTag := f.Tag.Get("pf")
 		if jsonKey == "-" {
-			continue
+			// A pf tag on an otherwise non-serialised field marks a
+			// synthetic inspector hook — most commonly a struct{}
+			// placeholder that anchors a custom widget on a typed
+			// parent. The field is included in the metadata so the
+			// inspector dispatches its widget; serialisation is still
+			// skipped because the field is json:"-".
+			if pfTag == "" {
+				continue
+			}
 		}
 		// Anonymous (embedded) struct: flatten its fields into ours.
 		if f.Anonymous && f.Type.Kind() == reflect.Struct {
@@ -140,6 +170,11 @@ func collectFields(t reflect.Type, _ string) ([]FieldMetadata, error) {
 		}
 		if jsonKey == "" {
 			jsonKey = defaultJSONKey(f.Name)
+		} else if jsonKey == "-" {
+			// Synthetic hook field: no wire key; the inspector reads
+			// nothing from values and writes nothing back. The
+			// drawer operates on Owner (the typed parent struct).
+			jsonKey = ""
 		}
 		_ = jsonOpts // omitempty etc. — not consumed by the inspector
 
@@ -149,7 +184,7 @@ func collectFields(t reflect.Type, _ string) ([]FieldMetadata, error) {
 			Type:    f.Type,
 			Index:   i,
 		}
-		if err := applyPFTag(&md, f.Tag.Get("pf")); err != nil {
+		if err := applyPFTag(&md, pfTag); err != nil {
 			return nil, fmt.Errorf("pfcomponent: field %s: %w", f.Name, err)
 		}
 		if md.WidgetKind == "" {
@@ -173,7 +208,43 @@ func applyPFTag(md *FieldMetadata, tag string) error {
 	if len(parts) > 1 {
 		rest = strings.TrimSpace(parts[1])
 	}
+
+	// Custom-widget syntax: pf:"widget=<name>". The first token carries
+	// the registered drawer's name after `=`; subsequent comma-separated
+	// tokens are reserved for future per-widget options and recorded as
+	// rest for the registered drawer to interpret if it wants to.
+	if strings.HasPrefix(kind, "widget=") {
+		name := strings.TrimSpace(strings.TrimPrefix(kind, "widget="))
+		if name == "" {
+			return fmt.Errorf("widget= tag requires a registered name (got empty)")
+		}
+		md.WidgetKind = WidgetCustom
+		md.CustomWidget = name
+		_ = rest
+		return nil
+	}
+
 	switch kind {
+	case "subpalette":
+		md.WidgetKind = WidgetSubPalette
+		// rest carries optional "family=bg" or "family=sprite". The
+		// family token determines which list the inspector pulls
+		// dropdown entries from. Stored on md.Options[0] so the
+		// existing slice carries the value without introducing a
+		// new field on FieldMetadata. Unknown family falls back to
+		// "sprite" (the most common case for SpriteAsset.SubPalette).
+		family := "sprite"
+		for _, tok := range strings.Split(rest, ",") {
+			tok = strings.TrimSpace(tok)
+			if strings.HasPrefix(tok, "family=") {
+				v := strings.TrimSpace(strings.TrimPrefix(tok, "family="))
+				if v == "bg" || v == "sprite" {
+					family = v
+				}
+			}
+		}
+		md.Options = []string{family}
+		return nil
 	case "slider":
 		md.WidgetKind = WidgetSlider
 		if rest == "" {

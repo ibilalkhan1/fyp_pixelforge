@@ -2,7 +2,7 @@
 // Mario-strip primitive) end-to-end:
 //   - U1's Scene grid/spawn/camera schema + Entity TileX/TileY
 //   - U2's pixelforge_tilemap renderer is exercised structurally via
-//     the scene's TilemapLayer.Grid (the renderer itself has its own
+//     the scene's TileAtlas.Grid (the renderer itself has its own
 //     unit tests; here we assert grid state, not rendered pixels)
 //   - U3's pixelforge_camera.Follower drives the camera (AE4)
 //   - U6's TilePainter brush + bucket fill (AE1)
@@ -77,7 +77,7 @@ func findMarioEntity(t *testing.T, p *pixelforge_project.Project, id string) *pi
 // Hoisted into a helper so AE5 (resize-preserves-content) can set up
 // the same painted state AE1 produces without duplicating the
 // painter-drive sequence.
-func paintGroundRow(t *testing.T, layer *pixelforge_project.TilemapLayer) {
+func paintGroundRow(t *testing.T, layer *pixelforge_project.TileAtlas) {
 	t.Helper()
 	require.NotNil(t, layer)
 	painter := editor.NewTilePainter()
@@ -117,8 +117,8 @@ func resetCamera(t *testing.T) {
 // contract holds at the API layer.
 func TestE2E_AE1_BrushPaintsBucketFills(t *testing.T) {
 	p := loadMario(t)
-	require.Len(t, p.Scenes[0].Tilemaps, 1, "fixture must carry one tilemap layer")
-	layer := &p.Scenes[0].Tilemaps[0]
+	require.Len(t, p.Scenes[0].TileAtlases, 1, "fixture must carry one tilemap layer")
+	layer := &p.Scenes[0].TileAtlases[0]
 
 	painter := editor.NewTilePainter()
 	stack := editor.NewUndoStack()
@@ -320,7 +320,7 @@ func TestE2E_AE4_CameraFollowsAndStops(t *testing.T) {
 func TestE2E_AE5_ResizePreservesCoords(t *testing.T) {
 	p := loadMario(t)
 	scene := &p.Scenes[0]
-	layer := &scene.Tilemaps[0]
+	layer := &scene.TileAtlases[0]
 
 	paintGroundRow(t, layer)
 

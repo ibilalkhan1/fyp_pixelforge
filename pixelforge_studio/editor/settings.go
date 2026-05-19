@@ -53,6 +53,13 @@ type Settings struct {
 	LeftPanelW  int `json:"left_panel_width,omitempty"`
 	RightPanelW int `json:"right_panel_width,omitempty"`
 
+	// BuildOnSaveDisabled gates the build-on-save daemon (idea #7
+	// v1 U8). Default false: every save triggers a debounced
+	// host-platform build so the binary is always one click away.
+	// Designers who want quieter saves toggle this off via the
+	// View menu; the value persists across studio sessions.
+	BuildOnSaveDisabled bool `json:"build_on_save_disabled,omitempty"`
+
 	path string // resolved on Load; empty when only in-memory
 
 	mu          sync.Mutex

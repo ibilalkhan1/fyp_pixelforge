@@ -226,37 +226,16 @@ func (s *SceneWorkspace) renderToolbar(e *Editor) {
 	imgui.Separator()
 
 	if current == ToolPaint {
-		s.renderPaintSubModePicker(e)
+		// Idea #2 v1 U6 supersedes idea #1's sub-mode picker location:
+		// the Brush / Bucket / Rectangle radio buttons live in the
+		// inspector's tilepainter widget (where the painter UI is
+		// authored) rather than on the Scene-workspace toolbar. The
+		// top-level Paint button stays here so designers can still
+		// switch into the Paint tool without opening the inspector;
+		// the palette panel below also stays for designers who prefer
+		// the toolbar-style tile picker.
 		s.renderPaintPalette(e)
 		imgui.Separator()
-	}
-}
-
-// renderPaintSubModePicker draws the three Paint sub-mode radio
-// buttons (brush/bucket/rectangle) under the main toolbar. Visible
-// only when ToolPaint is active. Clicks route through
-// TilePainter.SetSubMode so any in-progress stroke / rectangle
-// anchor is cleaned up atomically with the mode switch.
-func (s *SceneWorkspace) renderPaintSubModePicker(e *Editor) {
-	painter := e.Painter()
-	if painter == nil {
-		return
-	}
-	modes := []struct {
-		label string
-		mode  PaintSubMode
-	}{
-		{"Brush", PaintBrush},
-		{"Bucket", PaintBucket},
-		{"Rectangle", PaintRectangle},
-	}
-	for i, m := range modes {
-		if i > 0 {
-			imgui.SameLine()
-		}
-		if imgui.RadioButtonBool(m.label, painter.SubMode == m.mode) {
-			painter.SetSubMode(m.mode)
-		}
 	}
 }
 
@@ -270,9 +249,9 @@ func (s *SceneWorkspace) renderPaintPalette(e *Editor) {
 		return
 	}
 	scene := e.activeScene()
-	var layer *pixelforge_project.TilemapLayer
-	if scene != nil && len(scene.Tilemaps) > 0 {
-		layer = &scene.Tilemaps[0]
+	var layer *pixelforge_project.TileAtlas
+	if scene != nil && len(scene.TileAtlases) > 0 {
+		layer = &scene.TileAtlases[0]
 	}
 	palette.Render(layer)
 }

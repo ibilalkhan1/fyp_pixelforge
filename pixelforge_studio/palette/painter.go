@@ -22,8 +22,14 @@ type Painter struct {
 	Synth *AutoTileRuleSynth
 
 	// stroke buffers paints made during the active mouse-button hold.
-	stroke    []PaintCell
-	stroking  bool
+	stroke   []PaintCell
+	stroking bool
+
+	// promotions stashes the most recent stroke's PromotedRule list
+	// so the studio's stroke-end hook (idea #2 v1 U6) can read it
+	// and queue the toast (U7). Cleared at the start of each stroke
+	// and overwritten on EndStroke.
+	promotions []PromotedRule
 }
 
 // NewPainter returns a fresh painter in pixel mode.
@@ -36,6 +42,7 @@ func NewPainter() *Painter {
 func (p *Painter) BeginStroke() {
 	p.stroke = p.stroke[:0]
 	p.stroking = true
+	p.promotions = nil
 }
 
 // Stroking reports whether a stroke is in progress.
@@ -45,7 +52,7 @@ func (p *Painter) Stroking() bool { return p.stroking }
 // active stroke. Out-of-range coordinates are clamped to the layer.
 // Returns true when the layer was actually mutated (no-op when the cell
 // already holds the same value).
-func (p *Painter) Paint(layer *pixelforge_project.TilemapLayer, tx, ty, value int) bool {
+func (p *Painter) Paint(layer *pixelforge_project.TileAtlas, tx, ty, value int) bool {
 	if layer == nil {
 		return false
 	}
@@ -77,15 +84,33 @@ func (p *Painter) Paint(layer *pixelforge_project.TilemapLayer, tx, ty, value in
 }
 
 // EndStroke finishes the active stroke and feeds it to the autotile
-// synth so future strokes can pick up patterns observed here.
-func (p *Painter) EndStroke(layer *pixelforge_project.TilemapLayer) {
+// synth so future strokes can pick up patterns observed here. Any
+// rules promoted by this stroke are stashed on the Painter so the
+// studio's canvas dispatch (idea #2 v1 U6) can read them via
+// PromotionsThisStroke before queueing the auto-rule toast (U7).
+func (p *Painter) EndStroke(layer *pixelforge_project.TileAtlas) {
 	if !p.stroking {
 		return
 	}
 	p.stroking = false
 	if p.Synth != nil {
-		p.Synth.RecordStroke(layer, p.stroke)
+		p.promotions = p.Synth.RecordStrokeWithPromotions(layer, p.stroke)
 	}
+}
+
+// PromotionsThisStroke returns the PromotedRule list captured by the
+// most recent EndStroke. The slice is the live stash — callers that
+// retain it past the next BeginStroke should copy.
+func (p *Painter) PromotionsThisStroke() []PromotedRule {
+	return p.promotions
+}
+
+// ClearPromotions drops the stashed PromotedRule list. The studio
+// calls this after consuming the promotions (e.g. queueing a toast
+// or auto-suppressing a session-rejected rule) so the next
+// EndStroke starts with a clean slate.
+func (p *Painter) ClearPromotions() {
+	p.promotions = nil
 }
 
 // Stroke returns a copy of the cells captured during the active
@@ -98,12 +123,12 @@ func (p *Painter) Stroke() []PaintCell {
 
 // EnsureLayer returns the first tilemap layer in scene, creating one
 // with sensible defaults when none exist.
-func EnsureLayer(scene *pixelforge_project.Scene, tileW, tileH int) *pixelforge_project.TilemapLayer {
+func EnsureLayer(scene *pixelforge_project.Scene, tileW, tileH int) *pixelforge_project.TileAtlas {
 	if scene == nil {
 		return nil
 	}
-	if len(scene.Tilemaps) == 0 {
-		scene.Tilemaps = append(scene.Tilemaps, pixelforge_project.TilemapLayer{
+	if len(scene.TileAtlases) == 0 {
+		scene.TileAtlases = append(scene.TileAtlases, pixelforge_project.TileAtlas{
 			Name:          "tilemap",
 			TileW:         tileW,
 			TileH:         tileH,
@@ -111,13 +136,13 @@ func EnsureLayer(scene *pixelforge_project.Scene, tileW, tileH int) *pixelforge_
 			AutoTileRules: []pixelforge_project.AutoTileRule{},
 		})
 	}
-	return &scene.Tilemaps[0]
+	return &scene.TileAtlases[0]
 }
 
 // ensureLayerCapacity grows layer.Grid so that (tx, ty) is in range.
 // Cells are zero-initialised; if the grid is empty, a 32×32 default is
 // used as a starting size before extending further.
-func ensureLayerCapacity(layer *pixelforge_project.TilemapLayer, tx, ty int) {
+func ensureLayerCapacity(layer *pixelforge_project.TileAtlas, tx, ty int) {
 	if tx < 0 || ty < 0 {
 		return
 	}

@@ -13,9 +13,9 @@ import (
 // trio ready for direct API drive. Layer starts at the default
 // 32×32 size (one screen) so most tests don't need to fiddle with
 // grow semantics.
-func newPainterFixture(t *testing.T) (*TilePainter, *pixelforge_project.TilemapLayer, *UndoStack) {
+func newPainterFixture(t *testing.T) (*TilePainter, *pixelforge_project.TileAtlas, *UndoStack) {
 	t.Helper()
-	layer := &pixelforge_project.TilemapLayer{
+	layer := &pixelforge_project.TileAtlas{
 		Name:  "test",
 		TileW: 8,
 		TileH: 8,
@@ -84,7 +84,7 @@ func TestBrush_DedupesRepeatedCellsInStroke(t *testing.T) {
 func TestBucket_FourConnectedFill(t *testing.T) {
 	p := NewTilePainter()
 	stack := NewUndoStack()
-	layer := &pixelforge_project.TilemapLayer{
+	layer := &pixelforge_project.TileAtlas{
 		Name:  "test",
 		TileW: 8,
 		TileH: 8,
@@ -117,7 +117,7 @@ func TestBucket_FourConnectedFill(t *testing.T) {
 func TestBucket_DoesNotFloodAcrossDifferentValues(t *testing.T) {
 	p := NewTilePainter()
 	stack := NewUndoStack()
-	layer := &pixelforge_project.TilemapLayer{
+	layer := &pixelforge_project.TileAtlas{
 		Name:  "test",
 		TileW: 8,
 		TileH: 8,
@@ -222,7 +222,7 @@ func TestTilePalette_RendersTilesFromBoundSheet(t *testing.T) {
 	painter := NewTilePainter()
 	palette := NewTilePalette(painter)
 
-	layer := &pixelforge_project.TilemapLayer{
+	layer := &pixelforge_project.TileAtlas{
 		Name:           "ground",
 		TileW:          8,
 		TileH:          8,
@@ -243,7 +243,7 @@ func TestTilePalette_RendersTilesFromBoundSheet(t *testing.T) {
 	// An unbound layer renders the same fallback count but with a
 	// distinct header — useful for the designer to notice the
 	// missing binding.
-	noSheet := &pixelforge_project.TilemapLayer{Name: "scratch"}
+	noSheet := &pixelforge_project.TileAtlas{Name: "scratch"}
 	assert.Equal(t, tilePaletteFallbackCount, tilePaletteCount(noSheet))
 	assert.Contains(t, paletteHeader(noSheet), "no sheet")
 }

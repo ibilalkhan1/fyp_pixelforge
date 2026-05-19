@@ -98,7 +98,7 @@ type sceneGame struct {
 
 	sheetResolver SheetResolver
 
-	tilemapRenderFn func(layer *pixelforge_project.TilemapLayer, sheet *pixelforge.Canvas)
+	tilemapRenderFn func(layer *pixelforge_project.TileAtlas, sheet *pixelforge.Canvas)
 	entityRenderFn  func(entities []pixelforge_project.Entity, sprites []pixelforge_project.SpriteAsset)
 }
 
@@ -332,8 +332,8 @@ func (g *sceneGame) drawWorld() {
 
 	// Tilemap layers first (drawn back-to-front in slice order).
 	if g.tilemapRenderFn != nil && project != nil {
-		for i := range scene.Tilemaps {
-			layer := &scene.Tilemaps[i]
+		for i := range scene.TileAtlases {
+			layer := &scene.TileAtlases[i]
 			sheet, ok := g.resolveSheet(layer, project)
 			if !ok {
 				continue
@@ -356,7 +356,7 @@ func (g *sceneGame) drawWorld() {
 // every lookup and the tilemap render is a silent no-op. Tests
 // install a fake resolver so the renderer-dispatch path is still
 // observable.
-func (g *sceneGame) resolveSheet(layer *pixelforge_project.TilemapLayer, project *pixelforge_project.Project) (*pixelforge.Canvas, bool) {
+func (g *sceneGame) resolveSheet(layer *pixelforge_project.TileAtlas, project *pixelforge_project.Project) (*pixelforge.Canvas, bool) {
 	if layer == nil || layer.SpriteSheetRef == "" || project == nil {
 		return nil, false
 	}

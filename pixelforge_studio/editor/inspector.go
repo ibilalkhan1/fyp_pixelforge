@@ -79,6 +79,11 @@ func strokeRectAt(dst *ebiten.Image, r widgets.Rect, c color.RGBA) {
 // .pforge schema.
 type Inspector struct {
 	showAdvanced map[string]bool
+
+	// warnedWidgets tracks custom-widget names the inspector has
+	// already logged as unregistered, so a long-running session
+	// doesn't repeat the warning every frame.
+	warnedWidgets map[string]bool
 }
 
 // NewInspector returns the singleton inspector. The constructor stays
@@ -651,12 +656,87 @@ func (i *Inspector) renderField(values map[string]any, f pfcomponent.FieldMetada
 		return comboField(values, f.JSONKey, label, ctx.EventTopics)
 	case pfcomponent.WidgetEnum:
 		return comboField(values, f.JSONKey, label, f.Options)
+	case pfcomponent.WidgetSubPalette:
+		family := "sprite"
+		if len(f.Options) > 0 {
+			family = f.Options[0]
+		}
+		opts := ctx.SpriteSubPaletteNames
+		if family == "bg" {
+			opts = ctx.BGSubPaletteNames
+		}
+		return comboField(values, f.JSONKey, label, opts)
+	case pfcomponent.WidgetCustom:
+		mutated, fallback := i.dispatchCustomWidget(values, f, ctx, nil)
+		if fallback != "" {
+			imgui.TextDisabled(fallback)
+		}
+		return mutated
 	default:
 		// WidgetDefault / WidgetUnknown — render as read-only text
 		// so newer-schema fields still surface their stored value.
 		imgui.Text(label + ": " + formatFieldValue(values[f.JSONKey]))
 	}
 	return false
+}
+
+// dispatchCustomWidget routes a WidgetCustom field through the
+// pfcomponent widget registry. owner is the typed parent the drawer
+// receives — for entity-component dispatch the inspector passes nil
+// and the drawer falls back to the values map via DrawerContext;
+// callers from non-component surfaces (e.g. the TileAtlas dispatch
+// path in U5/U6) pass a typed pointer so the drawer can read the
+// parent struct directly.
+//
+// Returns (mutated, fallback). When no drawer is registered the
+// returned fallback string carries the inspector-side label the
+// caller should render in place of the missing widget; the function
+// itself never touches ImGui so it stays safe to call from tests
+// without a live frame.
+func (i *Inspector) dispatchCustomWidget(
+	values map[string]any,
+	f pfcomponent.FieldMetadata,
+	ctx widgets.Context,
+	owner any,
+) (mutated bool, fallback string) {
+	drawer, ok := pfcomponent.LookupWidget(f.CustomWidget)
+	if !ok {
+		i.warnUnregisteredWidget(f.CustomWidget)
+		return false, fmt.Sprintf("%s: (unregistered widget %q)", f.Name, f.CustomWidget)
+	}
+	dispatchOwner := owner
+	if dispatchOwner == nil {
+		dispatchOwner = values
+	}
+	var current any
+	if f.JSONKey != "" {
+		current = values[f.JSONKey]
+	}
+	mutated = drawer(pfcomponent.DrawerContext{
+		Owner:      dispatchOwner,
+		FieldName:  f.Name,
+		JSONKey:    f.JSONKey,
+		FieldValue: current,
+		Extras: map[string]any{
+			"widgets": ctx,
+		},
+	})
+	return mutated, ""
+}
+
+// warnUnregisteredWidget logs the first time the inspector encounters
+// a custom-widget name that has no registered drawer. Subsequent
+// frames for the same name stay quiet so a long-running editor session
+// doesn't spam the log.
+func (i *Inspector) warnUnregisteredWidget(name string) {
+	if i.warnedWidgets == nil {
+		i.warnedWidgets = map[string]bool{}
+	}
+	if i.warnedWidgets[name] {
+		return
+	}
+	i.warnedWidgets[name] = true
+	fmt.Printf("inspector: no drawer registered for widget %q; falling back to read-only text\n", name)
 }
 
 // comboField renders a Combo over options, persists the picked
@@ -724,6 +804,19 @@ func buildWidgetContext(p *pixelforge_project.Project) widgets.Context {
 	sort.Strings(ctx.EventTopics)
 	for _, c := range p.Palette.Base {
 		ctx.PaletteColors = append(ctx.PaletteColors, string(c))
+	}
+	// Idea #3 v1 U4: surface the 4 BG + 4 Sprite sub-palette names
+	// so WidgetSubPalette dropdowns populate without per-render
+	// look-ups inside the dispatch arm.
+	for _, sp := range p.Palette.BGSubPalettes {
+		if sp.Name != "" {
+			ctx.BGSubPaletteNames = append(ctx.BGSubPaletteNames, sp.Name)
+		}
+	}
+	for _, sp := range p.Palette.SpriteSubPalettes {
+		if sp.Name != "" {
+			ctx.SpriteSubPaletteNames = append(ctx.SpriteSubPaletteNames, sp.Name)
+		}
 	}
 	return ctx
 }

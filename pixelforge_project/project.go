@@ -51,6 +51,34 @@ type Project struct {
 	// ExtensionHooks names code-extension slots a generated game can
 	// wire to user-supplied Go functions. Empty in the M1 happy path.
 	ExtensionHooks []ExtensionHook `json:"extension_hooks"`
+
+	// EditorOverlays carries per-project soft-warn overlay toggle
+	// state (idea #3 v1). View-menu toggles flip the bools;
+	// existing project save/load persists them. Pre-v1 projects
+	// default to both overlays enabled via applyDefaults.
+	EditorOverlays EditorOverlays `json:"editor_overlays,omitempty"`
+
+	// Idea #6 v1 U4 — RPG-class schema additions. Dialogues +
+	// Menus are name-keyed maps so verb-recipes can reference
+	// them by stable identifiers; Items is a flat slice (the
+	// inventory blackboard key uses IDs to reference entries);
+	// SaveConfig carries per-project save-pipeline tuning.
+	// All omitempty so pre-v1 projects round-trip cleanly.
+	Dialogues  map[string]DialogueScript `json:"dialogues,omitempty"`
+	Menus      map[string]MenuConfig     `json:"menus,omitempty"`
+	Items      []ItemDefinition          `json:"items,omitempty"`
+	SaveConfig SaveConfig                `json:"save_config,omitempty"`
+
+	// Idea #7 v1 U2 — build-pipeline metadata. Version stamps
+	// the shipped binary's resources (Windows .syso, macOS plist,
+	// WASM page title suffix); empty value defaults to today's
+	// ISO date via applyDefaults so every shipped artifact has
+	// a non-empty version identifier. IconSpriteName is the
+	// designer-marked sprite the build pipeline uses as the game
+	// icon; when empty, the icon pipeline auto-picks by reference
+	// count + 16x16 preference.
+	Version         string `json:"version,omitempty"`
+	IconSpriteName  string `json:"icon_sprite_name,omitempty"`
 }
 
 // EventSubscription wires an entity (or a global handler) to a topic
@@ -96,10 +124,10 @@ func NewProject(name string) *Project {
 		Sprites:       []SpriteAsset{},
 		Audio:         []AudioSample{},
 		Scenes: []Scene{{
-			ID:       "main",
-			Name:     "Main",
-			Entities: []Entity{},
-			Tilemaps: []TilemapLayer{},
+			ID:          "main",
+			Name:        "Main",
+			Entities:    []Entity{},
+			TileAtlases: []TileAtlas{},
 		}},
 		Behaviors:          []BehaviorGraph{},
 		Bindings:           []AudioBinding{},
@@ -132,6 +160,50 @@ func (p *Project) applyDefaults() {
 
 	if len(p.InputMap) == 0 {
 		p.InputMap = DefaultInputMap()
+	}
+
+	// Idea #3 v1: backfill sub-palette overlays + clamp slot indices
+	// + default sprite SubPalette assignments + EditorOverlays.
+	p.Palette.ApplyDefaults()
+	for i := range p.Sprites {
+		if p.Sprites[i].SubPalette == "" {
+			p.Sprites[i].SubPalette = DefaultSubPaletteName
+		}
+	}
+	p.EditorOverlays.applyDefaults()
+
+	// Idea #6 v1 U4: nil-safe maps + SaveConfig default.
+	if p.Dialogues == nil {
+		p.Dialogues = map[string]DialogueScript{}
+	}
+	if p.Menus == nil {
+		p.Menus = map[string]MenuConfig{}
+	}
+	if p.Items == nil {
+		p.Items = []ItemDefinition{}
+	}
+	p.SaveConfig.applyDefaults()
+
+	// Idea #7 v1 U2: stamp build-pipeline metadata. Empty Version
+	// defaults to today's ISO date so shipped artifacts always
+	// carry a non-empty stamp. IconSpriteName is sanitised: when
+	// the named sprite doesn't exist, the field clears so the
+	// auto-pick heuristic takes over rather than the build
+	// failing on a dangling reference.
+	if p.Version == "" {
+		p.Version = time.Now().Format("2006-01-02")
+	}
+	if p.IconSpriteName != "" {
+		found := false
+		for _, s := range p.Sprites {
+			if s.Name == p.IconSpriteName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			p.IconSpriteName = ""
+		}
 	}
 
 	for i := range p.Scenes {
@@ -230,12 +302,12 @@ func (p *Project) normalizeSlices() {
 		if p.Scenes[i].Entities == nil {
 			p.Scenes[i].Entities = []Entity{}
 		}
-		if p.Scenes[i].Tilemaps == nil {
-			p.Scenes[i].Tilemaps = []TilemapLayer{}
+		if p.Scenes[i].TileAtlases == nil {
+			p.Scenes[i].TileAtlases = []TileAtlas{}
 		}
-		for j := range p.Scenes[i].Tilemaps {
-			if p.Scenes[i].Tilemaps[j].AutoTileRules == nil {
-				p.Scenes[i].Tilemaps[j].AutoTileRules = []AutoTileRule{}
+		for j := range p.Scenes[i].TileAtlases {
+			if p.Scenes[i].TileAtlases[j].AutoTileRules == nil {
+				p.Scenes[i].TileAtlases[j].AutoTileRules = []AutoTileRule{}
 			}
 		}
 		for j := range p.Scenes[i].Entities {

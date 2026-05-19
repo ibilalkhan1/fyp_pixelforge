@@ -33,11 +33,12 @@ type Scene struct {
 	// in mouse-pick selection.
 	Entities []Entity `json:"entities"`
 
-	// Tilemaps are the paint-tool layers authored in M2. Each layer
-	// is a flat grid of integer tile values. Backwards-compatible:
-	// older .pforge files without this field round-trip as an empty
-	// slice.
-	Tilemaps []TilemapLayer `json:"tilemaps"`
+	// TileAtlases are the paint-tool layers authored in M2. Each
+	// layer is a flat grid of integer tile values. v1 of idea #2
+	// renames the field from Tilemaps to TileAtlases; the load-time
+	// migration in scenes_migration.go reads pre-v1 files that still
+	// carry the legacy `tilemaps` JSON key.
+	TileAtlases []TileAtlas `json:"tile_atlases,omitempty"`
 
 	// GridWidthScreens is the level's horizontal size, measured in
 	// 256-px screens. Defaults to 16 (a 16-screen-wide Mario-class
@@ -142,10 +143,14 @@ const (
 // contract that the field tags advertise.
 //
 // The hand-rolled emission is also the canonical key order: existing
-// non-optional keys first (id, name, entities, tilemaps), then the
-// optional world-primitive additions in declaration order. Two saves
-// of the same Scene produce byte-identical JSON, preserving the
-// git-merge-friendly invariant the project's saver relies on.
+// non-optional keys first (id, name, entities, tile_atlases), then
+// the optional world-primitive additions in declaration order. Two
+// saves of the same Scene produce byte-identical JSON, preserving
+// the git-merge-friendly invariant the project's saver relies on.
+//
+// v1 of idea #2 renames the legacy `tilemaps` JSON key to
+// `tile_atlases`. The load-time migration shim in scenes_migration.go
+// reads pre-v1 files that still carry the legacy key.
 func (s Scene) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteByte('{')
@@ -189,10 +194,10 @@ func (s Scene) MarshalJSON() ([]byte, error) {
 	if err := writeValue(ents); err != nil {
 		return nil, err
 	}
-	writeKey(&first, "tilemaps")
-	tms := s.Tilemaps
+	writeKey(&first, "tile_atlases")
+	tms := s.TileAtlases
 	if tms == nil {
-		tms = []TilemapLayer{}
+		tms = []TileAtlas{}
 	}
 	if err := writeValue(tms); err != nil {
 		return nil, err
@@ -260,15 +265,21 @@ func (s Scene) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// TilemapLayer is one paint-tool surface inside a scene. Values are
+// TileAtlas is one paint-tool surface inside a scene. Values are
 // arbitrary integers: in pixel mode the value is a palette index, in
 // tile mode the value is an offset into the project's sprite catalog.
 //
-// v1 of idea #1 adds SpriteSheetRef, naming the SpriteAsset in the
-// project whose frames the layer's Grid values index into. Empty
-// SpriteSheetRef means the layer renders nothing (the renderer skips
-// unbound layers); omitempty so pre-v1 files round-trip.
-type TilemapLayer struct {
+// v1 of idea #1 added SpriteSheetRef, naming the SpriteAsset whose
+// frames the Grid values index into. v1 of idea #2 reframes the type
+// (renamed from TileAtlas) and reserves a cluster of additive
+// omitempty fields ahead of the v2 features they unlock: AnimationFps
+// (animated tiles), ParallaxFactor (parallax layers), SlopeFlags
+// (per-tile collision class), NESPaletteBlock (NES attribute-table
+// per-2x2-block palette). The reserved fields carry `pf:` tags so
+// the inspector renders them automatically the moment any one is
+// non-zero — no v1 UI walks them. The schema reservation is the
+// leverage move: future genres only have to populate the fields.
+type TileAtlas struct {
 	// Name is the editor-displayed layer label.
 	Name string `json:"name"`
 
@@ -290,6 +301,39 @@ type TilemapLayer struct {
 	// the bound sheet; ID 0 = empty). Empty when unbound; omitempty
 	// so pre-v1 files round-trip without spurious keys.
 	SpriteSheetRef string `json:"sprite_sheet_ref,omitempty"`
+
+	// AnimationFps is the per-atlas frame-cycling rate for animated
+	// tiles. v2 adds a frame-strip editor in the TileAtlas widget; v1
+	// reserves the field so adding the editor later is a pure UI
+	// change. Clamped on load by sanitizeReservedFields to the
+	// pf:"slider,0..30" declared range.
+	AnimationFps int `json:"animation_fps,omitempty" pf:"slider,0..30"`
+
+	// ParallaxFactor is the per-atlas camera-offset multiplier for
+	// parallax scrolling. v2 wires the factor into the camera
+	// transform; v1 reserves the field. Clamped on load by
+	// sanitizeReservedFields to the pf:"slider,0..2" declared range.
+	ParallaxFactor float64 `json:"parallax_factor,omitempty" pf:"slider,0.0..2.0"`
+
+	// SlopeFlags is a per-tile collision-class bitfield (indexed by
+	// tile ID; element 0 = TILE-0's flags). Reserved for v2 slope /
+	// per-tile collision; v1 has no UI walking it.
+	SlopeFlags []int `json:"slope_flags,omitempty"`
+
+	// NESPaletteBlock encodes the NES attribute-table palette index
+	// per 2x2 background block (16x16 px). Idea #3's plan owns the
+	// NES-correct preview that walks this field. v1 reserves the
+	// shape so idea #3 ships without a schema rev.
+	NESPaletteBlock [][]int `json:"nes_palette_block,omitempty"`
+
+	// Painter is a zero-size synthetic field whose sole purpose is to
+	// give the reflection inspector a hook point for the custom
+	// tilepainter widget. The struct{} value carries no data and the
+	// json:"-" tag keeps it out of the wire format; the pf:"widget="
+	// tag is consumed by pfcomponent.collectFields (which honors
+	// pf-tagged json:"-" fields specifically for this hook pattern)
+	// and dispatched by the inspector's WidgetCustom arm.
+	Painter struct{} `json:"-" pf:"widget=tilepainter"`
 }
 
 // AutoTileRule binds a 3×3 neighbor pattern to an output tile value.

@@ -11,9 +11,9 @@ import (
 
 // undoStackTestFixture mints a layer + painter + stack for the
 // undo/redo tests so each one starts from a known clean state.
-func undoStackTestFixture(t *testing.T) (*TilePainter, *pixelforge_project.TilemapLayer, *UndoStack) {
+func undoStackTestFixture(t *testing.T) (*TilePainter, *pixelforge_project.TileAtlas, *UndoStack) {
 	t.Helper()
-	layer := &pixelforge_project.TilemapLayer{
+	layer := &pixelforge_project.TileAtlas{
 		Name:  "undo-test",
 		TileW: 8,
 		TileH: 8,
@@ -52,7 +52,7 @@ func TestUndo_BrushStrokeReversed(t *testing.T) {
 func TestUndo_BucketFireReversed(t *testing.T) {
 	p := NewTilePainter()
 	stack := NewUndoStack()
-	layer := &pixelforge_project.TilemapLayer{
+	layer := &pixelforge_project.TileAtlas{
 		Name:  "undo-bucket",
 		TileW: 8,
 		TileH: 8,
@@ -109,7 +109,7 @@ func TestUndo_RedoAfterUndo(t *testing.T) {
 func TestUndo_StackCapped(t *testing.T) {
 	p := NewTilePainter()
 	stack := NewUndoStack()
-	layer := &pixelforge_project.TilemapLayer{
+	layer := &pixelforge_project.TileAtlas{
 		Name:  "cap-test",
 		TileW: 8,
 		TileH: 8,
@@ -163,6 +163,6 @@ func TestUndo_EmptyStackNoCrash(t *testing.T) {
 // tile) does not advance the stack. The painter relies on this.
 func TestUndo_PushDropsEmptyCommand(t *testing.T) {
 	stack := NewUndoStack()
-	stack.Push(&StrokeCommand{Layer: &pixelforge_project.TilemapLayer{}})
+	stack.Push(&StrokeCommand{Layer: &pixelforge_project.TileAtlas{}})
 	assert.Equal(t, 0, stack.Depth())
 }

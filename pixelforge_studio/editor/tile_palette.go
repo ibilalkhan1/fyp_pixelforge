@@ -2,7 +2,7 @@ package editor
 
 // tile_palette.go renders idea #1 v1's tile palette panel inside the
 // Scene workspace whenever the Paint tool is active. The panel lists
-// the tiles available on the active TilemapLayer's bound
+// the tiles available on the active TileAtlas's bound
 // SpriteSheetRef as clickable buttons; clicking one sets the painter's
 // ActiveTileID.
 //
@@ -76,7 +76,7 @@ func NewTilePalette(painter *TilePainter) *TilePalette {
 // Clicking a button writes ActiveTileID directly on the painter; no
 // MarkDirty fires because selecting a tile isn't a project mutation
 // (the project state changes only when the painter actually paints).
-func (p *TilePalette) Render(layer *pixelforge_project.TilemapLayer) {
+func (p *TilePalette) Render(layer *pixelforge_project.TileAtlas) {
 	if p == nil || p.Painter == nil {
 		return
 	}
@@ -119,7 +119,7 @@ func (p *TilePalette) Render(layer *pixelforge_project.TilemapLayer) {
 // sheet decoder doesn't exist yet; the signature accepts layer so a
 // future unit can swap in a sheet-derived count without changing
 // callers.
-func tilePaletteCount(_ *pixelforge_project.TilemapLayer) int {
+func tilePaletteCount(_ *pixelforge_project.TileAtlas) int {
 	return tilePaletteFallbackCount
 }
 
@@ -127,7 +127,7 @@ func tilePaletteCount(_ *pixelforge_project.TilemapLayer) int {
 // Designers need to see whether a sheet is bound, even if v1's
 // renderer can't actually display it yet — knowing "no sheet, paint
 // is just integer IDs" is itself useful context.
-func paletteHeader(layer *pixelforge_project.TilemapLayer) string {
+func paletteHeader(layer *pixelforge_project.TileAtlas) string {
 	if layer == nil {
 		return "Tile Palette (no layer)"
 	}

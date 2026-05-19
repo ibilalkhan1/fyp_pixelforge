@@ -40,7 +40,7 @@ func (engineDrawer) DrawSprite(sprite pixelforge.Sprite, dx, dy int) {
 // "malformed entries log + fall through to defaults" discipline. A
 // zero-width sheet skips every cell because no source rect can be
 // computed.
-func Render(layer *pixelforge_project.TilemapLayer, sheet *pixelforge.Canvas) {
+func Render(layer *pixelforge_project.TileAtlas, sheet *pixelforge.Canvas) {
 	RenderWith(layer, sheet, engineDrawer{})
 }
 
@@ -51,7 +51,7 @@ func Render(layer *pixelforge_project.TilemapLayer, sheet *pixelforge.Canvas) {
 // The split keeps Render's exported signature stable while leaving the
 // seam for hermetic tests. Both functions share their iteration logic
 // so a test that exercises RenderWith also covers Render.
-func RenderWith(layer *pixelforge_project.TilemapLayer, sheet *pixelforge.Canvas, drawer Drawer) {
+func RenderWith(layer *pixelforge_project.TileAtlas, sheet *pixelforge.Canvas, drawer Drawer) {
 	if layer == nil || sheet == nil || drawer == nil {
 		return
 	}

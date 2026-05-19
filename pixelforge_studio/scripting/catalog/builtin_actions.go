@@ -5,6 +5,7 @@ import (
 
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_audio"
 	pievent "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
+	piloop "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_loop"
 )
 
 func init() {
@@ -63,6 +64,19 @@ func buildPublishEvent(args map[string]any, ctx Context) (Effect, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Capture every arg except target/event as the payload. The
+	// recipe's authored arg map (sample name, item id, fuse ticks,
+	// etc.) survives to the subscriber so payload-bearing verbs
+	// don't need a blackboard round-trip. Shallow copy keeps the
+	// builder safe to call multiple times against the same args
+	// without mutating the catalog's defaults.
+	payload := make(map[string]any, len(args))
+	for k, v := range args {
+		if k == "target" || k == "event" {
+			continue
+		}
+		payload[k] = v
+	}
 	return func(_ any) {
 		if ctx == nil {
 			return
@@ -71,11 +85,21 @@ func buildPublishEvent(args map[string]any, ctx Context) (Effect, error) {
 		if raw == nil {
 			return
 		}
+		if t, ok := raw.(pievent.Target[*piloop.VerbEvent]); ok {
+			t.Publish(&piloop.VerbEvent{Topic: event, Args: payload})
+			return
+		}
+		// Back-compat: the legacy "loop.main" Target[string] path
+		// stays addressable so a recipe explicitly targeting an
+		// existing string-typed target still publishes its event
+		// name. Verb-recipe subscribers live exclusively on
+		// "verbs.bus" (Target[*VerbEvent]) so this fallback never
+		// fires for the catalog's own builtins.
 		if t, ok := raw.(pievent.Target[string]); ok {
 			t.Publish(event)
 			return
 		}
-		log.Printf("[catalog] publish_event: target %q is not a string Target", targetName)
+		log.Printf("[catalog] publish_event: target %q is neither a VerbEvent Target nor a string Target", targetName)
 	}, nil
 }
 

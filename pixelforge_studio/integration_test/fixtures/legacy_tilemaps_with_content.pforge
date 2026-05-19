@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "name": "LegacyTilemapsFixture",
+  "screen_width": 256,
+  "screen_height": 240,
+  "tps": 60,
+  "created_at": "2026-05-17T00:00:00Z",
+  "modified_at": "2026-05-17T00:00:00Z",
+  "palette": {},
+  "theme": {},
+  "sprites": [],
+  "audio": [],
+  "scenes": [
+    {
+      "id": "main",
+      "name": "Main",
+      "entities": [],
+      "tilemaps": [
+        {
+          "name": "ground",
+          "tile_w": 8,
+          "tile_h": 8,
+          "grid": [
+            [1, 1, 1],
+            [1, 2, 1],
+            [1, 1, 1]
+          ],
+          "auto_tile_rules": []
+        }
+      ]
+    }
+  ],
+  "behaviors": [],
+  "bindings": [],
+  "event_subscriptions": [],
+  "extension_hooks": []
+}

@@ -45,9 +45,18 @@ func TestGenerate_EmptyProject(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(pf), `"schema_version"`)
 
-	// No assets to copy.
-	_, err = os.Stat(filepath.Join(outDir, "assets"))
-	assert.True(t, os.IsNotExist(err))
+	// assets/ exists even on empty projects so the capsule
+	// template's //go:embed all:assets directive resolves. Only
+	// the sentinel .keep file lives there for a project with no
+	// sprites/audio.
+	assetsDir := filepath.Join(outDir, "assets")
+	info, err := os.Stat(assetsDir)
+	require.NoError(t, err)
+	assert.True(t, info.IsDir())
+	entries, err := os.ReadDir(assetsDir)
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "empty project's assets/ holds only the .keep sentinel")
+	assert.Equal(t, ".keep", entries[0].Name())
 
 	// Vendor strategy copied the engine.
 	_, err = os.Stat(filepath.Join(outDir, "vendor", "github.com", "ibilalkhan1", "fyp_pixelforge", "go.mod"))
@@ -179,7 +188,7 @@ func TestGenerate_DevReplaceWritesReplaceDirective(t *testing.T) {
 // scoped swap — keeps the public Generate API clean.
 func TestRenderMainGo_ParseValid(t *testing.T) {
 	p := pixelforge_project.NewProject("ok")
-	src, err := renderMainGo(p)
+	src, err := renderMainGo(p, "test/module")
 	require.NoError(t, err)
 	_, err = parser.ParseFile(token.NewFileSet(), "main.go", src, 0)
 	assert.NoError(t, err)

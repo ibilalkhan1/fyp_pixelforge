@@ -11,7 +11,7 @@ import (
 type AutoTileRuleSynth struct{}
 
 // NewAutoTileRuleSynth returns a fresh synth (it carries no per-call
-// state — rules live on the TilemapLayer).
+// state — rules live on the TileAtlas).
 func NewAutoTileRuleSynth() *AutoTileRuleSynth { return &AutoTileRuleSynth{} }
 
 // PaintCell is one tile-coordinate + value pair captured during a paint
@@ -24,18 +24,55 @@ type PaintCell struct {
 
 // RecordStroke analyses each painted cell's 3×3 neighborhood (on the
 // post-paint grid) and either increments an existing rule's count or
-// records the pattern as a new rule. Patterns whose count reaches the
-// promotion threshold (= 2 per the plan) become active and apply on
-// subsequent strokes.
-func (s *AutoTileRuleSynth) RecordStroke(layer *pixelforge_project.TilemapLayer, stroke []PaintCell) {
+// records the pattern as a new rule. Patterns whose count reaches
+// AutoTileActivationThreshold become active and apply on subsequent
+// strokes. Kept for callers that don't care about promotion events;
+// new code should prefer RecordStrokeWithPromotions.
+func (s *AutoTileRuleSynth) RecordStroke(layer *pixelforge_project.TileAtlas, stroke []PaintCell) {
+	_ = s.RecordStrokeWithPromotions(layer, stroke)
+}
+
+// PromotedRule names a rule that crossed AutoTileActivationThreshold
+// during the stroke just observed. The studio surfaces promotions
+// through the toast UX (idea #2 v1 U7) so designers can opt the rule
+// into session-active state. RuleIndex points into
+// layer.AutoTileRules at the time of the call; the slice never
+// shrinks within a session so the index is stable.
+type PromotedRule struct {
+	RuleIndex int
+	Pattern   [9]int
+	Output    int
+}
+
+// RecordStrokeWithPromotions runs the existing rule-counting logic
+// and additionally reports which rules crossed
+// AutoTileActivationThreshold during this stroke. A rule only
+// promotes once per session — subsequent strokes that touch the same
+// rule keep incrementing Count but do not re-surface.
+//
+// Implementation: capture each rule's pre-stroke Count, run the
+// observation, then collect rules whose Count crossed the threshold.
+// A pattern that lands at the threshold for the first time in a
+// stroke surfaces as one PromotedRule entry. New rules introduced by
+// this stroke that already happen to land at >= threshold (cannot
+// happen given the increment-by-one logic, but defensive) also count
+// as a promotion.
+func (s *AutoTileRuleSynth) RecordStrokeWithPromotions(layer *pixelforge_project.TileAtlas, stroke []PaintCell) []PromotedRule {
 	if layer == nil || len(stroke) == 0 {
-		return
+		return nil
 	}
-	// A stroke with only one cell does not produce a usable neighbor
-	// pattern — by the plan, single-click strokes don't synthesize.
 	if len(stroke) == 1 {
-		return
+		return nil
 	}
+
+	// Snapshot pre-stroke counts so the post-stroke diff identifies
+	// fresh promotions. The key is (Pattern, Output); we store the
+	// pre-stroke Count for each.
+	pre := make(map[ruleKey]int, len(layer.AutoTileRules))
+	for _, r := range layer.AutoTileRules {
+		pre[keyOf(r.Pattern, r.Output)] = r.Count
+	}
+
 	for _, cell := range stroke {
 		pattern := neighborhood(layer, cell.X, cell.Y)
 		// Skip if the cell has no painted neighbors at all (the 3×3
@@ -47,12 +84,36 @@ func (s *AutoTileRuleSynth) RecordStroke(layer *pixelforge_project.TilemapLayer,
 		}
 		s.recordRule(layer, pattern, cell.Value)
 	}
+
+	var promotions []PromotedRule
+	for i, r := range layer.AutoTileRules {
+		preCount := pre[keyOf(r.Pattern, r.Output)]
+		if preCount < AutoTileActivationThreshold &&
+			r.Count >= AutoTileActivationThreshold {
+			promotions = append(promotions, PromotedRule{
+				RuleIndex: i,
+				Pattern:   r.Pattern,
+				Output:    r.Output,
+			})
+		}
+	}
+	return promotions
 }
+
+// ruleKey identifies a rule by its content (Pattern + Output) so the
+// pre-/post-stroke diff doesn't depend on slice indices that may
+// shift if the synth ever reorders rules.
+type ruleKey struct {
+	Pattern [9]int
+	Output  int
+}
+
+func keyOf(p [9]int, out int) ruleKey { return ruleKey{Pattern: p, Output: out} }
 
 // Apply looks up an active rule for the given 3×3 pattern at (x, y)
 // and returns the synthesised tile + true. Returns (0, false) when no
 // rule matches.
-func (s *AutoTileRuleSynth) Apply(layer *pixelforge_project.TilemapLayer, x, y int) (int, bool) {
+func (s *AutoTileRuleSynth) Apply(layer *pixelforge_project.TileAtlas, x, y int) (int, bool) {
 	if layer == nil {
 		return 0, false
 	}
@@ -70,7 +131,7 @@ func (s *AutoTileRuleSynth) Apply(layer *pixelforge_project.TilemapLayer, x, y i
 
 // recordRule updates the count of an existing matching rule or
 // appends a new entry.
-func (s *AutoTileRuleSynth) recordRule(layer *pixelforge_project.TilemapLayer, pattern [9]int, output int) {
+func (s *AutoTileRuleSynth) recordRule(layer *pixelforge_project.TileAtlas, pattern [9]int, output int) {
 	for i := range layer.AutoTileRules {
 		if layer.AutoTileRules[i].Pattern == pattern && layer.AutoTileRules[i].Output == output {
 			layer.AutoTileRules[i].Count++
@@ -86,7 +147,7 @@ func (s *AutoTileRuleSynth) recordRule(layer *pixelforge_project.TilemapLayer, p
 
 // neighborhood returns the 3×3 window centered on (x, y) of layer.
 // Out-of-range cells are -1 (wildcard / missing).
-func neighborhood(layer *pixelforge_project.TilemapLayer, x, y int) [9]int {
+func neighborhood(layer *pixelforge_project.TileAtlas, x, y int) [9]int {
 	var out [9]int
 	for dy := -1; dy <= 1; dy++ {
 		for dx := -1; dx <= 1; dx++ {
@@ -97,7 +158,7 @@ func neighborhood(layer *pixelforge_project.TilemapLayer, x, y int) [9]int {
 }
 
 // cellAt returns the tile value at (x, y) or -1 outside the grid.
-func cellAt(layer *pixelforge_project.TilemapLayer, x, y int) int {
+func cellAt(layer *pixelforge_project.TileAtlas, x, y int) int {
 	if y < 0 || y >= len(layer.Grid) {
 		return -1
 	}
@@ -137,5 +198,9 @@ func patternHasNeighbors(p [9]int) bool {
 }
 
 // AutoTileActivationThreshold is the count a rule must reach before
-// the synth applies it. Per the plan, paint a pattern twice to teach.
-const AutoTileActivationThreshold = 2
+// the synth applies it. v1 of idea #2 aligns this with the
+// docs/solutions/auto-tile-heuristic.md invariant: the third
+// matching stroke is what promotes a pattern to active. Bumped from
+// 2 to 3 with U4 so the heuristic doc and the code agree on a
+// single source of truth.
+const AutoTileActivationThreshold = 3

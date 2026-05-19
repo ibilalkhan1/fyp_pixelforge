@@ -65,7 +65,7 @@ func TestPreview_TilemapRenders(t *testing.T) {
 		Width:  32, Height: 8,
 		FrameW: 8, FrameH: 8,
 	})
-	scene.Tilemaps = []pixelforge_project.TilemapLayer{{
+	scene.TileAtlases = []pixelforge_project.TileAtlas{{
 		Name:           "ground",
 		TileW:          8,
 		TileH:          8,
@@ -85,8 +85,8 @@ func TestPreview_TilemapRenders(t *testing.T) {
 	}
 
 	// Spy on the tilemap renderer.
-	var renderCalls []*pixelforge_project.TilemapLayer
-	g.tilemapRenderFn = func(layer *pixelforge_project.TilemapLayer, sheet *pixelforge.Canvas) {
+	var renderCalls []*pixelforge_project.TileAtlas
+	g.tilemapRenderFn = func(layer *pixelforge_project.TileAtlas, sheet *pixelforge.Canvas) {
 		renderCalls = append(renderCalls, layer)
 		assert.Same(t, &fakeSheet, sheet)
 	}
@@ -108,7 +108,7 @@ func TestPreview_TilemapSkippedWhenSheetUnresolved(t *testing.T) {
 	e := New()
 	scene := configureMarioScene(t, e)
 	e.project.Sprites = append(e.project.Sprites, pixelforge_project.SpriteAsset{Name: "tiles"})
-	scene.Tilemaps = []pixelforge_project.TilemapLayer{{
+	scene.TileAtlases = []pixelforge_project.TileAtlas{{
 		Name: "ground", TileW: 8, TileH: 8, SpriteSheetRef: "tiles",
 		Grid: [][]int{{1}},
 	}}
@@ -116,7 +116,7 @@ func TestPreview_TilemapSkippedWhenSheetUnresolved(t *testing.T) {
 	g := newSceneGame(e)
 	// Default sheetResolver is nil → resolveSheet returns (nil, false).
 	called := 0
-	g.tilemapRenderFn = func(_ *pixelforge_project.TilemapLayer, _ *pixelforge.Canvas) { called++ }
+	g.tilemapRenderFn = func(_ *pixelforge_project.TileAtlas, _ *pixelforge.Canvas) { called++ }
 	g.entityRenderFn = func(_ []pixelforge_project.Entity, _ []pixelforge_project.SpriteAsset) {}
 
 	g.drawWorld()
@@ -143,7 +143,7 @@ func TestPreview_EntitiesRender(t *testing.T) {
 		passedEntities = ents
 		assert.NotNil(t, sprites)
 	}
-	g.tilemapRenderFn = func(_ *pixelforge_project.TilemapLayer, _ *pixelforge.Canvas) {}
+	g.tilemapRenderFn = func(_ *pixelforge_project.TileAtlas, _ *pixelforge.Canvas) {}
 
 	g.drawWorld()
 

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>{{.GameName}}</title>
+<link rel="icon" type="image/png" href="data:image/png;base64,{{.FaviconBase64}}">
+<style>
+  body { margin: 0; background: #000; font-family: sans-serif; color: #fff; }
+  #splash {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: #000; cursor: pointer;
+  }
+  #splash h1 { font-size: 48px; margin: 0 0 12px 0; }
+  #splash p { font-size: 18px; opacity: 0.7; margin: 0; }
+  #splash button {
+    margin-top: 24px; padding: 8px 16px; background: transparent;
+    color: #fff; border: 1px solid #fff; cursor: pointer; font: inherit;
+  }
+  #splash button:hover { background: #fff; color: #000; }
+  #credits {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    display: none; flex-direction: column;
+    padding: 32px 48px; background: rgba(0,0,0,0.95);
+    overflow-y: auto; z-index: 10;
+  }
+  #credits.visible { display: flex; }
+  #credits h2 { margin-top: 0; }
+  #credits ul { list-style: none; padding: 0; }
+  #credits li { margin: 8px 0; }
+  #credits a { color: #88f; }
+  #credits-close { align-self: flex-end; }
+  canvas { display: block; }
+</style>
+</head><body>
+<div id="splash">
+  <h1>{{.GameName}}</h1>
+  <p>Click to start</p>
+  {{- if .Credits}}
+  <button id="credits-open" type="button">View Credits</button>
+  {{- end}}
+</div>
+{{- if .Credits}}
+<div id="credits">
+  <button id="credits-close" type="button">Close</button>
+  <h2>Credits</h2>
+  <ul>
+  {{- range .Credits}}
+    <li><strong>{{.Name}}</strong> — {{.License}} — {{.Author}}{{if .SourceURL}} (<a href="{{.SourceURL}}" target="_blank" rel="noopener">source</a>){{end}}</li>
+  {{- end}}
+  </ul>
+</div>
+{{- end}}
+<canvas id="screen" hidden></canvas>
+<script>{{.WasmExecJS}}</script>
+<script>
+const wasmBase64 = "{{.WasmBase64}}";
+{{- if .Credits}}
+const creditsOpen = document.getElementById("credits-open");
+const creditsClose = document.getElementById("credits-close");
+const creditsPane = document.getElementById("credits");
+if (creditsOpen) creditsOpen.addEventListener("click", (e) => {
+  e.stopPropagation();
+  creditsPane.classList.add("visible");
+});
+if (creditsClose) creditsClose.addEventListener("click", (e) => {
+  e.stopPropagation();
+  creditsPane.classList.remove("visible");
+});
+{{- end}}
+document.getElementById("splash").addEventListener("click", async (e) => {
+  // Credits-button clicks bubble; skip start when the click was
+  // on the credits open/close buttons.
+  if (e.target && (e.target.id === "credits-open" || e.target.id === "credits-close")) return;
+  document.getElementById("splash").style.display = "none";
+  document.getElementById("screen").hidden = false;
+  const bytes = Uint8Array.from(atob(wasmBase64), c => c.charCodeAt(0));
+  const go = new Go();
+  const result = await WebAssembly.instantiate(bytes, go.importObject);
+  go.run(result.instance);
+});
+</script>
+</body></html>

@@ -183,6 +183,16 @@ func TestVerbRecipes_AllBuiltinRecipesValid(t *testing.T) {
 			recipe, ok := catalog.LookupRecipe(name)
 			require.True(t, ok)
 
+			// Idea #6 v1 U10 introduces condition-style recipes
+			// (ConditionKind set, ActionKind empty). Skip the
+			// action-side validation for those — the predicate
+			// dispatch path tests cover them separately.
+			if recipe.IsCondition() {
+				require.Empty(t, recipe.ActionKind,
+					"condition recipe %q must leave ActionKind empty (mutually exclusive)", name)
+				return
+			}
+
 			require.NotEmpty(t, recipe.ActionKind, "recipe %q has empty ActionKind", name)
 			builder := catalog.LookupAction(recipe.ActionKind)
 			require.NotNil(t, builder, "recipe %q references unregistered action %q", name, recipe.ActionKind)
