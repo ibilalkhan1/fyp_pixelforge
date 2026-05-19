@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "game": "mario_proof",
+  "checkpoints": [
+    {
+      "tick": 0,
+      "frame_sha256": "6f77f852d070d718abceaf639531c5424c1abecf4b2b603c640169f3546be7a1",
+      "events_at_tick": [
+        {
+          "topic": "collision/solid_collide",
+          "args": {
+            "entity": "hero_1"
+          }
+        },
+        {
+          "topic": "motion/apply_gravity",
+          "args": {
+            "entity": "hero_1"
+          }
+        }
+      ]
+    },
+    {
+      "tick": 100,
+      "frame_sha256": "6f77f852d070d718abceaf639531c5424c1abecf4b2b603c640169f3546be7a1",
+      "events_at_tick": [
+        {
+          "topic": "collision/solid_collide",
+          "args": {
+            "entity": "hero_1"
+          }
+        },
+        {
+          "topic": "motion/apply_gravity",
+          "args": {
+            "entity": "hero_1"
+          }
+        }
+      ]
+    },
+    {
+      "tick": 299,
+      "frame_sha256": "6f77f852d070d718abceaf639531c5424c1abecf4b2b603c640169f3546be7a1",
+      "events_at_tick": [
+        {
+          "topic": "collision/solid_collide",
+          "args": {
+            "entity": "hero_1"
+          }
+        },
+        {
+          "topic": "motion/apply_gravity",
+          "args": {
+            "entity": "hero_1"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "game": "asteroids_proof",
+  "checkpoints": [
+    {
+      "tick": 0,
+      "frame_sha256": "6f77f852d070d718abceaf639531c5424c1abecf4b2b603c640169f3546be7a1",
+      "events_at_tick": [
+        {
+          "topic": "motion/screen_wrap",
+          "args": {
+            "entity": "ship_1"
+          }
+        }
+      ]
+    },
+    {
+      "tick": 100,
+      "frame_sha256": "6f77f852d070d718abceaf639531c5424c1abecf4b2b603c640169f3546be7a1",
+      "events_at_tick": [
+        {
+          "topic": "motion/apply_thrust",
+          "args": {
+            "direction": 270,
+            "entity": "ship_1",
+            "force": 0.5
+          }
+        },
+        {
+          "topic": "motion/screen_wrap",
+          "args": {
+            "entity": "ship_1"
+          }
+        }
+      ]
+    },
+    {
+      "tick": 299,
+      "frame_sha256": "6f77f852d070d718abceaf639531c5424c1abecf4b2b603c640169f3546be7a1",
+      "events_at_tick": [
+        {
+          "topic": "motion/screen_wrap",
+          "args": {
+            "entity": "ship_1"
+          }
+        }
+      ]
+    }
+  ]
+}

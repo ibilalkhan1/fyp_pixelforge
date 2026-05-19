@@ -32,6 +32,7 @@ import (
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/menus"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/palette"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/scripting"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/starterpack"
 )
 
 // studioAudioSampleRate is the sample rate the Paula backend
@@ -76,7 +77,17 @@ func main() {
 	// fully usable without a populated library.
 	var assetLib *assetlibrary.Library
 	if !skipAssetLibrary {
-		assetLib = assetlibrary.LaunchBackgroundBootstrap(context.Background())
+		// Plan-009 U20: the always-available CC0 starter pack is
+		// registered alongside the bootstrap so the Library
+		// workspace shows something useful even on the first
+		// offline launch (and before the network bootstrap lands).
+		assetLib = assetlibrary.LaunchBackgroundBootstrap(
+			context.Background(),
+			assetlibrary.EmbeddedPack{
+				Pack:   starterpack.StarterPack(),
+				Source: starterpack.StarterFS(),
+			},
+		)
 	}
 	_ = assetLib // U12 wires the workspace; for now we hold the handle
 
@@ -137,6 +148,42 @@ func main() {
 		// canonical Ctrl+5/6/7/8 series. Wired only when the
 		// asset-library bootstrap is active.
 		assetlibrary.RegisterWith(e, assetLib)
+
+		// Plan-009 U21: File → Open Example menu. Bind the
+		// library handle into the editor's OpenExampleSource
+		// seam so the menu lights up the moment the background
+		// bootstrap populates the manifest. The menu rebuilds
+		// each frame from Library.Examples(), so no manual
+		// invalidation is required when packs/examples land.
+		assetlibrary.AttachExampleSource(e, assetLib)
+	}
+
+	// Plan-009 U19 — wire the dispatcher's per-kind runners to the
+	// editor's import handlers. palette.RegisterWith already
+	// installed the editor-side PNGImportRunner; audiolib's
+	// RegisterWith installed the WAV + BGM runners. Here we adapt
+	// each handler's Import entry point into the dispatcher's
+	// Runner interface so drag-drop + the user-library watcher
+	// converge on a single ingest path.
+	if ingestDispatcher != nil {
+		if h := e.ImportHandler(); h != nil {
+			ingestDispatcher.SetSpriteRunner(ingest.RunnerFunc(func(path string) error {
+				_, err := h.Import(path)
+				return err
+			}))
+		}
+		if h := e.AudioImportHandler(); h != nil {
+			ingestDispatcher.SetSFXRunner(ingest.RunnerFunc(func(path string) error {
+				_, err := h.Import(path)
+				return err
+			}))
+		}
+		if h := e.BGMImportHandler(); h != nil {
+			ingestDispatcher.SetBGMRunner(ingest.RunnerFunc(func(path string) error {
+				_, err := h.Import(path)
+				return err
+			}))
+		}
 	}
 
 	// Drag-drop poller — drains ebiten.DroppedFiles each tick

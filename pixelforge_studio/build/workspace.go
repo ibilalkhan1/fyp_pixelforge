@@ -183,7 +183,12 @@ func buttonLabelFor(t buildpipeline.Target) string {
 	return "Build " + t.DisplayName()
 }
 
-// statusLabel composes the per-target status pill text.
+// statusLabel composes the per-target status pill text. WASM
+// builds also carry a WASMSizeReport on PhaseDone — the label
+// appends "(18.0MB, gzip 6.4MB) [warn]" / "[error]" so the
+// designer sees the cost at a glance. The bracketed suffix is
+// the UI-facing severity indicator; downstream toast renderers
+// can map it to a colour pill.
 func statusLabel(s buildpipeline.BuildStatus) string {
 	switch s.Phase {
 	case buildpipeline.PhaseQueued:
@@ -195,7 +200,7 @@ func statusLabel(s buildpipeline.BuildStatus) string {
 	case buildpipeline.PhasePackaging:
 		return "packaging..."
 	case buildpipeline.PhaseDone:
-		return "done"
+		return "done" + wasmSizeSuffix(s.SizeReport)
 	case buildpipeline.PhaseFailed:
 		if s.Err != nil {
 			return "failed: " + s.Err.Error()
@@ -203,4 +208,22 @@ func statusLabel(s buildpipeline.BuildStatus) string {
 		return "failed"
 	}
 	return "—"
+}
+
+// wasmSizeSuffix renders the size suffix the success toast
+// appends to "done" for WASM builds. Returns an empty string for
+// non-WASM builds (nil report). Adds a "[warn]" or "[error]"
+// tag when the report crosses a threshold.
+func wasmSizeSuffix(r *buildpipeline.WASMSizeReport) string {
+	if r == nil {
+		return ""
+	}
+	suffix := " " + r.Format()
+	switch r.Severity() {
+	case buildpipeline.WASMSeverityWarn:
+		suffix += " [warn]"
+	case buildpipeline.WASMSeverityError:
+		suffix += " [error]"
+	}
+	return suffix
 }

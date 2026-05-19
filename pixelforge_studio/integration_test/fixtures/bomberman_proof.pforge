@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "name": "bomberman_proof",
+  "screen_width": 320,
+  "screen_height": 180,
+  "tps": 60,
+  "created_at": "2026-05-19T00:00:00Z",
+  "modified_at": "2026-05-19T00:00:00Z",
+  "palette": {},
+  "theme": {
+    "background_slot": 1,
+    "panel_slot": 2,
+    "panel_header_slot": 5,
+    "text_slot": 7,
+    "text_dim_slot": 6,
+    "accent_slot": 12,
+    "warning_slot": 9,
+    "font_name": "cofont"
+  },
+  "physics_preset": "bomberman",
+  "sprites": [
+    {
+      "name": "bomber",
+      "relative_path": "sprites/bomber.png",
+      "width": 16,
+      "height": 16,
+      "frame_w": 16,
+      "frame_h": 16,
+      "origin_x": 8,
+      "origin_y": 8,
+      "animations": []
+    },
+    {
+      "name": "bomb",
+      "relative_path": "sprites/bomb.png",
+      "width": 16,
+      "height": 16,
+      "frame_w": 16,
+      "frame_h": 16,
+      "origin_x": 8,
+      "origin_y": 8,
+      "animations": []
+    },
+    {
+      "name": "wall_tile",
+      "relative_path": "sprites/wall_tile.png",
+      "width": 16,
+      "height": 16,
+      "frame_w": 16,
+      "frame_h": 16,
+      "origin_x": 0,
+      "origin_y": 0,
+      "animations": []
+    },
+    {
+      "name": "breakable_tile",
+      "relative_path": "sprites/breakable_tile.png",
+      "width": 16,
+      "height": 16,
+      "frame_w": 16,
+      "frame_h": 16,
+      "origin_x": 0,
+      "origin_y": 0,
+      "animations": []
+    }
+  ],
+  "audio": [],
+  "scenes": [
+    {
+      "id": "arena",
+      "name": "arena",
+      "entities": [
+        {
+          "id": "hero_1",
+          "name": "Bomber",
+          "position": {"x": 16, "y": 16, "z": 0},
+          "components": [
+            {"type": "Sprite", "values": {"sprite": "bomber"}}
+          ],
+          "archetype": "Player"
+        },
+        {
+          "id": "bomb_1",
+          "name": "Bomb",
+          "position": {"x": 80, "y": 80, "z": 0},
+          "components": [
+            {"type": "Sprite", "values": {"sprite": "bomb"}},
+            {"type": "BombTimer", "values": {"ticks_remaining": 120, "range": 2, "grid_x": 5, "grid_y": 5}}
+          ],
+          "archetype": "World"
+        },
+        {
+          "id": "breakable_1",
+          "name": "BreakableSouth",
+          "position": {"x": 80, "y": 96, "z": 0},
+          "components": [
+            {"type": "Sprite", "values": {"sprite": "breakable_tile"}},
+            {"type": "health", "values": {"hp": 1, "max_hp": 1}}
+          ],
+          "archetype": "World"
+        },
+        {
+          "id": "breakable_2",
+          "name": "BreakableEast",
+          "position": {"x": 96, "y": 80, "z": 0},
+          "components": [
+            {"type": "Sprite", "values": {"sprite": "breakable_tile"}},
+            {"type": "health", "values": {"hp": 1, "max_hp": 1}}
+          ],
+          "archetype": "World"
+        },
+        {
+          "id": "breakable_3",
+          "name": "BreakableWest",
+          "position": {"x": 64, "y": 80, "z": 0},
+          "components": [
+            {"type": "Sprite", "values": {"sprite": "breakable_tile"}},
+            {"type": "health", "values": {"hp": 1, "max_hp": 1}}
+          ],
+          "archetype": "World"
+        }
+      ],
+      "tile_atlases": [
+        {
+          "name": "arena",
+          "tile_w": 16,
+          "tile_h": 16,
+          "grid": [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,1,0,1,0,1,0,1,0,1,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,1,0,1,0,1,0,1,0,1,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,1,0,1,0,1,0,1,0,1,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,1,0,1,0,1,0,1,0,1,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1]
+          ],
+          "auto_tile_rules": [],
+          "sprite_sheet_ref": "wall_tile"
+        }
+      ],
+      "grid_width_screens": 1,
+      "grid_height_screens": 1,
+      "spawn_tile": {"col": 1, "row": 1},
+      "default_tile_id": 0
+    }
+  ],
+  "behaviors": [],
+  "bindings": [],
+  "event_subscriptions": [],
+  "extension_hooks": []
+}

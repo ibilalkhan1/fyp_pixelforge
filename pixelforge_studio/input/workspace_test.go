@@ -3,6 +3,7 @@ package input
 import (
 	"testing"
 
+	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -363,6 +364,119 @@ func TestWorkspace_NilEditor_NoPanic(t *testing.T) {
 	w2 := NewWorkspace()
 	w2.RestoreDefaults(nil)
 	assert.False(t, w2.SetBindingKeyboard(nil, pixelforge_input.IntentJump, "Z"))
+}
+
+// TestWorkspace_BeginCapture_TransitionsToWaiting pins the workspace-
+// level entry point: clicking the Capture button (mirrored as
+// BeginCapture) flips CaptureActive() and exposes the intent via
+// CapturingIntent().
+func TestWorkspace_BeginCapture_TransitionsToWaiting(t *testing.T) {
+	_, _, cleanup := withRecompileSpy(t)
+	defer cleanup()
+
+	w := NewWorkspace()
+	assert.False(t, w.CaptureActive())
+
+	w.BeginCapture(pixelforge_input.IntentJump)
+	assert.True(t, w.CaptureActive(), "BeginCapture should flip CaptureActive")
+	assert.Equal(t, pixelforge_input.IntentJump, w.CapturingIntent())
+}
+
+// TestWorkspace_SubmitCaptureKey_RecordsBinding is the AE8 happy-path
+// integration: open workspace → click Capture next to jump → press
+// Space → binding records as " " in workspace.
+func TestWorkspace_SubmitCaptureKey_RecordsBinding(t *testing.T) {
+	_, _, cleanup := withRecompileSpy(t)
+	defer cleanup()
+
+	e := editor.New()
+	w := RegisterWith(e)
+	e.Project().InputMap = pixelforge_project.DefaultInputMap()
+	e.ClearDirty()
+
+	w.BeginCapture(pixelforge_input.IntentJump)
+	require.True(t, w.CaptureActive())
+
+	ok := w.SubmitCaptureKey(e, ebiten.KeySpace)
+	assert.True(t, ok, "SubmitCaptureKey on a non-modifier key should return true")
+	assert.False(t, w.CaptureActive(), "capture clears after binding")
+	assert.True(t, e.IsDirty(), "capture-completed binding flips dirty bit (AE8)")
+
+	got := findBinding(t, e.Project(), pixelforge_input.IntentJump)
+	require.Len(t, got.Keyboard, 1)
+	assert.Equal(t, " ", got.Keyboard[0], "AE8: Space press records as the U3 \" \" value")
+}
+
+// TestWorkspace_SubmitCaptureKey_EscCancels covers the Esc-cancel
+// integration: capture is dismissed without mutating the project.
+func TestWorkspace_SubmitCaptureKey_EscCancels(t *testing.T) {
+	_, _, cleanup := withRecompileSpy(t)
+	defer cleanup()
+
+	e := editor.New()
+	w := RegisterWith(e)
+	e.Project().InputMap = pixelforge_project.DefaultInputMap()
+	original := findBinding(t, e.Project(), pixelforge_input.IntentJump)
+	e.ClearDirty()
+
+	w.BeginCapture(pixelforge_input.IntentJump)
+	ok := w.SubmitCaptureKey(e, ebiten.KeyEscape)
+	assert.False(t, ok, "Esc should not capture")
+	assert.False(t, w.CaptureActive(), "Esc transitions out of Waiting")
+	assert.False(t, e.IsDirty(), "Esc cancel should not flip dirty bit")
+
+	after := findBinding(t, e.Project(), pixelforge_input.IntentJump)
+	assert.Equal(t, original.Keyboard, after.Keyboard, "Esc must not mutate the binding")
+}
+
+// TestWorkspace_SubmitCaptureKey_ModifierStaysActive enforces the
+// design-lens finding via the workspace seam.
+func TestWorkspace_SubmitCaptureKey_ModifierStaysActive(t *testing.T) {
+	_, _, cleanup := withRecompileSpy(t)
+	defer cleanup()
+
+	e := editor.New()
+	w := RegisterWith(e)
+	e.Project().InputMap = pixelforge_project.DefaultInputMap()
+	e.ClearDirty()
+
+	w.BeginCapture(pixelforge_input.IntentJump)
+	ok := w.SubmitCaptureKey(e, ebiten.KeyShiftLeft)
+	assert.False(t, ok, "modifier-only key should not capture")
+	assert.True(t, w.CaptureActive(), "capture should remain Waiting after a modifier")
+	assert.Equal(t, pixelforge_input.IntentJump, w.CapturingIntent())
+	assert.False(t, e.IsDirty(), "modifier-only press should not flip dirty bit")
+}
+
+// TestWorkspace_BeginCapture_SameIntentTogglesOff documents the
+// "click Capture twice to cancel" affordance at the workspace seam.
+func TestWorkspace_BeginCapture_SameIntentTogglesOff(t *testing.T) {
+	w := NewWorkspace()
+	w.BeginCapture(pixelforge_input.IntentJump)
+	require.True(t, w.CaptureActive())
+	w.BeginCapture(pixelforge_input.IntentJump)
+	assert.False(t, w.CaptureActive(), "second click on same intent should cancel")
+}
+
+// TestWorkspace_CancelCapture_ResetsState gives the workspace's
+// explicit cancel hook a smoke test.
+func TestWorkspace_CancelCapture_ResetsState(t *testing.T) {
+	w := NewWorkspace()
+	w.BeginCapture(pixelforge_input.IntentJump)
+	w.CancelCapture()
+	assert.False(t, w.CaptureActive())
+	assert.Empty(t, w.CapturingIntent())
+}
+
+// TestWorkspace_NilSafe_CaptureMethods extends the existing nil-editor
+// graceful degradation to the new capture methods.
+func TestWorkspace_NilSafe_CaptureMethods(t *testing.T) {
+	var w *Workspace
+	w.BeginCapture("x") // must not panic
+	w.CancelCapture()   // must not panic
+	assert.False(t, w.CaptureActive())
+	assert.Empty(t, w.CapturingIntent())
+	assert.False(t, w.SubmitCaptureKey(nil, ebiten.KeySpace))
 }
 
 // TestWorkspace_F4Flow_RemapTakesEffectWithoutRestart is the AE-level

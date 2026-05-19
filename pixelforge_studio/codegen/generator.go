@@ -466,3 +466,28 @@ func copyOne(src, dst string) error {
 func encodeProject(p *pixelforge_project.Project) ([]byte, error) {
 	return pixelforge_project.Encode(p)
 }
+
+// EncodeCart returns the byte payload the universal pixelforge-player
+// reads via pixelforge_cart.ReadSelf. The buildpipeline's host +
+// WASM builders call this in place of the legacy Generate-then-build
+// path: instead of emitting a per-cart main.go + go.mod + go build,
+// they take these bytes and pixelforge_cart.Append them onto a
+// pre-built player binary (host) or inline them as base64 into the
+// WASM HTML shell.
+//
+// Phase 1 (U3): EncodeCart returns the raw pixelforge_project.Encode
+// bytes — the same JSON the .pforge file on disk carries. Asset
+// bundling (sprites/, audio/) inside the cart payload is deferred
+// to a later unit; for now assets ride as referenced relative paths
+// inside the JSON and the player resolves them against an
+// asset-fs override the studio installer or shipped artifact
+// provides. The deferral keeps U3 focused on the build-pipeline
+// pivot rather than the wire-format decision (ZIP wrap vs
+// inline-base64); see plan-009's Approach section for the wire-
+// format trade-off discussion.
+func EncodeCart(p *pixelforge_project.Project) ([]byte, error) {
+	if p == nil {
+		return nil, errors.New("codegen: EncodeCart: project is nil")
+	}
+	return pixelforge_project.Encode(p)
+}

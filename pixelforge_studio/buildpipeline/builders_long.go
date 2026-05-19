@@ -1,7 +1,17 @@
 // builders_long.go is the //go:build long real-build path. Built
 // with `-tags=long` the studio (and the long-tag CI job) replaces
 // the placeholder scaffolds in builders.go with builders that
-// actually shell out to `go build` and produce runnable artifacts.
+// actually produce runnable artifacts.
+//
+// Plan-009 U3 rewired both the host and WASM builders: instead of
+// emitting a per-cart main.go + invoking `go build`, they call
+// codegen.EncodeCart to produce the cart payload bytes, locate the
+// matching pre-built pixelforge-player binary via the discovery
+// chain in builders_long_helpers.go, and either append the cart
+// onto a copy of the player (host) or inline both the WASM module
+// and the cart's base64 into the HTML shell (WASM target). The
+// effect: no Go toolchain is required at user-build time when the
+// studio installer shipped with embedded player binaries.
 //
 // Production callers — the studio's Build button — apply the tag
 // automatically so users don't need to know about it. The default
@@ -14,20 +24,23 @@ package buildpipeline
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"time"
 
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_cart"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/codegen"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/modulepath"
 )
 
 // codegenOptionsFor builds codegen.Options carrying the engine
 // override fields the long builders care about. Maps the build-
-// pipeline-side ModuleStrategy enum to modulepath.Strategy.
+// pipeline-side ModuleStrategy enum to modulepath.Strategy. The
+// host + WASM builders use this only for the sourceLongBuilder
+// (the "Source" target still emits a per-cart Go tree); the
+// universal-player path no longer touches codegen.Options.
 func codegenOptionsFor(req BuildRequest, projectSourcePath string) codegen.Options {
 	opts := codegen.Options{
 		Force:             true,
@@ -46,12 +59,13 @@ func codegenOptionsFor(req BuildRequest, projectSourcePath string) codegen.Optio
 	return opts
 }
 
-// hostLongBuilder runs the full pipeline for the host's native
-// target: codegen.Generate → (Windows only) BuildWindowsSyso →
-// `go build -tags=long -o <out>` from the generated outDir. On
-// success, the resulting binary is copied/renamed into
-// req.OutputDir/host/<gameName><ext> so the orchestrator's
-// reported OutputPath is stable across platforms.
+// hostLongBuilder runs the universal-player + cart-append pipeline
+// for the host's native target: codegen.EncodeCart → resolve player
+// binary via the discovery chain (explicit override / cache hit /
+// embedded / developer go-build) → (Windows only) BuildWindowsSyso
+// onto a player-binary copy → (macOS only) materialise the .app
+// skeleton → pixelforge_cart.Append. Output lands at
+// req.OutputDir/host/<gameName>[.exe|.app].
 type hostLongBuilder struct{}
 
 func (b *hostLongBuilder) Build(ctx context.Context, req BuildRequest, emit func(BuildStatus)) error {
@@ -62,37 +76,30 @@ func (b *hostLongBuilder) Build(ctx context.Context, req BuildRequest, emit func
 		return err
 	}
 
-	tempDir, err := os.MkdirTemp("", "pixelforge-host-build-*")
+	cartBytes, err := codegen.EncodeCart(req.Project)
 	if err != nil {
-		return fmt.Errorf("hostLongBuilder: mkdir temp: %w", err)
-	}
-	// tempDir is preserved on failure for post-mortem inspection
-	// (the failing source is more useful than a clean tree). On
-	// success the orchestrator's outer goroutine doesn't currently
-	// sweep it; a future polish unit can wire that in if disk
-	// usage becomes an issue.
-
-	if _, err := codegen.Generate(req.Project, tempDir, codegenOptionsFor(req, req.ProjectPath)); err != nil {
-		return fmt.Errorf("hostLongBuilder: generate: %w", err)
-	}
-
-	// Windows host: drop the .syso so the Go linker picks up the
-	// brand icon when `go build` runs.
-	if target == TargetWindows {
-		version := ""
-		if req.Project != nil {
-			version = req.Project.Version
-		}
-		gameName := projectGameName(req.Project)
-		if err := BuildWindowsSyso(tempDir, gameName, version, "amd64"); err != nil {
-			return fmt.Errorf("hostLongBuilder: windows syso: %w", err)
-		}
+		return fmt.Errorf("hostLongBuilder: encode cart: %w", err)
 	}
 
 	if err := contextCheck(ctx); err != nil {
 		return err
 	}
 	emit(BuildStatus{Phase: PhaseCompiling, BuiltAt: time.Now()})
+
+	// "Compiling" now covers the player-binary discovery: cache
+	// hits + embed extracts are fast; the developer `go build`
+	// fallback is slow. Either way the user sees the phase fire,
+	// preserving the orchestrator's UX contract.
+	resolved, err := resolvePlayerBinary(ctx, req, target)
+	if err != nil {
+		return fmt.Errorf("hostLongBuilder: resolve player binary: %w", err)
+	}
+	defer resolved.Cleanup()
+
+	if err := contextCheck(ctx); err != nil {
+		return err
+	}
+	emit(BuildStatus{Phase: PhasePackaging, BuiltAt: time.Now()})
 
 	outDir := filepath.Join(req.OutputDir, "host")
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
@@ -101,36 +108,40 @@ func (b *hostLongBuilder) Build(ctx context.Context, req BuildRequest, emit func
 	gameName := projectGameName(req.Project)
 	outPath := filepath.Join(outDir, gameName+artifactExt(target))
 
-	// macOS .app packaging keeps the binary at <name>.app/Contents/MacOS/<name>.
-	binaryPath := outPath
+	// Windows: bake the icon .syso into a staged copy of the player
+	// binary BEFORE appending the cart. The Go linker already ran
+	// when the player binary was built upstream; the .syso path
+	// from plan-008 needs the resource to be visible at link time,
+	// which means we have to embed it via a different mechanism
+	// for an already-linked binary. For U3 we re-link the player
+	// via go build when the target is Windows — slower than the
+	// pure-copy path but produces a branded .exe. Future polish
+	// could swap to a post-link resource injector.
+	playerPath := resolved.Path
+	if target == TargetWindows {
+		relinked, cleanup, relinkErr := relinkWindowsPlayerWithIcon(ctx, req)
+		if relinkErr != nil {
+			return fmt.Errorf("hostLongBuilder: windows relink with icon: %w", relinkErr)
+		}
+		defer cleanup()
+		playerPath = relinked
+	}
+
+	// macOS .app bundle: append into the .app directory and let
+	// pixelforge_cart.Append resolve the inner Mach-O path
+	// (Foo.app/Contents/MacOS/Foo). The .icns + Info.plist drop in
+	// AFTER the append so codesign sees a complete bundle.
+	appendTarget := outPath
 	if target == TargetMacOS {
-		binaryPath = filepath.Join(outDir, gameName+".app", "Contents", "MacOS", gameName)
-		if err := os.MkdirAll(filepath.Dir(binaryPath), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Join(outDir, gameName+".app", "Contents", "MacOS"), 0o755); err != nil {
 			return fmt.Errorf("hostLongBuilder: mkdir .app: %w", err)
 		}
 	}
 
-	cmd, err := NewBuildCommand(ctx, target, "build", "-tags=long", "-o", binaryPath, ".")
-	if err != nil {
-		return fmt.Errorf("hostLongBuilder: build command: %w", err)
-	}
-	cmd.Dir = tempDir
-	combined, runErr := cmd.CombinedOutput()
-	if runErr != nil {
-		if errors.Is(ctx.Err(), context.Canceled) {
-			return ErrBuildCancelled
-		}
-		return fmt.Errorf("hostLongBuilder: go build failed: %w\noutput:\n%s", runErr, string(combined))
+	if err := pixelforge_cart.Append(playerPath, cartBytes, appendTarget); err != nil {
+		return fmt.Errorf("hostLongBuilder: append cart: %w", err)
 	}
 
-	if err := contextCheck(ctx); err != nil {
-		return err
-	}
-	emit(BuildStatus{Phase: PhasePackaging, BuiltAt: time.Now()})
-
-	// macOS finalisation: drop the .icns into Contents/Resources/
-	// and a minimal Info.plist next to it so Finder shows the
-	// branded icon.
 	if target == TargetMacOS {
 		resourcesDir := filepath.Join(outDir, gameName+".app", "Contents", "Resources")
 		if err := os.MkdirAll(resourcesDir, 0o755); err != nil {
@@ -143,12 +154,15 @@ func (b *hostLongBuilder) Build(ctx context.Context, req BuildRequest, emit func
 		if err := os.WriteFile(filepath.Join(resourcesDir, "AppIcon.icns"), icnsBytes, 0o644); err != nil {
 			return fmt.Errorf("hostLongBuilder: write AppIcon.icns: %w", err)
 		}
+		version := ""
+		if req.Project != nil {
+			version = req.Project.Version
+		}
 		plistPath := filepath.Join(outDir, gameName+".app", "Contents", "Info.plist")
-		plist := macInfoPlist(gameName, req.Project.Version)
+		plist := macInfoPlist(gameName, version)
 		if err := os.WriteFile(plistPath, []byte(plist), 0o644); err != nil {
 			return fmt.Errorf("hostLongBuilder: write Info.plist: %w", err)
 		}
-		// outPath for macOS is the .app bundle directory.
 	}
 
 	emit(BuildStatus{
@@ -159,9 +173,55 @@ func (b *hostLongBuilder) Build(ctx context.Context, req BuildRequest, emit func
 	return nil
 }
 
-// wasmLongBuilder runs codegen.Generate, GOOS=js GOARCH=wasm
-// go build, then BundleWASM to wrap the resulting .wasm into a
-// single self-contained .html.
+// relinkWindowsPlayerWithIcon is the U3 stopgap for the Windows
+// icon problem: the resolved player binary is already linked, so
+// dropping a .syso next to it doesn't change the .exe's embedded
+// resources. We invoke `go build -tags=long` against
+// cmd/pixelforge-player WITH a fresh syso in the source tree so
+// the Go linker picks it up. Returns the relinked path + a
+// cleanup func the caller defers.
+//
+// This costs the no-Go-user-on-Windows path a Go toolchain
+// dependency at build time. A follow-up unit can swap to a
+// post-link resource injector (e.g. github.com/akavel/rsrc).
+func relinkWindowsPlayerWithIcon(ctx context.Context, req BuildRequest) (string, func(), error) {
+	tmpDir, err := os.MkdirTemp("", "pixelforge-windows-relink-*")
+	if err != nil {
+		return "", noopCleanup, fmt.Errorf("relinkWindowsPlayerWithIcon: mkdir temp: %w", err)
+	}
+	cleanup := func() { _ = os.RemoveAll(tmpDir) }
+
+	gameName := projectGameName(req.Project)
+	version := ""
+	if req.Project != nil {
+		version = req.Project.Version
+	}
+	if err := BuildWindowsSyso(tmpDir, gameName, version, "amd64"); err != nil {
+		cleanup()
+		return "", noopCleanup, fmt.Errorf("relinkWindowsPlayerWithIcon: build syso: %w", err)
+	}
+
+	outPath := filepath.Join(tmpDir, "pixelforge-player.exe")
+	cmd, err := NewBuildCommand(ctx, TargetWindows, "build", "-tags=long", "-o", outPath,
+		"github.com/ibilalkhan1/fyp_pixelforge/cmd/pixelforge-player")
+	if err != nil {
+		cleanup()
+		return "", noopCleanup, fmt.Errorf("relinkWindowsPlayerWithIcon: build command: %w", err)
+	}
+	combined, runErr := cmd.CombinedOutput()
+	if runErr != nil {
+		cleanup()
+		return "", noopCleanup, fmt.Errorf("relinkWindowsPlayerWithIcon: go build failed: %w\noutput:\n%s", runErr, string(combined))
+	}
+	return outPath, cleanup, nil
+}
+
+// wasmLongBuilder runs the universal-player + inline-cart pipeline
+// for the WASM target: codegen.EncodeCart → resolve the GOOS=js
+// player WASM module via the discovery chain → BundleWASM inlines
+// both the WASM and the cart base64 (plus the click-to-start
+// splash that wires window.__pixelforgeCart before go.run) into a
+// single self-contained .html file.
 type wasmLongBuilder struct{}
 
 func (b *wasmLongBuilder) Build(ctx context.Context, req BuildRequest, emit func(BuildStatus)) error {
@@ -170,12 +230,9 @@ func (b *wasmLongBuilder) Build(ctx context.Context, req BuildRequest, emit func
 		return err
 	}
 
-	tempDir, err := os.MkdirTemp("", "pixelforge-wasm-build-*")
+	cartBytes, err := codegen.EncodeCart(req.Project)
 	if err != nil {
-		return fmt.Errorf("wasmLongBuilder: mkdir temp: %w", err)
-	}
-	if _, err := codegen.Generate(req.Project, tempDir, codegenOptionsFor(req, req.ProjectPath)); err != nil {
-		return fmt.Errorf("wasmLongBuilder: generate: %w", err)
+		return fmt.Errorf("wasmLongBuilder: encode cart: %w", err)
 	}
 
 	if err := contextCheck(ctx); err != nil {
@@ -183,19 +240,11 @@ func (b *wasmLongBuilder) Build(ctx context.Context, req BuildRequest, emit func
 	}
 	emit(BuildStatus{Phase: PhaseCompiling, BuiltAt: time.Now()})
 
-	wasmTempPath := filepath.Join(tempDir, "game.wasm")
-	cmd, err := NewBuildCommand(ctx, TargetWASM, "build", "-tags=long", "-o", wasmTempPath, ".")
+	resolved, err := resolvePlayerBinary(ctx, req, TargetWASM)
 	if err != nil {
-		return fmt.Errorf("wasmLongBuilder: build command: %w", err)
+		return fmt.Errorf("wasmLongBuilder: resolve wasm player: %w", err)
 	}
-	cmd.Dir = tempDir
-	combined, runErr := cmd.CombinedOutput()
-	if runErr != nil {
-		if errors.Is(ctx.Err(), context.Canceled) {
-			return ErrBuildCancelled
-		}
-		return fmt.Errorf("wasmLongBuilder: go build failed: %w\noutput:\n%s", runErr, string(combined))
-	}
+	defer resolved.Cleanup()
 
 	if err := contextCheck(ctx); err != nil {
 		return err
@@ -217,14 +266,33 @@ func (b *wasmLongBuilder) Build(ctx context.Context, req BuildRequest, emit func
 	}
 	gameName := projectGameName(req.Project)
 	outPath := filepath.Join(outDir, gameName+".html")
-	if err := BundleWASM(wasmTempPath, wasmExecPath, gameName, favicon, outPath, req.Credits); err != nil {
+
+	// Plan-009 U23: BundleWASMWithSize also writes the
+	// gzip-compressed sibling, optionally pre-optimises via
+	// wasm-opt, and returns raw + gzip sizes so the toast can
+	// name the cost. wasm-opt is silently skipped when absent;
+	// gzip is always written.
+	report, err := BundleWASMWithSize(
+		resolved.Path, wasmExecPath, cartBytes, gameName, favicon,
+		outPath, req.Credits,
+		BundleWASMOptions{WriteGzipSibling: true, OptimizeWasm: true},
+	)
+	if err != nil {
 		return fmt.Errorf("wasmLongBuilder: bundle: %w", err)
+	}
+
+	// Hard-cap gate: 30MB raw HTML fails the build unless the
+	// caller flipped ForceLargeWASM. The error carries the
+	// report so the failure toast names the exact byte count.
+	if report.ExceededError() && !req.ForceLargeWASM {
+		return &WASMTooLargeError{Report: report}
 	}
 
 	emit(BuildStatus{
 		Phase:      PhaseDone,
 		OutputPath: outPath,
 		BuiltAt:    time.Now(),
+		SizeReport: &report,
 	})
 	return nil
 }
@@ -284,6 +352,9 @@ func init() {
 
 // sourceLongBuilder is the codegen-only path. No `go build`
 // invocation — the output is the generated source tree itself.
+// Preserved for users who want the editable Go source from the
+// "Source" target; the host + WASM builders no longer touch this
+// codepath.
 type sourceLongBuilder struct{}
 
 func (b *sourceLongBuilder) Build(ctx context.Context, req BuildRequest, emit func(BuildStatus)) error {

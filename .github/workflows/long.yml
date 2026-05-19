@@ -1,0 +1,172 @@
+name: long
+
+# Plan-009 U25: long-tag CI matrix + capability-matrix regeneration.
+#
+# This workflow runs the long-tag proof-test suite on linux/amd64 +
+# macos/arm64 per push to main + on every PR. Each leg uploads its
+# `go test -json` output as a workflow artifact; a downstream
+# capability-matrix job downloads both legs + regenerates
+# docs/reference-games-capability-matrix.md, which is uploaded as a
+# separate artifact (NOT committed back to the repo per scope-guardian
+# finding F-007).
+#
+# The verb-catalog-check job gates merges on docs/verb-catalog.md being
+# current — plan-009 U24's deferred check lands here.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: long-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.2'
+      - name: Install Ebitengine dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libgl1-mesa-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev libxxf86vm-dev
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+  test-default:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.2'
+      - name: Install Ebitengine dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libgl1-mesa-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev libxxf86vm-dev
+      - run: go test ./...
+
+  verb-catalog-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.2'
+      - name: Install Ebitengine dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libgl1-mesa-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev libxxf86vm-dev
+      - name: Regenerate verb catalog
+        run: |
+          go run ./pixelforge_studio/scripting/catalog/cmd/gendocs \
+            -out docs/verb-catalog.md.regen
+      - name: Diff against committed copy
+        run: |
+          if ! diff -u docs/verb-catalog.md docs/verb-catalog.md.regen; then
+            echo "::error::docs/verb-catalog.md is stale; run 'go generate ./pixelforge_studio/scripting/catalog/...' or 'make verb-catalog' and commit the result."
+            exit 1
+          fi
+
+  test-long-linux-amd64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.2'
+      - name: Install Ebitengine dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libgl1-mesa-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev libxxf86vm-dev xvfb
+      - name: Run long-tag proof-test suite
+        # continue-on-error so the matrix job still runs + reports the
+        # FAIL cells when a proof regresses. The capability-matrix job
+        # is the surface that fails the workflow on red cells if needed.
+        continue-on-error: true
+        run: |
+          xvfb-run -a go test -tags=long -json \
+            ./pixelforge_studio/integration_test/... \
+            > test-results-linux-amd64.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-results-linux-amd64
+          path: test-results-linux-amd64.json
+          if-no-files-found: error
+
+  test-long-macos-arm64:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.2'
+      - name: Run long-tag proof-test suite
+        continue-on-error: true
+        run: |
+          go test -tags=long -json \
+            ./pixelforge_studio/integration_test/... \
+            > test-results-macos-arm64.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-results-macos-arm64
+          path: test-results-macos-arm64.json
+          if-no-files-found: error
+
+  capability-matrix:
+    needs: [test-long-linux-amd64, test-long-macos-arm64]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.2'
+      - uses: actions/download-artifact@v4
+        with:
+          name: test-results-linux-amd64
+      - uses: actions/download-artifact@v4
+        with:
+          name: test-results-macos-arm64
+      - name: Regenerate capability matrix
+        run: |
+          go run ./pixelforge_studio/scripting/catalog/cmd/matrix \
+            -in linux-amd64=test-results-linux-amd64.json,macos-arm64=test-results-macos-arm64.json \
+            -out capability-matrix.md
+      - name: Upload capability matrix artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: capability-matrix
+          path: capability-matrix.md
+          if-no-files-found: error
+      - name: Fail workflow if any proof test FAILED
+        # The matrix tool renders FAILures as `**FAIL**`. We grep for
+        # that marker in the per-game pass/fail section + exit non-zero
+        # so the workflow surfaces regressions as red. Per AE5 + R9
+        # pixel-hash divergence MUST fail CI.
+        run: |
+          if grep -q '\*\*FAIL\*\*' capability-matrix.md; then
+            echo "::error::Capability matrix contains a FAIL cell; one of the proof tests regressed. Inspect the test-results-*.json artifacts and the capability-matrix artifact for details."
+            exit 1
+          fi
+      - name: Comment matrix link on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `Reference-games capability matrix regenerated for this run: [download artifact](${runUrl}#artifacts).`
+            });

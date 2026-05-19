@@ -108,6 +108,12 @@ func RegisterWith(e *editor.Editor) *Workspace {
 	if h := e.AudioImportHandler(); h != nil {
 		h.SetRunner(newWAVImportRunner(e))
 	}
+	// Plan-009 U19 — BGM (OGG / MP3) ingest runner. Same cycle-
+	// break shape as WAV: editor declares the contract, audiolib
+	// injects the implementation.
+	if h := e.BGMImportHandler(); h != nil {
+		h.SetRunner(newBGMImportRunner(e))
+	}
 	return w
 }
 

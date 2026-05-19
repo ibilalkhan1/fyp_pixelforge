@@ -21,6 +21,15 @@ type MenuItem struct {
 	// the click target. Used by toggle-style menu entries (idea #3
 	// v1 U8 introduces the first ones — the overlay toggles).
 	Checked bool
+	// Submenu, when non-empty, makes this item a parent — clicking
+	// the parent opens a nested dropdown carrying the supplied
+	// items. Used by plan-009 U21's File → Open Example flow where
+	// each example row offers an Open + Fork pair. The ImGui chrome
+	// renders Submenu via nested BeginMenu/EndMenu calls; the
+	// fallback native menu_bar widget flattens it (renders the
+	// parent label only — the parent's OnSelect is still callable
+	// for the default action).
+	Submenu []MenuItem
 }
 
 // MenuDef is one top-level menu (File / Edit / View / Help).

@@ -128,17 +128,41 @@ func (e *Editor) buildMainMenuBar() {
 			continue
 		}
 		for _, item := range m.Items {
-			if item.Separator {
-				imgui.Separator()
-				continue
-			}
-			if imgui.MenuItemBoolV(item.Label, item.Shortcut, false, !item.Disabled) {
-				if item.OnSelect != nil {
-					item.OnSelect()
-				}
-			}
+			renderMenuItem(item)
 		}
 		imgui.EndMenu()
+	}
+}
+
+// renderMenuItem emits one MenuItem into the current ImGui menu
+// scope. Recurses when the item carries a non-empty Submenu, so
+// plan-009 U21's File → Open Example → <example> nested rows
+// render correctly. Disabled and Separator items short-circuit.
+func renderMenuItem(item widgets.MenuItem) {
+	if item.Separator {
+		imgui.Separator()
+		return
+	}
+	if len(item.Submenu) > 0 {
+		// Parent item — opens a nested dropdown. ImGui's BeginMenuV
+		// returns true when the user hovers/clicks; only then do we
+		// build the children. The parent's own OnSelect is ignored
+		// in the submenu posture (the children are the actionable
+		// rows); this matches the convention in plan-009 U21 where
+		// each example row's "open directly" lives as the first
+		// child item.
+		if imgui.BeginMenuV(item.Label, !item.Disabled) {
+			for _, child := range item.Submenu {
+				renderMenuItem(child)
+			}
+			imgui.EndMenu()
+		}
+		return
+	}
+	if imgui.MenuItemBoolV(item.Label, item.Shortcut, false, !item.Disabled) {
+		if item.OnSelect != nil {
+			item.OnSelect()
+		}
 	}
 }
 

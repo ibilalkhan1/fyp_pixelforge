@@ -1,7 +1,9 @@
 package assetlibrary_test
 
 import (
+	"io/fs"
 	"testing"
+	"testing/fstest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -96,4 +98,91 @@ func TestLibrary_NilLibraryIsSafe(t *testing.T) {
 	assert.Empty(t, lib.Installed())
 	assert.Nil(t, lib.LookupAsset("x", "y"))
 	assert.Empty(t, lib.CacheRoot())
+	assert.Nil(t, lib.Pack("x"))
+	assert.Empty(t, lib.Packs())
+	assert.False(t, lib.IsEmbedded("x"))
+	src, ok := lib.EmbeddedFS("x")
+	assert.Nil(t, src)
+	assert.False(t, ok)
+}
+
+// Plan-009 U20: the Library now distinguishes between embedded
+// packs (always-available, byte-content via fs.FS) and downloaded
+// packs (registered via the bootstrap, byte-content on disk).
+
+func TestLibrary_MarkEmbeddedRegistersPackAndFS(t *testing.T) {
+	lib := assetlibrary.NewLibrary(t.TempDir())
+	starter := assetlibrary.Pack{
+		ID:      "starter",
+		Version: "1.0.0",
+		Title:   "Starter Pack",
+		Assets: []assetlibrary.Asset{
+			{Path: "sprites/hero.png", Kind: "sprite", License: "CC0"},
+		},
+	}
+	src := fstest.MapFS{
+		"sprites/hero.png": &fstest.MapFile{Data: []byte("png-bytes")},
+	}
+	lib.MarkEmbedded(starter, src)
+
+	// Pack metadata is present in the unified packs list.
+	assert.True(t, lib.IsInstalled("starter"))
+	assert.True(t, lib.IsEmbedded("starter"))
+	require.Len(t, lib.Packs(), 1)
+	assert.Equal(t, "starter", lib.Packs()[0].ID)
+
+	// And the fs.FS is reachable so callers can hand back bytes.
+	got, ok := lib.EmbeddedFS("starter")
+	require.True(t, ok)
+	b, err := fs.ReadFile(got, "sprites/hero.png")
+	require.NoError(t, err)
+	assert.Equal(t, []byte("png-bytes"), b)
+}
+
+func TestLibrary_PackReturnsDefensiveCopy(t *testing.T) {
+	lib := assetlibrary.NewLibrary(t.TempDir())
+	lib.MarkInstalled(assetlibrary.Pack{
+		ID:    "p",
+		Title: "Original",
+		Assets: []assetlibrary.Asset{
+			{Path: "a.png", Kind: "sprite", License: "CC0", Author: "kenney"},
+		},
+	})
+	got := lib.Pack("p")
+	require.NotNil(t, got)
+	got.Title = "Tampered"
+	got.Assets[0].License = "Tampered"
+
+	// Internal state must not have moved.
+	fresh := lib.Pack("p")
+	assert.Equal(t, "Original", fresh.Title)
+	assert.Equal(t, "CC0", fresh.Assets[0].License)
+	assert.Nil(t, lib.Pack("missing"))
+}
+
+func TestLibrary_PacksAliasesInstalled(t *testing.T) {
+	lib := assetlibrary.NewLibrary(t.TempDir())
+	lib.MarkInstalled(assetlibrary.Pack{ID: "a"})
+	lib.MarkEmbedded(assetlibrary.Pack{ID: "starter"}, nil)
+	assert.ElementsMatch(t,
+		[]string{"a", "starter"},
+		[]string{lib.Packs()[0].ID, lib.Packs()[1].ID})
+}
+
+func TestLibrary_MarkEmbeddedNilSourceStillRegistersMetadata(t *testing.T) {
+	// Tests can register metadata without bytes; EmbeddedFS then
+	// reports "no FS available" while the pack still shows up in
+	// Packs(). Useful for tests that don't need to read bytes.
+	lib := assetlibrary.NewLibrary(t.TempDir())
+	lib.MarkEmbedded(assetlibrary.Pack{ID: "meta-only"}, nil)
+	assert.True(t, lib.IsInstalled("meta-only"))
+	assert.False(t, lib.IsEmbedded("meta-only"), "nil FS means EmbeddedFS reports absent")
+	_, ok := lib.EmbeddedFS("meta-only")
+	assert.False(t, ok)
+}
+
+func TestLibrary_MarkEmbeddedIgnoresEmptyID(t *testing.T) {
+	lib := assetlibrary.NewLibrary(t.TempDir())
+	lib.MarkEmbedded(assetlibrary.Pack{ID: ""}, fstest.MapFS{})
+	assert.Empty(t, lib.Packs())
 }

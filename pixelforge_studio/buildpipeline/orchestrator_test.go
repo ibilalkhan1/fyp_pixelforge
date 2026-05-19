@@ -3,6 +3,7 @@ package buildpipeline_test
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -89,7 +90,15 @@ func TestBuild_OutputFileWrittenAtExpectedPath(t *testing.T) {
 		}
 	}
 	require.NotNil(t, doneStatus)
-	assert.Contains(t, doneStatus.OutputPath, "linux")
+	// !long scaffold writes to <target>/<game>; long real builder
+	// writes to host/<game> (the universal-player pipeline doesn't
+	// stratify by GOOS at the path level — the binary itself
+	// carries that information). Accept either layout so the test
+	// stays meaningful under both tag sets.
+	assert.True(t,
+		strings.Contains(doneStatus.OutputPath, "linux") ||
+			strings.Contains(doneStatus.OutputPath, "host"),
+		"output path should land under linux/ or host/, got %s", doneStatus.OutputPath)
 	assert.Contains(t, doneStatus.OutputPath, "test_game")
 }
 
@@ -146,7 +155,13 @@ func TestBuild_DefaultOutputDirIsProjectRelativeExports(t *testing.T) {
 		}
 	}
 	require.NotNil(t, doneStatus)
-	assert.Contains(t, doneStatus.OutputPath, filepath.Join(dir, "exports", "linux"))
+	// Default output dir is <project>/exports/<target>; under
+	// -tags=long the long builder uses "host" as the subdir
+	// regardless of the host GOOS. Accept either layout.
+	assert.True(t,
+		strings.Contains(doneStatus.OutputPath, filepath.Join(dir, "exports", "linux")) ||
+			strings.Contains(doneStatus.OutputPath, filepath.Join(dir, "exports", "host")),
+		"default output dir should be exports/linux or exports/host, got %s", doneStatus.OutputPath)
 }
 
 func TestBuild_UnregisteredTargetFailsClearly(t *testing.T) {

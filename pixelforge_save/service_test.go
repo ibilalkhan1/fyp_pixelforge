@@ -37,7 +37,7 @@ func TestService_SaveStampSchemaVersionAndTimestamp(t *testing.T) {
 	require.NoError(t, s.SaveToSlot(pisave.Snapshot{}, pisave.Slot1Name))
 	got, err := s.LoadFromSlot(pisave.Slot1Name)
 	require.NoError(t, err)
-	assert.Equal(t, 1, got.SchemaVersion)
+	assert.Equal(t, pisave.CurrentSchemaVersion, got.SchemaVersion)
 	assert.False(t, got.SavedAt.IsZero(),
 		"SavedAt populated by Service when caller leaves it zero")
 }

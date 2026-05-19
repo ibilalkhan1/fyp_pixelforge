@@ -1,6 +1,7 @@
 package codegen
 
 import (
+	"bytes"
 	"go/parser"
 	"go/token"
 	"os"
@@ -239,4 +240,49 @@ func writeFile(t *testing.T, path string, data []byte) {
 func TestTemplateVersionFormat(t *testing.T) {
 	assert.NotEmpty(t, TemplateVersion)
 	assert.False(t, strings.ContainsAny(TemplateVersion, " \t\n"))
+}
+
+// TestEncodeCart_NilProjectRejected covers the EncodeCart guard:
+// the buildpipeline must never feed a nil project to the cart
+// payload; a clear error beats a panic from inside
+// pixelforge_project.Encode.
+func TestEncodeCart_NilProjectRejected(t *testing.T) {
+	_, err := EncodeCart(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "project is nil")
+}
+
+// TestEncodeCart_RoundTripsViaLoadReader covers the U3 contract
+// the universal pixelforge-player relies on: bytes the build
+// pipeline appends to a player must round-trip back into an
+// equivalent Project via pixelforge_project.LoadReader.
+func TestEncodeCart_RoundTripsViaLoadReader(t *testing.T) {
+	original := pixelforge_project.NewProject("encode-cart-roundtrip")
+	original.ScreenWidth = 320
+	original.ScreenHeight = 200
+	original.TPS = 60
+
+	encoded, err := EncodeCart(original)
+	require.NoError(t, err)
+	require.NotEmpty(t, encoded, "EncodeCart must produce non-empty bytes")
+
+	loaded, err := pixelforge_project.LoadReader(bytes.NewReader(encoded))
+	require.NoError(t, err, "the player's LoadReader call must accept EncodeCart bytes")
+
+	assert.Equal(t, original.Name, loaded.Name)
+	assert.Equal(t, original.ScreenWidth, loaded.ScreenWidth)
+	assert.Equal(t, original.ScreenHeight, loaded.ScreenHeight)
+	assert.Equal(t, original.TPS, loaded.TPS)
+}
+
+// TestEncodeCart_EmptyProjectStillEncodes covers the empty-cart
+// happy path the build pipeline drives when a user clicks Build
+// against a fresh "New Project" with no scenes or assets yet.
+func TestEncodeCart_EmptyProjectStillEncodes(t *testing.T) {
+	p := pixelforge_project.NewProject("empty-cart")
+	got, err := EncodeCart(p)
+	require.NoError(t, err)
+	assert.NotEmpty(t, got)
+	assert.Contains(t, string(got), `"schema_version"`,
+		"encoded cart must carry the project schema marker")
 }

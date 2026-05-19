@@ -64,6 +64,28 @@ func SetNativeOverlay(fn func(screen *ebiten.Image)) {
 	internal.NativeOverlay = fn
 }
 
+// SetTickHook installs the arcade-shipping U4 single-render-path seam.
+// When fn is non-nil, the Ebitengine game's per-tick update + draw
+// sequence delegates to fn(tick) instead of running the legacy
+// pixelforge.Update + pixelforge.Draw + event-publish dance. The hook
+// is expected to advance + render game state by exactly one tick,
+// typically by delegating to pixelforge_render.RenderTickAtScreen
+// against the *capsuleruntime.Runtime captured at install time.
+//
+// Pass nil to clear a previously registered hook and restore the
+// legacy update/draw path. The default behaviour (no hook) preserves
+// pixel-equivalence with every pre-U4 caller of Run, so existing
+// games that don't opt in to the seam are unaffected.
+//
+// The hook owns publishing the Update / LateUpdate / Draw / LateDraw
+// events to pixelforge_loop.Target (RenderTickAtScreen does this
+// internally); pixelforge_ebiten still publishes the corresponding
+// DebugTarget events so engine-diagnostics overlays continue to fire
+// regardless of which path is active.
+func SetTickHook(fn func(tick uint64)) {
+	internal.TickHook = fn
+}
+
 // StartAudioBackend starts the audio backend with the given Ebitengine audio.Context.
 // Use if you want only pixelforge_audio functionality without Pixelforge's graphics.
 //

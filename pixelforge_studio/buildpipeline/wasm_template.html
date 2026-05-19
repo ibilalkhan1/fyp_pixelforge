@@ -55,6 +55,7 @@
 <script>{{.WasmExecJS}}</script>
 <script>
 const wasmBase64 = "{{.WasmBase64}}";
+const cartBase64 = "{{.CartBase64}}";
 {{- if .Credits}}
 const creditsOpen = document.getElementById("credits-open");
 const creditsClose = document.getElementById("credits-close");
@@ -74,6 +75,12 @@ document.getElementById("splash").addEventListener("click", async (e) => {
   if (e.target && (e.target.id === "credits-open" || e.target.id === "credits-close")) return;
   document.getElementById("splash").style.display = "none";
   document.getElementById("screen").hidden = false;
+  // Wire the appended cart payload onto window before booting the
+  // WASM module — the universal player's pixelforge_cart.ReadSelf
+  // shim under GOOS=js reads window.__pixelforgeCart instead of
+  // /proc/self/exe. Assignment MUST happen before go.run(instance)
+  // so the player's first call into ReadSelf sees the bytes.
+  window.__pixelforgeCart = Uint8Array.from(atob(cartBase64), c => c.charCodeAt(0));
   const bytes = Uint8Array.from(atob(wasmBase64), c => c.charCodeAt(0));
   const go = new Go();
   const result = await WebAssembly.instantiate(bytes, go.importObject);

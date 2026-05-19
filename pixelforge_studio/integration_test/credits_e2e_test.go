@@ -168,7 +168,7 @@ func TestE2E_Credits_WASMBundleShowsCreditsButton(t *testing.T) {
 	credits := []capsuleruntime.CreditEntry{
 		{Name: "blast", License: "CC-BY-4.0", Author: "freesound user X", SourceURL: "https://freesound.org/x"},
 	}
-	require.NoError(t, buildpipeline.BundleWASM(wasmPath, execPath, "Game", "", outPath, credits))
+	require.NoError(t, buildpipeline.BundleWASM(wasmPath, execPath, []byte(`{"schema_version":1}`), "Game", "", outPath, credits))
 
 	data, err := os.ReadFile(outPath)
 	require.NoError(t, err)
@@ -189,7 +189,7 @@ func TestE2E_Credits_WASMBundleHidesButtonWhenEmpty(t *testing.T) {
 	execPath := writeFakeWasmExec(t, dir)
 	outPath := filepath.Join(dir, "game.html")
 
-	require.NoError(t, buildpipeline.BundleWASM(wasmPath, execPath, "Game", "", outPath, nil))
+	require.NoError(t, buildpipeline.BundleWASM(wasmPath, execPath, []byte(`{"schema_version":1}`), "Game", "", outPath, nil))
 
 	data, err := os.ReadFile(outPath)
 	require.NoError(t, err)

@@ -87,6 +87,37 @@ type BuildRequest struct {
 	// assetlibrary.AssembleCredits(p, lib); empty produces a no-op
 	// credits literal in the generated capsule.
 	Credits []capsuleruntime.CreditEntry
+
+	// PlayerBinaryPath, when non-empty, points the host build at a
+	// pre-built pixelforge-player binary on disk. Skips the entire
+	// player-binary discovery chain (cache → embed → developer go
+	// build) and uses this path verbatim. Used by long-tag tests to
+	// pin a fixture binary + by advanced callers that ship their
+	// own player build.
+	//
+	// Discovery chain when this is empty:
+	//   1. <userCacheDir>/pixelforge/player-cache/<...> (with SHA-256
+	//      sidecar verification)
+	//   2. playerbins.PlayerBinaryFor(GOOS, GOARCH) — the no-Go user
+	//      path, embedded via go:embed at studio build time
+	//   3. `go build -tags=long -o $TMP ./cmd/pixelforge-player` —
+	//      the developer fallback (slow, requires a Go toolchain)
+	PlayerBinaryPath string
+
+	// WasmBinaryPath mirrors PlayerBinaryPath for the WASM target.
+	// Non-empty short-circuits the discovery chain for
+	// GOOS=js/GOARCH=wasm; empty triggers the same cache → embed →
+	// developer-fallback walk.
+	WasmBinaryPath string
+
+	// ForceLargeWASM, when true, allows the WASM build to proceed
+	// even when the bundled .html exceeds the
+	// WASMErrorThresholdMB hard limit. Designers shipping an
+	// intentionally chunky build (e.g., a debug build with a
+	// massive sprite atlas) flip this from the UI's "build
+	// anyway" affordance. Default false: oversized builds fail
+	// with ErrWASMTooLarge so the cost is visible upstream.
+	ForceLargeWASM bool
 }
 
 // ModuleStrategy is the build-pipeline-side mirror of the
@@ -116,6 +147,14 @@ type BuildStatus struct {
 	OutputPath string
 	Err        error
 	BuiltAt    time.Time
+
+	// SizeReport is populated on the terminal PhaseDone event of
+	// a WASM build with the raw + gzip byte counts of the .html
+	// artifact. Nil for non-WASM builds and for non-terminal
+	// phases. The studio Build workspace reads this to surface
+	// "(18.0MB, gzip 6.4MB)" in the success toast plus the
+	// warn/error indicator.
+	SizeReport *WASMSizeReport
 }
 
 // Builder is the contract each per-target file implements.
@@ -267,6 +306,32 @@ func runOne(ctx context.Context, target Target, req BuildRequest, ch chan<- Buil
 
 // ErrBuildCancelled signals the caller cancelled mid-build.
 var ErrBuildCancelled = errors.New("buildpipeline: build cancelled")
+
+// ErrWASMTooLarge fires when the bundled WASM .html exceeds the
+// WASMErrorThresholdMB (30MB) hard cap and the request did not
+// set ForceLargeWASM. The error carries the size report so
+// callers can show the exact byte count in the failure message.
+//
+// errors.Is comparisons against ErrWASMTooLarge succeed via the
+// Is method below — call sites can match on the kind without
+// parsing the message.
+type WASMTooLargeError struct {
+	Report WASMSizeReport
+}
+
+func (e *WASMTooLargeError) Error() string {
+	return fmt.Sprintf("buildpipeline: WASM .html size %s exceeds %dMB hard limit (pass ForceLargeWASM to override)",
+		e.Report.Format(), e.Report.ErrorThresholdMB)
+}
+
+// Is reports whether target matches ErrWASMTooLarge so callers
+// using errors.Is can match the kind without parsing the message.
+func (e *WASMTooLargeError) Is(target error) bool {
+	return target == ErrWASMTooLarge
+}
+
+// ErrWASMTooLarge is the sentinel callers errors.Is against.
+var ErrWASMTooLarge = errors.New("buildpipeline: WASM bundle exceeds hard size limit")
 
 // CrossCompileNotSupportedError is returned for any target the
 // host can't currently build. Carries both the requested target

@@ -84,6 +84,16 @@ type EbitenGame struct {
 	inputBackend *input.Backend
 
 	ebitenFrame int // frame incremented on each Ebiten tick
+
+	// tickCounter is the monotonic Pixelforge-tick counter passed to
+	// TickHook when the U4 single-render-path seam is installed.
+	// Distinct from ebitenFrame (which counts Ebiten frames at
+	// ebitenTPS) and from pixelforge.Frame (which is bumped at
+	// pixelforge.TPS). Bumped once per Pixelforge tick, only when
+	// TickHook is non-nil and not paused, so the counter the player
+	// binary sees aligns with the recorded tick numbers in
+	// .trace.jsonl files (U5).
+	tickCounter uint64
 }
 
 func (g *EbitenGame) Update() error {
@@ -126,35 +136,63 @@ func (g *EbitenGame) Update() error {
 		// can hold the underlying scene still while remaining
 		// responsive.
 		gatePaused := piloop.IsPaused()
-		if !g.paused && !gatePaused {
-			pixelforge.Update()
-			piloop.Target().Publish(piloop.EventUpdate)
-		}
-		piloop.DebugTarget().Publish(piloop.EventUpdate)
 
-		if !g.paused && !gatePaused {
-			piloop.Target().Publish(piloop.EventLateUpdate)
-		}
-		piloop.DebugTarget().Publish(piloop.EventLateUpdate)
-		updateDur = time.Since(updateStart)
-
-		if !g.skipNextDraw {
-			drawStart := time.Now()
-			if !g.paused {
-				pixelforge.Draw()
-				piloop.Target().Publish(piloop.EventDraw)
+		// arcade-shipping U4 — if a TickHook is installed (the
+		// pixelforge-player binary installs one that delegates to
+		// pixelforge_render.RenderTickAtScreen), it replaces the
+		// default update + draw + event sequence with the unified
+		// "one render path". The hook is responsible for publishing
+		// the Update/LateUpdate/Draw/LateDraw events itself; we
+		// only mediate the pause gate + dirty flag bookkeeping.
+		if TickHook != nil {
+			if !g.paused && !gatePaused {
+				TickHook(uint64(g.tickCounter))
+				g.tickCounter++
 			}
-			piloop.DebugTarget().Publish(piloop.EventDraw)
+			piloop.DebugTarget().Publish(piloop.EventUpdate)
+			piloop.DebugTarget().Publish(piloop.EventLateUpdate)
+			updateDur = time.Since(updateStart)
 
-			if !g.paused {
-				piloop.Target().Publish(piloop.EventLateDraw)
+			if !g.skipNextDraw {
+				drawStart := time.Now()
+				piloop.DebugTarget().Publish(piloop.EventDraw)
+				piloop.DebugTarget().Publish(piloop.EventLateDraw)
+				drawDur = time.Since(drawStart)
+				g.dirty = true
+			} else {
+				g.skipNextDraw = false
 			}
-			piloop.DebugTarget().Publish(piloop.EventLateDraw)
-			drawDur = time.Since(drawStart)
-
-			g.dirty = true
 		} else {
-			g.skipNextDraw = false
+			if !g.paused && !gatePaused {
+				pixelforge.Update()
+				piloop.Target().Publish(piloop.EventUpdate)
+			}
+			piloop.DebugTarget().Publish(piloop.EventUpdate)
+
+			if !g.paused && !gatePaused {
+				piloop.Target().Publish(piloop.EventLateUpdate)
+			}
+			piloop.DebugTarget().Publish(piloop.EventLateUpdate)
+			updateDur = time.Since(updateStart)
+
+			if !g.skipNextDraw {
+				drawStart := time.Now()
+				if !g.paused {
+					pixelforge.Draw()
+					piloop.Target().Publish(piloop.EventDraw)
+				}
+				piloop.DebugTarget().Publish(piloop.EventDraw)
+
+				if !g.paused {
+					piloop.Target().Publish(piloop.EventLateDraw)
+				}
+				piloop.DebugTarget().Publish(piloop.EventLateDraw)
+				drawDur = time.Since(drawStart)
+
+				g.dirty = true
+			} else {
+				g.skipNextDraw = false
+			}
 		}
 
 		if time.Since(started).Seconds() > 1/float64(pixelforge.TPS()) {
@@ -180,6 +218,28 @@ func (g *EbitenGame) Update() error {
 // ebiten/text), which keeps the overlay readable even when the game canvas
 // is heavily upscaled.
 var NativeOverlay func(screen *ebiten.Image)
+
+// TickHook is the optional "single render path" seam introduced by
+// arcade-shipping U4. When non-nil, EbitenGame.Update calls TickHook
+// instead of running the default pixelforge.Update + pixelforge.Draw +
+// event-publish sequence; the hook receives the monotonic tick
+// counter and is expected to advance + render game state by exactly
+// one tick (typically by delegating to
+// pixelforge_render.RenderTickAtScreen against the runtime it
+// captured at install time).
+//
+// When nil, EbitenGame retains its legacy update/draw behaviour
+// unchanged — every existing caller of pixelforge_ebiten.Run that
+// does not opt into the seam gets identical pixel output to before
+// U4.
+//
+// The hook owns the per-tick draw responsibility: it must populate
+// pixelforge.Screen() before returning so the subsequent
+// CopyCanvasToEbitenImage call in Draw produces a non-blank frame.
+// In practice the hook delegates to RenderTickAtScreen, which calls
+// pixelforge.Draw internally — so the canvas ends up populated the
+// same way the legacy path produced it.
+var TickHook func(tick uint64)
 
 func (g *EbitenGame) Draw(screen *ebiten.Image) {
 	if g.dirty { // draw only when needed to avoid CPU load on monitors >30 Hz

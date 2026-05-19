@@ -27,6 +27,8 @@ import (
 	"sort"
 
 	"github.com/AllenDang/cimgui-go/imgui"
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_input"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_key"
@@ -46,10 +48,19 @@ var recompileFn = pixelforge_input.Recompile
 // Workspace is the Settings -> Input panel. Implements editor.Workspace
 // (Name / DisplayName / Render) so the dockspace picks it up the same
 // way palette / capture / scripting do.
-type Workspace struct{}
+//
+// Plan-009 U22 adds press-to-capture: clicking the per-row "Capture"
+// button transitions the workspace's CaptureMode into Waiting state;
+// the next non-modifier keypress is recorded as the intent's binding.
+// State lives on the workspace (one capture-in-flight at a time);
+// rendered per-row by renderRow's Capture button block.
+type Workspace struct {
+	capture CaptureMode
+}
 
 // NewWorkspace constructs a fresh input workspace. The workspace is
-// stateless: every Render reads from e.Project().InputMap directly.
+// stateless apart from the capture-in-flight state machine: every
+// Render reads from e.Project().InputMap directly.
 func NewWorkspace() *Workspace { return &Workspace{} }
 
 // Name is the stable workspace identifier.
@@ -96,17 +107,25 @@ func (w *Workspace) Render(e *editor.Editor) {
 	imgui.TextDisabled("Settings / Input — edit per-intent bindings")
 	imgui.Separator()
 
-	if imgui.BeginTableV("##input-bindings", 4, imgui.TableFlagsBordersInnerH|imgui.TableFlagsSizingStretchProp, imgui.NewVec2(0, 0), 0) {
+	if imgui.BeginTableV("##input-bindings", 5, imgui.TableFlagsBordersInnerH|imgui.TableFlagsSizingStretchProp, imgui.NewVec2(0, 0), 0) {
 		imgui.TableSetupColumn("Intent")
 		imgui.TableSetupColumn("Keyboard")
 		imgui.TableSetupColumn("Gamepad")
 		imgui.TableSetupColumn("Modifier")
+		imgui.TableSetupColumn("Capture")
 		imgui.TableHeadersRow()
 
 		for i := range p.InputMap {
 			w.renderRow(e, p, i)
 		}
 		imgui.EndTable()
+	}
+
+	// Plan-009 U22 — poll capture keypresses while Waiting. The
+	// workspace owns the keyboard drain so a capture in flight keeps
+	// looking even if the table row scrolls offscreen.
+	if w.capture.IsActive() {
+		w.pollCaptureKeys(e, p)
 	}
 
 	imgui.Separator()
@@ -152,6 +171,18 @@ func (w *Workspace) renderRow(e *editor.Editor, p *pixelforge_project.Project, i
 		b.Modifier = picked
 		w.afterEdit(e, p)
 	}
+
+	// Plan-009 U22 — Capture button column. Clicking toggles capture
+	// for this row's intent; visual state updates the label to
+	// "Press a key… (Esc to cancel)" while waiting.
+	imgui.TableNextColumn()
+	label := "Capture"
+	if w.capture.IsActive() && w.capture.Intent() == b.Intent {
+		label = "Press a key… (Esc to cancel)"
+	}
+	if imgui.Button(label + "##cap-" + b.Intent) {
+		w.capture.BeginCapture(b.Intent)
+	}
 }
 
 // SetBindingKeyboard mutates the keyboard slot of the binding whose
@@ -190,6 +221,91 @@ func (w *Workspace) RestoreDefaults(e *editor.Editor) {
 		return
 	}
 	w.restoreDefaults(e, e.Project())
+}
+
+// BeginCapture starts press-to-capture for the named intent. Mirror
+// of the Capture button click. Plan-009 U22 / R20 entry point. Idempotent:
+// calling on the same intent twice toggles capture off. Safe for nil
+// workspace.
+func (w *Workspace) BeginCapture(intent string) {
+	if w == nil {
+		return
+	}
+	w.capture.BeginCapture(intent)
+}
+
+// CancelCapture forces capture out of the Waiting state. Mirrors
+// pressing Esc while capture is active or clicking elsewhere.
+func (w *Workspace) CancelCapture() {
+	if w == nil {
+		return
+	}
+	w.capture.Cancel()
+}
+
+// CaptureActive returns whether the workspace is currently waiting on
+// a keypress. Test seam.
+func (w *Workspace) CaptureActive() bool {
+	if w == nil {
+		return false
+	}
+	return w.capture.IsActive()
+}
+
+// CapturingIntent returns the intent the capture-in-flight is for, or
+// "" when inactive. Test seam.
+func (w *Workspace) CapturingIntent() string {
+	if w == nil {
+		return ""
+	}
+	return w.capture.Intent()
+}
+
+// SubmitCaptureKey is the synthetic-keypress entry point. Production
+// Render polls inpututil.AppendJustPressedKeys via pollCaptureKeys;
+// tests drive this directly so they don't have to spin up an
+// Ebitengine input layer. Returns true if the key was captured (and
+// the binding recorded into the project's InputMap).
+func (w *Workspace) SubmitCaptureKey(e *editor.Editor, key ebiten.Key) bool {
+	if w == nil {
+		return false
+	}
+	intent := w.capture.Intent()
+	bound, newBinding := w.capture.OnKey(key)
+	if !bound {
+		return false
+	}
+	if e == nil || e.Project() == nil {
+		return false
+	}
+	// SetBindingKeyboard handles the lazy-default + MarkDirty +
+	// Recompile contract — same flow the dropdown edits use, so the
+	// capture path stays consistent with manual rebinds.
+	return w.SetBindingKeyboard(e, intent, newBinding)
+}
+
+// pollCaptureKeys drains the just-pressed-keys queue and dispatches
+// each into the capture state machine. Stops on the first key that
+// resolves capture (so a Space-then-Enter rapid press doesn't bind
+// two intents in the same frame). Called from Render every frame
+// the capture state machine is Waiting.
+func (w *Workspace) pollCaptureKeys(e *editor.Editor, p *pixelforge_project.Project) {
+	_ = p // future: per-frame UI affordances may need the project
+	if w == nil {
+		return
+	}
+	keys := inpututil.AppendJustPressedKeys(nil)
+	for _, k := range keys {
+		if w.SubmitCaptureKey(e, k) {
+			return
+		}
+		// SubmitCaptureKey already updated the state machine; if the
+		// state has flipped to Inactive (e.g. Esc cancel), stop polling
+		// the rest of this frame's keys.
+		if !w.capture.IsActive() {
+			return
+		}
+	}
 }
 
 func (w *Workspace) editBinding(e *editor.Editor, intent string, fn func(*pixelforge_project.InputBinding)) bool {

@@ -30,10 +30,17 @@ const CurrentSchemaVersion = "1"
 // Manifest is the root of the JSON document hosted at a GitHub
 // Release URL (overridable via PIXELFORGE_ASSET_LIBRARY_URL).
 // SchemaVersion gates major-format changes; Packs enumerates
-// every downloadable asset bundle.
+// every downloadable asset bundle; Examples enumerates reference
+// `.pforge` projects the studio's File → Open Example menu can
+// fetch (plan-009 U20+U21).
+//
+// Examples is additive — pre-U20 manifests without the field
+// parse cleanly with an empty slice (the `omitempty` round-trips
+// to absence, decode tolerates missing keys).
 type Manifest struct {
-	SchemaVersion string `json:"schema_version"`
-	Packs         []Pack `json:"packs"`
+	SchemaVersion string    `json:"schema_version"`
+	Packs         []Pack    `json:"packs"`
+	Examples      []Example `json:"examples,omitempty"`
 }
 
 // Pack is one downloadable asset bundle (one game's worth of
@@ -87,6 +94,55 @@ type Asset struct {
 	SourceURL string `json:"source_url,omitempty"`
 }
 
+// Example is one reference `.pforge` project the studio's File →
+// Open Example menu can fetch (U21). The manifest's Examples list
+// carries one entry per shipped reference game (asteroids_proof,
+// mario_proof, etc.); each entry is downloaded with the same
+// SHA-256-verified pipeline as packs.
+//
+// Fields mirror Pack as closely as makes sense so the downloader
+// and the workspace can share helpers — ID + Version + URL +
+// SHA256 + SizeBytes drive fetch/cache; Game + Label + Description
+// drive the menu UI.
+type Example struct {
+	// ID is the example's stable identifier; doubles as the
+	// cached-file basename. lower_snake_case for filesystem safety.
+	ID string `json:"id"`
+
+	// Version follows semver; bumping it triggers a re-download.
+	Version string `json:"version"`
+
+	// Title is the human-readable example name (rendered in the
+	// File → Open Example menu's row label).
+	Title string `json:"title"`
+
+	// Game is one of "asteroids" / "bomberman" / "mario" /
+	// "donkey_kong" / "" for genre-neutral. Drives the menu's
+	// section grouping when set.
+	Game string `json:"game,omitempty"`
+
+	// URL is the HTTPS download location for the `.pforge` file.
+	URL string `json:"url"`
+
+	// SHA256 is the hex-encoded SHA-256 of the example bytes.
+	// Verified before the menu hands the file to the editor;
+	// mismatch surfaces as ErrChecksumMismatch.
+	SHA256 string `json:"sha256"`
+
+	// SizeBytes is the example's expected byte count. Used for the
+	// menu's "Downloading… (n KB)" toast; not authoritative.
+	SizeBytes int64 `json:"size_bytes,omitempty"`
+
+	// Label overrides Title in the menu if set — lets the manifest
+	// ship a friendlier menu-row label (e.g. "Asteroids — Reference
+	// build") without changing the example's stable Title.
+	Label string `json:"label,omitempty"`
+
+	// Description is the menu's hover-tooltip text. One sentence
+	// describing what the example demonstrates.
+	Description string `json:"description,omitempty"`
+}
+
 // ErrUnsupportedSchema is returned by ParseManifest when the
 // manifest's SchemaVersion is newer than CurrentSchemaVersion.
 // Older versions load via best-effort sanitisation.
@@ -114,7 +170,41 @@ func ParseManifest(raw []byte) (*Manifest, error) {
 	for i := range m.Packs {
 		sanitizePack(&m.Packs[i])
 	}
+	m.Examples = sanitizeExamples(m.Examples)
 	return &m, nil
+}
+
+// sanitizeExamples drops entries missing the fields the downloader
+// and menu both need (ID + URL). The remaining entries pass through
+// untouched. Returns a non-nil slice (possibly empty) so callers
+// can range without nil-checking.
+func sanitizeExamples(in []Example) []Example {
+	if len(in) == 0 {
+		return []Example{}
+	}
+	out := in[:0]
+	for _, e := range in {
+		if e.ID == "" || e.URL == "" {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+// LookupExample returns the example with the given ID, or nil
+// when no example matches. Used by the File → Open Example menu
+// (U21) to resolve a clicked row to its Example metadata.
+func (m *Manifest) LookupExample(id string) *Example {
+	if m == nil {
+		return nil
+	}
+	for i := range m.Examples {
+		if m.Examples[i].ID == id {
+			return &m.Examples[i]
+		}
+	}
+	return nil
 }
 
 // sanitizePack drops empty assets and normalises optional fields

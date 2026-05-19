@@ -89,7 +89,7 @@ func TestE2E_BuildPipeline_AE3_WASMBundlerProducesSelfContainedHTML(t *testing.T
 	require.NoError(t, os.WriteFile(execPath, []byte("function Go() {}"), 0o644))
 	outPath := filepath.Join(dir, "g.html")
 
-	require.NoError(t, buildpipeline.BundleWASM(wasmPath, execPath, "MyGame", "AAAA", outPath, nil))
+	require.NoError(t, buildpipeline.BundleWASM(wasmPath, execPath, []byte(`{"schema_version":1}`), "MyGame", "AAAA", outPath, nil))
 	html, _ := os.ReadFile(outPath)
 	s := string(html)
 	assert.Contains(t, s, "<title>MyGame</title>")

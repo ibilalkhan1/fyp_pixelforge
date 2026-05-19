@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "game": "donkey_kong_proof",
+  "checkpoints": [
+    {
+      "tick": 0,
+      "frame_sha256": "8ed3febb4d4587d86d49efe37bb13e8d15e969cd0c1f4fcab3bbf886a8536c43",
+      "events_at_tick": [
+        {
+          "topic": "collision/solid_collide",
+          "args": {
+            "entity": "hero_1"
+          }
+        },
+        {
+          "topic": "motion/apply_gravity",
+          "args": {
+            "entity": "hero_1"
+          }
+        },
+        {
+          "topic": "motion/barrel_roll",
+          "args": {
+            "entity": "barrel_1"
+          }
+        },
+        {
+          "topic": "motion/barrel_roll",
+          "args": {
+            "entity": "barrel_2"
+          }
+        },
+        {
+          "topic": "motion/barrel_roll",
+          "args": {
+            "entity": "barrel_3"
+          }
+        }
+      ]
+    },
+    {
+      "tick": 100,
+      "frame_sha256": "8ed3febb4d4587d86d49efe37bb13e8d15e969cd0c1f4fcab3bbf886a8536c43",
+      "events_at_tick": [
+        {
+          "topic": "collision/solid_collide",
+          "args": {
+            "entity": "hero_1"
+          }
+        },
+        {
+          "topic": "motion/apply_gravity",
+          "args": {
+            "entity": "hero_1"
+          }
+        },
+        {
+          "topic": "motion/barrel_roll",
+          "args": {
+            "entity": "barrel_1"
+          }
+        },
+        {
+          "topic": "motion/barrel_roll",
+          "args": {
+            "entity": "barrel_2"
+          }
+        },
+        {
+          "topic": "motion/barrel_roll",
+          "args": {
+            "entity": "barrel_3"
+          }
+        }
+      ]
+    },
+    {
+      "tick": 299,
+      "frame_sha256": "8ed3febb4d4587d86d49efe37bb13e8d15e969cd0c1f4fcab3bbf886a8536c43",
+      "events_at_tick": [
+        {
+          "topic": "collision/solid_collide",
+          "args": {
+            "entity": "hero_1"
+          }
+        },
+        {
+          "topic": "motion/apply_gravity",
+          "args": {
+            "entity": "hero_1"
+          }
+        },
+        {
+          "topic": "motion/barrel_roll",
+          "args": {
+            "entity": "barrel_1"
+          }
+        },
+        {
+          "topic": "motion/barrel_roll",
+          "args": {
+            "entity": "barrel_2"
+          }
+        },
+        {
+          "topic": "motion/barrel_roll",
+          "args": {
+            "entity": "barrel_3"
+          }
+        }
+      ]
+    }
+  ]
+}

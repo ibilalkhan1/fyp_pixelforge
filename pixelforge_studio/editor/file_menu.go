@@ -7,6 +7,7 @@ import (
 
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_project"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/codegen"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/editor/templates"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/editor/widgets"
 )
 
@@ -27,6 +28,32 @@ func (m *FileMenu) New() {
 		m.editor.SetProject(pixelforge_project.NewProject("untitled"))
 		m.editor.SetCurrentProjectPath("")
 		m.editor.SetStatusMessage("new project")
+	})
+}
+
+// NewFromTemplate replaces the project with the named genre-starter
+// template (plan-009 U22, R10). Unknown template names surface as a
+// red-toned status message and leave the current project alone. Dirty-
+// state prompt mirrors the File → New / File → Open path so designers
+// never lose work to an accidental menu click.
+//
+// The new project loads with dirty=false: the template's content is
+// the designer's starting baseline, not a "modification" relative to
+// some other project (matches the U21 doc-review consistency on the
+// forked / opened project flow). Designers immediately edit and the
+// first mutation flips the dirty bit.
+func (m *FileMenu) NewFromTemplate(templateName string) {
+	m.editor.PromptIfDirty("Discard changes?", "The current project has unsaved changes.", func() {
+		ctor := templates.Lookup(templateName)
+		if ctor == nil {
+			m.editor.SetStatusMessage("new from template: unknown template " + templateName)
+			return
+		}
+		p := ctor()
+		m.editor.SetProject(p)
+		m.editor.SetCurrentProjectPath("")
+		m.editor.ClearDirty()
+		m.editor.SetStatusMessage("new " + templateName + " project")
 	})
 }
 
@@ -198,6 +225,29 @@ func userDocumentsDir() string {
 	return string(filepath.Separator)
 }
 
+// NewFromTemplateMenu returns the items the File → New submenu renders
+// (plan-009 U22). One item per genre-starter template in
+// templates.AllNames() order; each item's OnSelect invokes
+// NewFromTemplate with the matching name. Rebuilt every frame so a
+// template registry change shows up without menu-bar invalidation.
+func (e *Editor) NewFromTemplateMenu() []widgets.MenuItem {
+	if e == nil {
+		return nil
+	}
+	names := templates.AllNames()
+	items := make([]widgets.MenuItem, 0, len(names))
+	for _, name := range names {
+		name := name
+		items = append(items, widgets.MenuItem{
+			Label: name,
+			OnSelect: func() {
+				e.fileMenu.NewFromTemplate(name)
+			},
+		})
+	}
+	return items
+}
+
 // buildMenuDefs assembles the four top-level menus the menu bar renders.
 // Kept on the editor so the OnSelect callbacks close over `e` directly.
 func (e *Editor) buildMenuDefs() []widgets.MenuDef {
@@ -205,8 +255,27 @@ func (e *Editor) buildMenuDefs() []widgets.MenuDef {
 		{
 			Label: "File",
 			Items: []widgets.MenuItem{
-				{Label: "New", Shortcut: "Ctrl+N", OnSelect: e.fileMenu.New},
+				{
+					Label:    "New",
+					Shortcut: "Ctrl+N",
+					OnSelect: e.fileMenu.New,
+					// Plan-009 U22 — File → New → <genre>. The
+					// submenu carries the four genre-starter
+					// templates. The parent's OnSelect still
+					// fires the legacy blank-project New so the
+					// Ctrl+N shortcut keeps its meaning.
+					Submenu: e.NewFromTemplateMenu(),
+				},
 				{Label: "Open...", Shortcut: "Ctrl+O", OnSelect: e.fileMenu.Open},
+				{
+					// Plan-009 U21 — File → Open Example. The
+					// submenu is rebuilt every frame from the
+					// asset library's current manifest, so a
+					// background-bootstrap completion lights up
+					// the rows without needing menu invalidation.
+					Label:   "Open Example",
+					Submenu: e.OpenExampleMenu(),
+				},
 				{Separator: true},
 				{Label: "Save", Shortcut: "Ctrl+S", OnSelect: func() { _ = e.fileMenu.Save() }},
 				{Label: "Save As...", Shortcut: "Ctrl+Shift+S", OnSelect: e.fileMenu.SaveAs},

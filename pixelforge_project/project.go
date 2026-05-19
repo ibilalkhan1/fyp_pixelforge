@@ -79,6 +79,32 @@ type Project struct {
 	// count + 16x16 preference.
 	Version         string `json:"version,omitempty"`
 	IconSpriteName  string `json:"icon_sprite_name,omitempty"`
+
+	// Plan-009 U7 — Prefabs is a flat name-keyed registry of
+	// entity templates the spawn/entity verb-recipe instantiates.
+	// Additive omitempty so pre-v1 projects round-trip cleanly;
+	// applyDefaults backfills nil → empty slice so the spawn sink
+	// never has to nil-check.
+	Prefabs []Prefab `json:"prefabs,omitempty"`
+
+	// Plan-009 U8 — PhysicsPreset names the per-cart physics preset
+	// the capsule runtime hands to pixelforge_physics.NewWorld at
+	// Boot. The string-based fallback (rather than embedding the
+	// full Fixed32 PhysicsConfig in the project schema) keeps
+	// pixelforge_project free of a hard dependency on
+	// pixelforge_physics and keeps the .pforge JSON designer-
+	// friendly: a single short name maps to a curated preset
+	// (gravity, drag, screen-wrap, collision-mode) rather than a
+	// raw 16.16 fixed-point Vec2 dump. Recognised values:
+	//   ""           — empty preset (no gravity, no wrap, no collision)
+	//   "asteroids"  — AsteroidsConfig() (no gravity, screen-wrap on)
+	//   "mario"      — MarioConfig() (gravity 980 px/s², tile-AABB)
+	//   "bomberman"  — BombermanConfig() (no gravity, grid-AABB)
+	//   "dk"         — DKConfig() (Mario + ladder-aware)
+	// Unrecognised values fall back to the empty preset and log a
+	// warning at Boot. omitempty so pre-U8 projects round-trip
+	// without a phantom key.
+	PhysicsPreset string `json:"physics_preset,omitempty"`
 }
 
 // EventSubscription wires an entity (or a global handler) to a topic
@@ -183,6 +209,12 @@ func (p *Project) applyDefaults() {
 		p.Items = []ItemDefinition{}
 	}
 	p.SaveConfig.applyDefaults()
+
+	// Plan-009 U7: nil-safe Prefabs slice so the spawn sink never
+	// has to nil-check the registry.
+	if p.Prefabs == nil {
+		p.Prefabs = []Prefab{}
+	}
 
 	// Idea #7 v1 U2: stamp build-pipeline metadata. Empty Version
 	// defaults to today's ISO date so shipped artifacts always

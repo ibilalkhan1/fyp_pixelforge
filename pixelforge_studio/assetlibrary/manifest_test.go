@@ -89,3 +89,82 @@ func TestManifest_LookupPack(t *testing.T) {
 	assert.Equal(t, "asteroids", pack.Game)
 	assert.Nil(t, m.LookupPack("missing"))
 }
+
+// Plan-009 U20: manifest gains an additive `Examples` field
+// pointing at reference `.pforge` projects the studio's File →
+// Open Example menu can fetch.
+
+const manifestWithExamplesJSON = `{
+  "schema_version": "1",
+  "packs": [],
+  "examples": [
+    {
+      "id": "asteroids_proof",
+      "version": "1.0.0",
+      "title": "Asteroids — Reference",
+      "game": "asteroids",
+      "url": "https://example.invalid/asteroids_proof-1.0.0.pforge",
+      "sha256": "feedface",
+      "size_bytes": 2048,
+      "label": "Asteroids (reference build)",
+      "description": "Thrust, fire, screen-wrap demo."
+    },
+    {
+      "id": "mario_proof",
+      "version": "1.0.0",
+      "title": "Mario — Reference",
+      "game": "mario",
+      "url": "https://example.invalid/mario_proof-1.0.0.pforge",
+      "sha256": "cafebabe"
+    }
+  ]
+}`
+
+func TestParseManifest_WithExamplesPopulatesField(t *testing.T) {
+	m, err := assetlibrary.ParseManifest([]byte(manifestWithExamplesJSON))
+	require.NoError(t, err)
+	require.Len(t, m.Examples, 2, "both well-formed examples must survive sanitisation")
+	assert.Equal(t, "asteroids_proof", m.Examples[0].ID)
+	assert.Equal(t, "Asteroids (reference build)", m.Examples[0].Label)
+	assert.Equal(t, int64(2048), m.Examples[0].SizeBytes)
+	assert.Equal(t, "mario_proof", m.Examples[1].ID)
+}
+
+func TestParseManifest_WithoutExamplesYieldsEmptySlice(t *testing.T) {
+	// Forward-compat: pre-U20 manifests don't carry the field.
+	m, err := assetlibrary.ParseManifest([]byte(minimalManifestJSON))
+	require.NoError(t, err)
+	assert.NotNil(t, m.Examples, "Examples must default to non-nil even when absent in JSON")
+	assert.Empty(t, m.Examples)
+}
+
+func TestParseManifest_DropsExamplesMissingRequiredFields(t *testing.T) {
+	const bad = `{
+		"schema_version": "1",
+		"packs": [],
+		"examples": [
+			{"id": "ok", "version": "1", "url": "https://example.invalid/ok.pforge", "sha256": "h"},
+			{"id": "", "version": "1", "url": "https://example.invalid/no-id.pforge", "sha256": "h"},
+			{"id": "no-url", "version": "1", "url": "", "sha256": "h"}
+		]
+	}`
+	m, err := assetlibrary.ParseManifest([]byte(bad))
+	require.NoError(t, err)
+	require.Len(t, m.Examples, 1, "examples missing id or url must be filtered out")
+	assert.Equal(t, "ok", m.Examples[0].ID)
+}
+
+func TestManifest_LookupExample(t *testing.T) {
+	m, err := assetlibrary.ParseManifest([]byte(manifestWithExamplesJSON))
+	require.NoError(t, err)
+
+	ex := m.LookupExample("asteroids_proof")
+	require.NotNil(t, ex)
+	assert.Equal(t, "asteroids", ex.Game)
+	assert.Equal(t, "Thrust, fire, screen-wrap demo.", ex.Description)
+
+	assert.Nil(t, m.LookupExample("missing"))
+
+	var nilManifest *assetlibrary.Manifest
+	assert.Nil(t, nilManifest.LookupExample("x"), "nil-receiver lookup is safe")
+}

@@ -82,6 +82,7 @@ type Editor struct {
 	importHandler      *ImportHandler
 	importDiffModal    *ImportDiffModal
 	audioImportHandler *AudioImportHandler
+	bgmImportHandler   *BGMImportHandler
 
 	// dragDropPoller is the optional per-frame hook plan-008 U11
 	// installs to drain ebiten.DroppedFiles into the ingest
@@ -169,6 +170,16 @@ type Editor struct {
 	// strokes that re-promote the same rule consult this map and
 	// stay silent.
 	sessionRuleSuppression map[ruleSignature]struct{}
+
+	// Plan-009 U21 — the asset library handle the File → Open
+	// Example menu walks. main.go attaches the handle via
+	// SetAssetLibrary after assetlibrary.LaunchBackgroundBootstrap;
+	// tests can leave it nil (the menu then renders a single
+	// disabled "Loading examples…" row). The editor never imports
+	// assetlibrary directly — the OpenExampleSource interface is
+	// the seam, so unit tests can drive the menu without standing
+	// up a full Library.
+	openExampleSource OpenExampleSource
 }
 
 // ruleSignature is the (Pattern, Output) hash the session-suppression
@@ -241,6 +252,7 @@ func NewWithSettings(s *Settings) *Editor {
 	e.importHandler = NewImportHandler(e)
 	e.importDiffModal = NewImportDiffModal(e)
 	e.audioImportHandler = NewAudioImportHandler(e)
+	e.bgmImportHandler = NewBGMImportHandler(e)
 	return e
 }
 

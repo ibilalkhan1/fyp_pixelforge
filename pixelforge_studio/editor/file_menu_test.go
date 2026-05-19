@@ -138,3 +138,61 @@ func TestFileMenu_QuitCleanTerminates(t *testing.T) {
 	e.fileMenu.Quit()
 	assert.True(t, e.terminate)
 }
+
+// Plan-009 U22 — File → New → Blank Platformer creates a project
+// pre-wired with the Mario-class preset. The handler runs through
+// PromptIfDirty (so a dirty project is preserved) and replaces the
+// editor's in-memory project on the clean / confirmed path.
+func TestFileMenu_NewFromTemplate_BlankPlatformer(t *testing.T) {
+	e := New()
+	e.fileMenu.NewFromTemplate("Blank Platformer")
+	assert.Equal(t, "mario", e.Project().PhysicsPreset, "platformer template flips physics_preset")
+	assert.False(t, e.IsDirty(), "new-from-template should not flip dirty bit")
+	assert.Empty(t, e.CurrentProjectPath(), "template-spawned project has no on-disk source")
+}
+
+// Plan-009 U22 — File → New → submenu must enumerate exactly the four
+// generic genre starters (AE10).
+func TestFileMenu_NewFromTemplateMenu_HasFourGenericRows(t *testing.T) {
+	e := New()
+	items := e.NewFromTemplateMenu()
+	require.Len(t, items, 4, "exactly four genre starters")
+	labels := map[string]bool{}
+	for _, it := range items {
+		labels[it.Label] = true
+	}
+	for _, want := range []string{
+		"Blank Platformer",
+		"Blank Arcade Shooter",
+		"Blank Grid Game",
+		"Blank Ladder Platformer",
+	} {
+		assert.True(t, labels[want], "expected submenu label %q", want)
+	}
+	// AE10 negative: trademarked names must not appear.
+	for _, banned := range []string{"Mario", "Asteroids", "Bomberman", "Donkey Kong", "DK"} {
+		assert.False(t, labels[banned], "label %q must not appear (AE10)", banned)
+	}
+}
+
+// Plan-009 U22 — Unknown template name surfaces a status message
+// without mutating the project.
+func TestFileMenu_NewFromTemplate_UnknownNameIsNoOp(t *testing.T) {
+	e := New()
+	old := e.Project()
+	e.fileMenu.NewFromTemplate("Mario")
+	assert.Same(t, old, e.Project(), "unknown template must not replace project")
+	assert.Contains(t, e.StatusMessage(), "unknown template")
+}
+
+// Plan-009 U22 — Dirty-state prompt fires on NewFromTemplate just
+// like the legacy New handler.
+func TestFileMenu_NewFromTemplate_DirtyOpensConfirm(t *testing.T) {
+	e := New()
+	e.MarkDirty()
+	e.fileMenu.NewFromTemplate("Blank Platformer")
+	assert.True(t, e.confirmDialog.Visible(), "dirty project → confirm modal before template swap")
+
+	e.confirmDialog.Confirm()
+	assert.Equal(t, "mario", e.Project().PhysicsPreset)
+}

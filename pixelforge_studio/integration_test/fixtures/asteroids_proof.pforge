@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "name": "asteroids_proof",
+  "screen_width": 320,
+  "screen_height": 180,
+  "tps": 60,
+  "created_at": "2026-05-19T00:00:00Z",
+  "modified_at": "2026-05-19T00:00:00Z",
+  "palette": {},
+  "theme": {
+    "background_slot": 1,
+    "panel_slot": 2,
+    "panel_header_slot": 5,
+    "text_slot": 7,
+    "text_dim_slot": 6,
+    "accent_slot": 12,
+    "warning_slot": 9,
+    "font_name": "cofont"
+  },
+  "physics_preset": "asteroids",
+  "sprites": [
+    {
+      "name": "ship",
+      "relative_path": "sprites/ship.png",
+      "width": 16,
+      "height": 16,
+      "frame_w": 16,
+      "frame_h": 16,
+      "origin_x": 8,
+      "origin_y": 8,
+      "animations": []
+    },
+    {
+      "name": "asteroid_large",
+      "relative_path": "sprites/asteroid_large.png",
+      "width": 24,
+      "height": 24,
+      "frame_w": 24,
+      "frame_h": 24,
+      "origin_x": 12,
+      "origin_y": 12,
+      "animations": []
+    }
+  ],
+  "audio": [],
+  "scenes": [
+    {
+      "id": "main",
+      "name": "Main",
+      "entities": [
+        {
+          "id": "ship_1",
+          "name": "Ship",
+          "position": {"x": 160, "y": 90, "z": 0},
+          "components": [
+            {"type": "Sprite", "values": {"sprite": "ship"}}
+          ],
+          "archetype": "Player"
+        },
+        {
+          "id": "asteroid_1",
+          "name": "Asteroid TL",
+          "position": {"x": 60, "y": 40, "z": 0},
+          "components": [
+            {"type": "Sprite", "values": {"sprite": "asteroid_large"}}
+          ],
+          "archetype": "Enemy"
+        },
+        {
+          "id": "asteroid_2",
+          "name": "Asteroid TR",
+          "position": {"x": 260, "y": 40, "z": 0},
+          "components": [
+            {"type": "Sprite", "values": {"sprite": "asteroid_large"}}
+          ],
+          "archetype": "Enemy"
+        },
+        {
+          "id": "asteroid_3",
+          "name": "Asteroid BL",
+          "position": {"x": 60, "y": 140, "z": 0},
+          "components": [
+            {"type": "Sprite", "values": {"sprite": "asteroid_large"}}
+          ],
+          "archetype": "Enemy"
+        },
+        {
+          "id": "asteroid_4",
+          "name": "Asteroid BR",
+          "position": {"x": 260, "y": 140, "z": 0},
+          "components": [
+            {"type": "Sprite", "values": {"sprite": "asteroid_large"}}
+          ],
+          "archetype": "Enemy"
+        }
+      ],
+      "tile_atlases": [],
+      "grid_width_screens": 1,
+      "grid_height_screens": 1,
+      "spawn_tile": {"col": 0, "row": 0},
+      "default_tile_id": 0
+    }
+  ],
+  "behaviors": [],
+  "bindings": [],
+  "event_subscriptions": [],
+  "extension_hooks": []
+}

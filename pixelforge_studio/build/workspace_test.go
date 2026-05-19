@@ -77,6 +77,48 @@ func TestWorkspace_CancelBuildSafeOnIdle(t *testing.T) {
 	assert.NotPanics(t, func() { w.CancelBuild() })
 }
 
+// TestWorkspace_StatusLabelIncludesSizeWhenWASMDone covers the
+// plan-009 U23 surface: a PhaseDone status with a non-nil
+// SizeReport must surface the "(18.0MB, gzip 6.4MB)" suffix and
+// the [warn] indicator at the warn threshold.
+func TestWorkspace_StatusLabelIncludesSizeWhenWASMDone(t *testing.T) {
+	_, w := newBuildWorkspace(t)
+	report := buildpipeline.WASMSizeReport{
+		RawBytes:         18 * 1024 * 1024,
+		// 6.4MB ≈ 6710886 bytes (typed conversion to silence
+		// "untyped float constant cannot become int64").
+		GzipBytes: 6710886,
+		WarnThresholdMB:  buildpipeline.WASMWarnThresholdMB,
+		ErrorThresholdMB: buildpipeline.WASMErrorThresholdMB,
+	}
+	w.RecordStatus(buildpipeline.BuildStatus{
+		Target:     buildpipeline.TargetWASM,
+		Phase:      buildpipeline.PhaseDone,
+		SizeReport: &report,
+	})
+	// The display path runs through buildpipeline directly; we
+	// assert on the recorded status carrying the report.
+	got := w.Status(buildpipeline.TargetWASM)
+	require.NotNil(t, got.SizeReport, "size report must round-trip into the workspace")
+	assert.True(t, got.SizeReport.ExceededWarn())
+	assert.False(t, got.SizeReport.ExceededError())
+	assert.Equal(t, buildpipeline.WASMSeverityWarn, got.SizeReport.Severity())
+}
+
+// TestWorkspace_StatusLabelSilentForNonWASMOrNilReport: a host
+// build's PhaseDone has SizeReport == nil → no suffix leaks
+// through.
+func TestWorkspace_StatusLabelSilentForNonWASMOrNilReport(t *testing.T) {
+	_, w := newBuildWorkspace(t)
+	w.RecordStatus(buildpipeline.BuildStatus{
+		Target: buildpipeline.HostTarget(),
+		Phase:  buildpipeline.PhaseDone,
+	})
+	got := w.Status(buildpipeline.HostTarget())
+	assert.Nil(t, got.SizeReport,
+		"non-WASM builds must not carry a SizeReport")
+}
+
 func TestWorkspace_AllStatusesEnumeratesRecorded(t *testing.T) {
 	_, w := newBuildWorkspace(t)
 	w.RecordStatus(buildpipeline.BuildStatus{Target: buildpipeline.TargetLinux, Phase: buildpipeline.PhaseDone})

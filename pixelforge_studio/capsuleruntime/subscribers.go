@@ -84,12 +84,17 @@ type InventoryStore interface {
 	SetCount(itemID string, count int)
 }
 
-// DamageSink routes damage/die / hurt_player / take_damage.
-// Default is a log stub.
+// DamageSink routes damage/die / hurt_player / take_damage /
+// explode_radius / grid_explode. Plan-009 U9 lands the concrete
+// implementation for the first four in damage_sink.go; U15 adds
+// GridExplode for the grid-cardinal Bomberman variant. The log*
+// fallback remains as a test fixture.
 type DamageSink interface {
 	Die(entityID string)
 	HurtPlayer(amount int)
 	TakeDamage(entityID string, amount int)
+	ExplodeRadius(args map[string]any)
+	GridExplode(args map[string]any)
 }
 
 // MotionSink receives any motion/* verb that wasn't translated to
@@ -206,6 +211,15 @@ func (rt *Runtime) dispatch(ev *piloop.VerbEvent) {
 		// fuse_ticks + radius + damage from args.
 		handleDamageExplodeRadius(rt, ev.Args)
 
+	case "damage/grid_explode":
+		// Grid-cardinal explosion is the Bomberman variant: the
+		// blast walks 4 cardinal rays out from the origin tile,
+		// stopping at solid tiles, damaging every entity it touches.
+		// Routed through the Damage sink alongside explode_radius
+		// because the resolution step also goes through the
+		// damage/take_damage cascade.
+		rt.Sinks.Damage.GridExplode(ev.Args)
+
 	case "flow/fixed_tick_loop":
 		// fixed_tick_loop is an authoring helper, not an effect —
 		// the catalog publishes it so per-tick condition + action
@@ -269,6 +283,12 @@ func handleAudioPlayMusic(rt *Runtime, args map[string]any) {
 func handleSceneChange(rt *Runtime, args map[string]any) {
 	id, ok := argString(args, "scene_id")
 	if !ok {
+		// Plan-009 U7 accepts the shorthand "name" key — verb
+		// recipes that pass scene names rather than IDs land
+		// without a recipe-author migration.
+		id, ok = argString(args, "name")
+	}
+	if !ok {
 		debugDrop("scene/change", "missing scene_id", args)
 		return
 	}
@@ -276,6 +296,19 @@ func handleSceneChange(rt *Runtime, args map[string]any) {
 }
 
 func handleSceneWait(rt *Runtime, args map[string]any) {
+	// Accept "ticks" (engine-native) or "ms" (recipe-natural). When
+	// "ms" is the only key, convert via Project.TPS so the recipe
+	// fires identically across 30-TPS and 60-TPS projects.
+	if raw, ok := args["ms"]; ok && raw != nil {
+		ms := int(argFloatOr(args, "ms", 0))
+		tps := 60
+		if rt.Project != nil && rt.Project.TPS > 0 {
+			tps = rt.Project.TPS
+		}
+		ticks := (ms*tps + 999) / 1000
+		rt.Sinks.Scene.Wait(ticks)
+		return
+	}
 	ticks := int(argFloatOr(args, "ticks", 0))
 	rt.Sinks.Scene.Wait(ticks)
 }
@@ -338,7 +371,10 @@ func handleInventorySetCount(rt *Runtime, args map[string]any) {
 }
 
 func handleDamageDie(rt *Runtime, args map[string]any) {
-	id, _ := argString(args, "entity_id")
+	id, ok := argString(args, "entity_id")
+	if !ok {
+		id, _ = argString(args, "entity")
+	}
 	rt.Sinks.Damage.Die(id)
 }
 
@@ -348,19 +384,21 @@ func handleDamageHurtPlayer(rt *Runtime, args map[string]any) {
 }
 
 func handleDamageTakeDamage(rt *Runtime, args map[string]any) {
-	id, _ := argString(args, "entity_id")
+	id, ok := argString(args, "entity_id")
+	if !ok {
+		id, _ = argString(args, "entity")
+	}
 	amount := int(argFloatOr(args, "amount", 1))
 	rt.Sinks.Damage.TakeDamage(id, amount)
 }
 
-// handleDamageExplodeRadius dispatches the Bomberman explosion
-// verb. Until a dedicated AoE sink lands, the explosion's damage
-// pass routes through the existing HurtPlayer sink — the radius +
-// fuse semantics surface in the log line so designers can confirm
-// the recipe fired with the expected timing.
+// handleDamageExplodeRadius dispatches the point-blast explosion
+// verb to the damage sink, which iterates within-radius entities,
+// fires chained damage/take_damage events on each, and emits a
+// visual/flash + audio/play_sound for the blast itself. Plan-009
+// U9 lands the concrete handler in damage_sink.go.
 func handleDamageExplodeRadius(rt *Runtime, args map[string]any) {
-	amount := int(argFloatOr(args, "damage", 1))
-	rt.Sinks.Damage.HurtPlayer(amount)
+	rt.Sinks.Damage.ExplodeRadius(args)
 }
 
 func handleSaveNow(rt *Runtime, args map[string]any) {
@@ -455,34 +493,34 @@ func (s *Sinks) fillDefaults(rt *Runtime) {
 		s.Audio = realAudioSink{}
 	}
 	if s.Music == nil {
-		s.Music = logMusicSink{}
+		s.Music = newMusicSink(rt)
 	}
 	if s.Scene == nil {
-		s.Scene = logSceneController{}
+		s.Scene = newSceneSink(rt)
 	}
 	if s.Menu == nil {
 		s.Menu = newMenuController(rt)
 	}
 	if s.Dialogue == nil {
-		s.Dialogue = newDialogueController()
+		s.Dialogue = newDialogueSink(rt)
 	}
 	if s.Inventory == nil {
 		s.Inventory = newInventoryStore()
 	}
 	if s.Damage == nil {
-		s.Damage = logDamageSink{}
+		s.Damage = newDamageSink(rt)
 	}
 	if s.Motion == nil {
-		s.Motion = logMotionSink{}
+		s.Motion = newMotionSink(rt)
 	}
 	if s.Spawn == nil {
-		s.Spawn = logSpawnSink{}
+		s.Spawn = newSpawnSink(rt)
 	}
 	if s.Visual == nil {
-		s.Visual = logVisualSink{}
+		s.Visual = newVisualSink(rt)
 	}
 	if s.Save == nil {
-		s.Save = saveServiceSink{svc: rt.Save}
+		s.Save = saveServiceSink{rt: rt, svc: rt.Save}
 	}
 }
 
@@ -494,47 +532,54 @@ func (realAudioSink) Play(ch pixelforge_audio.Chan, sample *pixelforge_audio.Sam
 }
 
 // logMusicSink, logSceneController, logDamageSink, logMotionSink,
-// logSpawnSink, logVisualSink are no-op-with-debug-log stubs for
-// the subsystems plan-007 / plan-001 don't yet provide concrete
-// implementations for. They satisfy the "never crash a shipped
-// game" invariant while leaving authored verbs visible in logs so
-// designers can confirm wiring before subsystems land.
+// logSpawnSink, logVisualSink are silent-no-op fallback types kept
+// as test fixtures. Plan-009 U7 flipped the production defaults in
+// fillDefaults to concrete sinks (sceneSink, visualSink, spawnSink,
+// dialogueSink, musicSink); the log* types remain here so tests
+// that want a pure no-op fallback (e.g. "the dispatcher routed the
+// event, we don't care what the sink did") can still inject them.
+// They are no longer the default for any field — fillDefaults wires
+// concrete sinks for every nil entry.
+//
+// Damage + Motion log sinks remain the production defaults until
+// U8 + U9 land — both units explicitly replace these types with
+// concrete implementations.
 
 type logMusicSink struct{}
 
-func (logMusicSink) PlayMusic(name string) { log.Printf("[capsuleruntime] play_music %q (no BGM subsystem)", name) }
-func (logMusicSink) StopMusic()             { log.Printf("[capsuleruntime] stop_music (no BGM subsystem)") }
+func (logMusicSink) PlayMusic(string) {}
+func (logMusicSink) StopMusic()       {}
 
 type logSceneController struct{}
 
-func (logSceneController) Change(id string) { log.Printf("[capsuleruntime] scene/change %q (no scene controller)", id) }
-func (logSceneController) Restart()         { log.Printf("[capsuleruntime] scene/restart (no scene controller)") }
-func (logSceneController) Wait(ticks int)   { log.Printf("[capsuleruntime] scene/wait %d (no scene controller)", ticks) }
+func (logSceneController) Change(string) {}
+func (logSceneController) Restart()      {}
+func (logSceneController) Wait(int)      {}
 
 type logDamageSink struct{}
 
-func (logDamageSink) Die(id string)                 { log.Printf("[capsuleruntime] damage/die %q", id) }
-func (logDamageSink) HurtPlayer(amount int)         { log.Printf("[capsuleruntime] damage/hurt_player %d", amount) }
-func (logDamageSink) TakeDamage(id string, amt int) { log.Printf("[capsuleruntime] damage/take_damage %q %d", id, amt) }
+func (logDamageSink) Die(string)                   {}
+func (logDamageSink) HurtPlayer(int)               {}
+func (logDamageSink) TakeDamage(string, int)       {}
+func (logDamageSink) ExplodeRadius(map[string]any) {}
+func (logDamageSink) GridExplode(map[string]any)   {}
 
 type logMotionSink struct{}
 
-func (logMotionSink) Apply(topic string, args map[string]any) {
-	log.Printf("[capsuleruntime] %s %v", topic, args)
-}
+func (logMotionSink) Apply(string, map[string]any) {}
 
 type logSpawnSink struct{}
 
-func (logSpawnSink) Spawn(args map[string]any)        { log.Printf("[capsuleruntime] spawn/entity %v", args) }
-func (logSpawnSink) DestroySelf(args map[string]any)  { log.Printf("[capsuleruntime] spawn/destroy_self %v", args) }
-func (logSpawnSink) DestroyOther(args map[string]any) { log.Printf("[capsuleruntime] spawn/destroy_other %v", args) }
+func (logSpawnSink) Spawn(map[string]any)        {}
+func (logSpawnSink) DestroySelf(map[string]any)  {}
+func (logSpawnSink) DestroyOther(map[string]any) {}
 
 type logVisualSink struct{}
 
-func (logVisualSink) Hide(args map[string]any)       { log.Printf("[capsuleruntime] visual/hide %v", args) }
-func (logVisualSink) Show(args map[string]any)       { log.Printf("[capsuleruntime] visual/show %v", args) }
-func (logVisualSink) Flash(args map[string]any)      { log.Printf("[capsuleruntime] visual/flash %v", args) }
-func (logVisualSink) SwapSprite(args map[string]any) { log.Printf("[capsuleruntime] visual/swap_sprite %v", args) }
+func (logVisualSink) Hide(map[string]any)       {}
+func (logVisualSink) Show(map[string]any)       {}
+func (logVisualSink) Flash(map[string]any)      {}
+func (logVisualSink) SwapSprite(map[string]any) {}
 
 // menuController wraps a MenuStack and resolves the menu name to
 // its template via the loaded project's Menus map. Production
@@ -567,24 +612,19 @@ func (c *menuController) Close() {
 	c.stack.Pop()
 }
 
-// dialogueController logs and tracks current script — the renderer
-// wiring lands in a later plan; the controller satisfies the
-// interface today so the topic doesn't go un-dispatched.
+// dialogueController is the legacy log-only controller plan-008
+// shipped. Plan-009 U7 replaced the default with dialogueSink (see
+// dialogue_sink.go); dialogueController stays in the package as a
+// silent-no-op fallback type for tests that want to assert
+// dispatch-only behaviour without involving the concrete sink.
 type dialogueController struct {
 	current string
 }
 
 func newDialogueController() *dialogueController { return &dialogueController{} }
 
-func (d *dialogueController) Open(id string) {
-	d.current = id
-	log.Printf("[capsuleruntime] open_dialogue %q (renderer wiring deferred)", id)
-}
-
-func (d *dialogueController) Close() {
-	log.Printf("[capsuleruntime] close_dialogue (was %q)", d.current)
-	d.current = ""
-}
+func (d *dialogueController) Open(id string) { d.current = id }
+func (d *dialogueController) Close()         { d.current = "" }
 
 // inventoryStore is the in-memory map default. Production-grade
 // inventory will swap this for a blackboard-backed store; the
@@ -637,7 +677,14 @@ func (s *inventoryStore) Count(id string) int { return s.counts[id] }
 // Errors from the service are logged — the save verbs don't have a
 // blocking error path in the recipe surface, so failure surfaces
 // in logs and gameplay continues.
+//
+// Plan-009 U10 swaps the literal pisave.Snapshot{} the v1 stub wrote
+// for a real EncodeSnapshot pass over the runtime — the save service
+// now persists the live scene's entities + components + physics body
+// state + globals + tick. LoadSlot mirrors the path: read the slot,
+// then DecodeSnapshot back into rt.
 type saveServiceSink struct {
+	rt  *Runtime
 	svc *pisave.Service
 }
 
@@ -645,10 +692,12 @@ func (s saveServiceSink) SaveNow(slot string) {
 	if s.svc == nil || slot == "" {
 		return
 	}
-	// Snapshot construction is deferred to a future plan that adds
-	// scene-state capture — for now save_now records an empty
-	// snapshot so the round-trip path is exercised end-to-end.
-	if err := s.svc.SaveToSlot(pisave.Snapshot{}, slot); err != nil {
+	snapshot, err := EncodeSnapshot(s.rt)
+	if err != nil {
+		log.Printf("[capsuleruntime] save/now %q encode failed: %v", slot, err)
+		return
+	}
+	if err := s.svc.SaveToSlot(snapshot, slot); err != nil {
 		log.Printf("[capsuleruntime] save/now %q failed: %v", slot, err)
 	}
 }
@@ -657,8 +706,13 @@ func (s saveServiceSink) LoadSlot(slot string) {
 	if s.svc == nil || slot == "" {
 		return
 	}
-	if _, err := s.svc.LoadFromSlot(slot); err != nil {
+	snapshot, err := s.svc.LoadFromSlot(slot)
+	if err != nil {
 		log.Printf("[capsuleruntime] save/load_slot %q failed: %v", slot, err)
+		return
+	}
+	if err := DecodeSnapshot(s.rt, snapshot); err != nil {
+		log.Printf("[capsuleruntime] save/load_slot %q decode failed: %v", slot, err)
 	}
 }
 

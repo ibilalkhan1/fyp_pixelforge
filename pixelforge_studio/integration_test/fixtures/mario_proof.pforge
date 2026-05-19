@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "name": "mario_proof",
+  "screen_width": 320,
+  "screen_height": 180,
+  "tps": 60,
+  "created_at": "2026-05-19T00:00:00Z",
+  "modified_at": "2026-05-19T00:00:00Z",
+  "palette": {},
+  "theme": {
+    "background_slot": 1,
+    "panel_slot": 2,
+    "panel_header_slot": 5,
+    "text_slot": 7,
+    "text_dim_slot": 6,
+    "accent_slot": 12,
+    "warning_slot": 9,
+    "font_name": "cofont"
+  },
+  "physics_preset": "mario",
+  "sprites": [
+    {
+      "name": "hero",
+      "relative_path": "sprites/hero.png",
+      "width": 16,
+      "height": 16,
+      "frame_w": 16,
+      "frame_h": 16,
+      "origin_x": 8,
+      "origin_y": 8,
+      "animations": []
+    },
+    {
+      "name": "goomba",
+      "relative_path": "sprites/goomba.png",
+      "width": 16,
+      "height": 16,
+      "frame_w": 16,
+      "frame_h": 16,
+      "origin_x": 8,
+      "origin_y": 8,
+      "animations": []
+    },
+    {
+      "name": "ground_tile",
+      "relative_path": "sprites/ground_tile.png",
+      "width": 16,
+      "height": 16,
+      "frame_w": 16,
+      "frame_h": 16,
+      "origin_x": 0,
+      "origin_y": 0,
+      "animations": []
+    }
+  ],
+  "audio": [],
+  "scenes": [
+    {
+      "id": "level_1_1",
+      "name": "level_1_1",
+      "entities": [
+        {
+          "id": "hero_1",
+          "name": "Hero",
+          "position": {"x": 40, "y": 130, "z": 0},
+          "components": [
+            {"type": "Sprite", "values": {"sprite": "hero"}}
+          ],
+          "archetype": "Player"
+        },
+        {
+          "id": "goomba_1",
+          "name": "Goomba1",
+          "position": {"x": 160, "y": 130, "z": 0},
+          "components": [
+            {"type": "Sprite", "values": {"sprite": "goomba"}}
+          ],
+          "archetype": "Enemy"
+        },
+        {
+          "id": "goomba_2",
+          "name": "Goomba2",
+          "position": {"x": 250, "y": 130, "z": 0},
+          "components": [
+            {"type": "Sprite", "values": {"sprite": "goomba"}}
+          ],
+          "archetype": "Enemy"
+        }
+      ],
+      "tile_atlases": [
+        {
+          "name": "ground",
+          "tile_w": 16,
+          "tile_h": 16,
+          "grid": [
+            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0],
+            [0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0],
+            [0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+          ],
+          "auto_tile_rules": [],
+          "sprite_sheet_ref": "ground_tile"
+        }
+      ],
+      "grid_width_screens": 1,
+      "grid_height_screens": 1,
+      "spawn_tile": {"col": 2, "row": 8},
+      "default_tile_id": 0
+    }
+  ],
+  "behaviors": [],
+  "bindings": [],
+  "event_subscriptions": [],
+  "extension_hooks": []
+}

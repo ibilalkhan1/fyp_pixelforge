@@ -372,8 +372,9 @@ func TestSubscribers_ArcadeMotionTopicsRouteThroughMotionSink(t *testing.T) {
 
 // TestSubscribers_ArcadeExplodeRoutesThroughDamageSink — the
 // Bomberman explosion verb publishes "damage/explode_radius"; the
-// subscriber routes it through the Damage sink's HurtPlayer until
-// a dedicated AoE sink lands.
+// subscriber routes it through the Damage sink's dedicated
+// ExplodeRadius method (plan-009 U9 promoted this from the prior
+// HurtPlayer fallback to a first-class sink method).
 func TestSubscribers_ArcadeExplodeRoutesThroughDamageSink(t *testing.T) {
 	damage := &recordingDamage{}
 	bootWithSinks(t, capsuleruntime.Sinks{Damage: damage})
@@ -383,8 +384,9 @@ func TestSubscribers_ArcadeExplodeRoutesThroughDamageSink(t *testing.T) {
 		Args:  map[string]any{"fuse_ticks": 120.0, "radius": 32.0, "damage": 3.0},
 	})
 
-	require.Len(t, damage.hurts, 1)
-	assert.Equal(t, 3, damage.hurts[0], "explode_radius damage amount must flow to HurtPlayer")
+	require.Len(t, damage.explodes, 1)
+	assert.Equal(t, 3.0, damage.explodes[0]["damage"], "explode_radius args must flow into ExplodeRadius")
+	assert.Equal(t, 32.0, damage.explodes[0]["radius"])
 }
 
 // recordingMotion captures every Apply call so the arcade-topic
@@ -403,12 +405,14 @@ func (m *recordingMotion) Apply(topic string, args map[string]any) {
 	m.calls = append(m.calls, motionCall{Topic: topic, Args: args})
 }
 
-// recordingDamage captures HurtPlayer / Die / TakeDamage so the
-// explode_radius subscriber test can assert routing.
+// recordingDamage captures HurtPlayer / Die / TakeDamage /
+// ExplodeRadius / GridExplode so the routing tests can assert routing.
 type recordingDamage struct {
-	deaths []string
-	hurts  []int
-	taken  []damageCall
+	deaths       []string
+	hurts        []int
+	taken        []damageCall
+	explodes     []map[string]any
+	gridExplodes []map[string]any
 }
 
 type damageCall struct {
@@ -419,6 +423,12 @@ type damageCall struct {
 func (d *recordingDamage) Die(id string)                 { d.deaths = append(d.deaths, id) }
 func (d *recordingDamage) HurtPlayer(amount int)         { d.hurts = append(d.hurts, amount) }
 func (d *recordingDamage) TakeDamage(id string, amt int) { d.taken = append(d.taken, damageCall{id, amt}) }
+func (d *recordingDamage) ExplodeRadius(args map[string]any) {
+	d.explodes = append(d.explodes, args)
+}
+func (d *recordingDamage) GridExplode(args map[string]any) {
+	d.gridExplodes = append(d.gridExplodes, args)
+}
 
 func TestVerbsBus_TargetRegistered(t *testing.T) {
 	// Re-register so a clean target is in the registry before
