@@ -45,21 +45,8 @@ func (e *Editor) buildDockSpace() {
 	if e.dockspace == nil {
 		e.dockspace = &dockspaceState{}
 	}
-	// PassthruCentralNode keeps the central dock node transparent so
-	// native widget content rendered into PanelRect("Scene") shows
-	// through ImGui's background fill until U5 swaps it for an
-	// imgui.Image-based scene.
-	dockID := imgui.DockSpaceOverViewportV(
-		imgui.IDStr(dockspaceWindowID),
-		imgui.MainViewport(),
-		imgui.DockNodeFlagsPassthruCentralNode,
-		nil,
-	)
+	dockID := imgui.DockSpaceOverViewport()
 	e.dockspace.rootID = dockID
-	if !e.dockspace.initialised {
-		e.applyDefaultDockLayout(dockID)
-		e.dockspace.initialised = true
-	}
 }
 
 // applyDefaultDockLayout seeds the dockspace on first run with a sane
