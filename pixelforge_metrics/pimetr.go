@@ -27,6 +27,7 @@ import (
 	piloop "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_loop"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_pad"
 	pistat "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_stat"
+	"math"
 )
 
 // RenderMode is a bitmask selecting which overlay panels to render.
@@ -65,7 +66,17 @@ var ShowHeatMap bool
 
 // Scale multiplies the native overlay's font size and panel paddings.
 // 1 = ebitenutil's default (~6×16px). 2 doubles everything (uses GeoM).
-var Scale = 1
+var Scale = 2
+
+// Visible controls whether the metrics overlay is drawn. Toggle at runtime
+// with SetVisible. Defaults to on.
+var visible = true
+
+// SetVisible shows or hides the metrics overlay while keeping it
+// registered as the native overlay callback.
+func SetVisible(v bool) {
+	visible = v
+}
 
 var (
 	fps      int
@@ -266,7 +277,7 @@ func drawCanvasOverlays(piloop.Event, pievent.Handler) {
 // scaled to the window. Everything drawn here renders at native window
 // resolution, so text stays crisp.
 func drawNative(screen *ebiten.Image) {
-	if !started {
+	if !started || !visible {
 		return
 	}
 
@@ -274,26 +285,46 @@ func drawNative(screen *ebiten.Image) {
 
 	winW, winH := screen.Bounds().Dx(), screen.Bounds().Dy()
 
-	const padX, padY = 6, 6
-	x, y := padX, padY
+	// Position text in the right column — just after the game canvas.
+	gx, _, gw, _ := pixelforge_ebiten.GameCanvasBounds()
+	colX := int(math.Round(gx+gw)) + 6
 
+	const padEdge = 6
+	y := padEdge
+
+	// ---- Top-right panels ----
 	if Mode&RenderTextMetrics != 0 {
-		y = drawTextMetricsNative(screen, snap, x, y, winW, winH)
+		y = drawTextMetricsNative(screen, snap, colX, y, winW, winH)
 	}
 	if Mode&RenderInputs != 0 {
-		y = drawInputsNative(screen, x, y, winW, winH)
+		y = drawInputsNative(screen, colX, y, winW, winH)
 	}
 	if Mode&RenderBudget != 0 {
-		y = drawBudgetBarNative(screen, snap, x, y, winW, winH)
+		y = drawBudgetBarNative(screen, snap, colX, y, winW, winH)
 	}
+
+	// ---- Bottom-right panels ----
+	// Total height needed for bottom groups.
+	var bottomH int
 	if Mode&RenderAudio != 0 {
-		y = drawAudioNative(screen, snap, x, y, winW, winH)
+		bottomH += lineH() * 4
 	}
 	if Mode&RenderEventBus != 0 {
-		y = drawEventBusNative(screen, snap, x, y, winW, winH)
+		bottomH += lineH() * 3
 	}
 	if Mode&RenderColorTable != 0 {
-		drawColorTableNative(screen, x, y, winW, winH)
+		bottomH += lineH() + 4*4*Scale + 4 // title + 4 rows × 4*Scale cell
+	}
+	y = winH - padEdge - bottomH
+
+	if Mode&RenderAudio != 0 {
+		y = drawAudioNative(screen, snap, colX, y, winW, winH)
+	}
+	if Mode&RenderEventBus != 0 {
+		y = drawEventBusNative(screen, snap, colX, y, winW, winH)
+	}
+	if Mode&RenderColorTable != 0 {
+		drawColorTableNative(screen, colX, y, winW, winH)
 	}
 }
 
@@ -334,7 +365,7 @@ func drawTextMetricsNative(dst *ebiten.Image, snap MetricsSnapshot, x, y, winW, 
 	if y+lineH()*2 > winH {
 		return y
 	}
-	printAt(dst, fmt.Sprintf("FPS:%-3d TPS:%-2d CPU:%5.2f%% RAM:%-4dMB",
+	printAt(dst, fmt.Sprintf("FPS:%-3d TPS:%-2d CPU:%5.2f%% RAM:%-6dKB",
 		snap.FPS, snap.TPS, float64(snap.CPU)/100, snap.MemoryMB), x, y)
 	y += lineH()
 	printAt(dst, fmt.Sprintf("FRM:%-6d ALLOC:%-6d TIME:%6.1fs PIX:%-7d",
@@ -453,8 +484,10 @@ func drawAudioNative(dst *ebiten.Image, snap MetricsSnapshot, x, y, winW, winH i
 	vuW := 80 * Scale
 	for i, ch := range snap.AudioChannels {
 		ly := y + i*lineH()
-		printAt(dst, fmt.Sprintf("CH%d", i+1), x, ly)
-		barX := float32(x + glyphW()*4)
+		label := fmt.Sprintf("CH%d", i+1)
+		labelW := len(label) * glyphW()
+
+		barX := float32(x + labelW + 4*Scale)
 		barY := float32(ly + 2*Scale)
 		vector.DrawFilledRect(dst, barX, barY, float32(vuW), float32(lineH()-4*Scale), colDim, false)
 
@@ -476,10 +509,11 @@ func drawAudioNative(dst *ebiten.Image, snap MetricsSnapshot, x, y, winW, winH i
 			}
 			vector.DrawFilledRect(dst, barX, barY, fill, float32(lineH()-4*Scale), c, false)
 			info := fmt.Sprintf("p%5.2f  v%5.2f  pos%6d", ch.Pitch, ch.Volume, int(ch.Position))
-			printAt(dst, info, int(barX)+vuW+8, ly)
+			printAt(dst, info, int(barX)+vuW+4*Scale, ly)
 		} else {
-			printAt(dst, "[INACTIVE]", int(barX)+vuW+8, ly)
+			printAt(dst, "[INACTIVE]", int(barX)+vuW+4*Scale, ly)
 		}
+		printAt(dst, label, x, ly)
 	}
 	return y + lineH()*4
 }
@@ -510,11 +544,12 @@ func drawColorTableNative(dst *ebiten.Image, x, y, winW, winH int) int {
 	if y+lineH()+gridH+4 > winH {
 		return y
 	}
+	printAt(dst, "COLOR TABLES (4 x 64)", x, y)
+	gridY := y + lineH()
+
 	if x+gridW > winW {
 		return y
 	}
-	printAt(dst, "COLOR TABLES (4 x 64)", x, y)
-	gridY := y + lineH()
 
 	var maxAccess uint64
 	var sums [rows][cols]uint64

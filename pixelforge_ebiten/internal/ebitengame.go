@@ -4,6 +4,7 @@ import (
 	ebitenaudio "github.com/hajimehoshi/ebiten/v2/audio"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten/internal/audio"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten/internal/input"
+	"image/color"
 	"math"
 	"time"
 
@@ -219,6 +220,24 @@ func (g *EbitenGame) Update() error {
 // is heavily upscaled.
 var NativeOverlay func(screen *ebiten.Image)
 
+// Per-side border widths (device-independent pixels) reserved around the
+// game canvas. The right border is wider so the metrics overlay has a
+// dedicated column for its text panels.
+var (
+	MetricsBorderTop    = 60.0
+	MetricsBorderBottom = 60.0
+	MetricsBorderLeft   = 60.0
+	MetricsBorderRight  = 300.0
+)
+
+// GameCanvasX, GameCanvasY, GameCanvasW, GameCanvasH expose where the game
+// canvas was drawn (in window coordinates, before device-scale adjustment).
+// The metrics overlay reads these to position text in the border area.
+var (
+	GameCanvasX, GameCanvasY float64
+	GameCanvasW, GameCanvasH float64
+)
+
 // TickHook is the optional "single render path" seam introduced by
 // arcade-shipping U4. When non-nil, EbitenGame.Update calls TickHook
 // instead of running the default pixelforge.Update + pixelforge.Draw +
@@ -245,6 +264,8 @@ func (g *EbitenGame) Draw(screen *ebiten.Image) {
 	if g.dirty { // draw only when needed to avoid CPU load on monitors >30 Hz
 		g.dirty = false
 
+		screen.Fill(color.Black) // black border around the game canvas
+
 		CopyCanvasToEbitenImage(pixelforge.Screen(), g.ebitenScreen)
 
 		screen.DrawImage(g.ebitenScreen, g.drawScreenOpts)
@@ -262,17 +283,37 @@ func (g *EbitenGame) LayoutF(outsideWidth, outsideHeight float64) (screenWidth, 
 	deviceScaleFactor := monitor.DeviceScaleFactor()
 	realWith := outsideWidth * deviceScaleFactor
 	realHeight := outsideHeight * deviceScaleFactor
-	widthRatio := realWith / piScrW
-	heightRatio := realHeight / piScrH
+
+	// Reserve per-side border space. The right border acts as a
+	// dedicated column for the metrics overlay panels.
+	left := MetricsBorderLeft * deviceScaleFactor
+	right := MetricsBorderRight * deviceScaleFactor
+	top := MetricsBorderTop * deviceScaleFactor
+	bottom := MetricsBorderBottom * deviceScaleFactor
+	availW := realWith - left - right
+	availH := realHeight - top - bottom
+
+	widthRatio := availW / piScrW
+	heightRatio := availH / piScrH
 	scale := math.Floor(min(widthRatio, heightRatio))
+	if scale < 1 {
+		scale = 1
+	}
 
 	screenWidth = realWith
 	screenHeight = realHeight
 
 	g.scale = scale
-	// center on screen:
-	g.left = (realWith - piScrW*scale) / 2.0
-	g.top = (realHeight - piScrH*scale) / 2.0
+	// center within the available area (inside the borders):
+	g.left = left + (availW-piScrW*scale)/2.0
+	g.top = top + (availH-piScrH*scale)/2.0
+
+	// Export game canvas bounding box (window coordinates) so the
+	// metrics overlay can position text in the black border area.
+	GameCanvasX = g.left
+	GameCanvasY = g.top
+	GameCanvasW = piScrW * scale
+	GameCanvasH = piScrH * scale
 
 	g.drawScreenOpts.GeoM.Reset()
 	g.drawScreenOpts.GeoM.Scale(g.scale, g.scale)

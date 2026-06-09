@@ -64,6 +64,38 @@ func SetNativeOverlay(fn func(screen *ebiten.Image)) {
 	internal.NativeOverlay = fn
 }
 
+// SetMetricsBorder sets the per-side black border (in device-independent
+// pixels) reserved around the game canvas for the metrics overlay.
+// The right border is typically wider to serve as a dedicated column for
+// the overlay panels. Pass the same value for all sides if you want a
+// uniform border.
+func SetMetricsBorder(left, right, top, bottom int) {
+	if left < 0 {
+		left = 0
+	}
+	if right < 0 {
+		right = 0
+	}
+	if top < 0 {
+		top = 0
+	}
+	if bottom < 0 {
+		bottom = 0
+	}
+	internal.MetricsBorderLeft = float64(left)
+	internal.MetricsBorderRight = float64(right)
+	internal.MetricsBorderTop = float64(top)
+	internal.MetricsBorderBottom = float64(bottom)
+}
+
+// GameCanvasBounds returns where the game canvas was drawn in the window
+// (top-left x, y, width, height), in device-independent pixels. The
+// metrics overlay uses this to position its text in the black border
+// area around the canvas.
+func GameCanvasBounds() (x, y, w, h float64) {
+	return internal.GameCanvasX, internal.GameCanvasY, internal.GameCanvasW, internal.GameCanvasH
+}
+
 // SetTickHook installs the arcade-shipping U4 single-render-path seam.
 // When fn is non-nil, the Ebitengine game's per-tick update + draw
 // sequence delegates to fn(tick) instead of running the legacy
