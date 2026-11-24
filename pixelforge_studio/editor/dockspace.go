@@ -27,6 +27,7 @@ type dockspaceState struct {
 	// initialised flips true after the first DockBuilder pass so the
 	// editor doesn't keep rebuilding the default layout every frame.
 	initialised bool
+	focusScene  bool
 	// rootID is the dockspace's root node ID. Captured so SetActive-
 	// WorkspaceByName can compute child node IDs if it ever needs to
 	// re-dock a window programmatically.
@@ -47,6 +48,11 @@ func (e *Editor) buildDockSpace() {
 	}
 	dockID := imgui.DockSpaceOverViewport()
 	e.dockspace.rootID = dockID
+	if !e.dockspace.initialised {
+		e.applyDefaultDockLayout(dockID)
+		e.dockspace.initialised = true
+		e.dockspace.focusScene = true
+	}
 }
 
 // applyDefaultDockLayout seeds the dockspace on first run with a sane

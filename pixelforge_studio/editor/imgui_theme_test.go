@@ -123,3 +123,18 @@ func TestFontFallbackHandled(t *testing.T) {
 		applyFontTheme("cofont")
 	})
 }
+
+func TestActiveImguiThemeIndependentOfGamePalette(t *testing.T) {
+	e := New()
+	before := e.activeImguiTheme()
+	for i := range e.project.Palette.Base {
+		e.project.Palette.Base[i] = "#000000"
+	}
+	assert.Equal(t, before, e.activeImguiTheme())
+	for i := range e.project.Palette.Base {
+		e.project.Palette.Base[i] = "#FFFFFF"
+	}
+	assert.Equal(t, before, e.activeImguiTheme())
+	assert.Greater(t, before.Text.X, float32(0.8))
+	assert.Less(t, before.WindowBg.X, float32(0.2))
+}
