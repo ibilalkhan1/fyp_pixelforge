@@ -70,3 +70,76 @@ func TestDeterministicReset(t *testing.T) {
 		t.Fatal("reset retained state")
 	}
 }
+
+func TestCreatorRulesAndLegacyScenes(t *testing.T) {
+	s := fixture()
+	b, marshalErr := json.Marshal(s)
+	if marshalErr != nil {
+		t.Fatal(marshalErr)
+	}
+	legacy, err := parseScene(b)
+	if err != nil || legacy.Mode != "collect" {
+		t.Fatalf("legacy scene: %v, mode %q", err, legacy.Mode)
+	}
+	s.Mode = "escape"
+	goal := [2]int{1, 3}
+	s.Goal = &goal
+	var g Game
+	g.Reset(s)
+	for i := 0; i < 10; i++ {
+		g.Step(0, 1)
+	}
+	if len(g.Collected) != 1 || g.Won {
+		t.Fatal("escape game won before reaching finish")
+	}
+	for i := 0; i < 20; i++ {
+		g.Step(0, 1)
+	}
+	if !g.Won || g.Lost {
+		t.Fatal("finish did not win escape game")
+	}
+}
+func TestHazardsStopAndResetGame(t *testing.T) {
+	s := fixture()
+	s.Hazards = [][2]int{{1, 2}}
+	var g Game
+	g.Reset(s)
+	for i := 0; i < 20; i++ {
+		g.Step(0, 1)
+	}
+	if !g.Lost || g.Won {
+		t.Fatal("hazard must take priority over last crystal")
+	}
+	tick, y := g.Tick, g.Y
+	g.Step(0, 1)
+	if tick != g.Tick || y != g.Y {
+		t.Fatal("lost game advanced")
+	}
+	g.Reset(s)
+	if g.Lost || g.Won || g.Tick != 0 {
+		t.Fatal("reset retained terminal state")
+	}
+}
+func TestCreatorValidation(t *testing.T) {
+	cases := []func(*Scene){
+		func(s *Scene) { s.Mode = "unknown" },
+		func(s *Scene) { s.Mode = "escape" },
+		func(s *Scene) { c := [2]int{32, 1}; s.Goal = &c },
+		func(s *Scene) { c := s.Spawn; s.Goal = &c },
+		func(s *Scene) { c := s.Walls[0]; s.Goal = &c },
+		func(s *Scene) { s.Hazards = [][2]int{{-1, 1}} },
+		func(s *Scene) { s.Hazards = [][2]int{s.Spawn} },
+		func(s *Scene) { c := [2]int{3, 3}; s.Goal = &c; s.Hazards = [][2]int{c} },
+	}
+	for i, mutate := range cases {
+		s := fixture()
+		mutate(&s)
+		b, marshalErr := json.Marshal(s)
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		if _, err := parseScene(b); err == nil {
+			t.Errorf("accepted invalid creator scene %d", i)
+		}
+	}
+}

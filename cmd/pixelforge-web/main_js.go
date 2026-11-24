@@ -37,7 +37,7 @@ func main() {
 		return v
 	})
 	expose("pfState", func(_ js.Value, _ []js.Value) any {
-		b, _ := json.Marshal(map[string]any{"tick": game.Tick, "x": game.X.Int(), "y": game.Y.Int(), "score": len(game.Collected), "total": len(game.Scene.Gems), "won": game.Won})
+		b, _ := json.Marshal(map[string]any{"tick": game.Tick, "x": game.X.Int(), "y": game.Y.Int(), "score": len(game.Collected), "total": len(game.Scene.Gems), "won": game.Won, "lost": game.Lost})
 		return string(b)
 	})
 	expose("pfPalette", func(_ js.Value, _ []js.Value) any {

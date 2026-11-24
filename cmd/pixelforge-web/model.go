@@ -10,9 +10,12 @@ import (
 
 const width, height, tile = 320, 180, 10
 
-// Scene is the browser demonstrator format, separate from Studio's .pforge schema.
+// Scene is the browser creator format, separate from Studio's .pforge schema.
 type Scene struct {
 	Version int      `json:"version"`
+	Mode    string   `json:"mode,omitempty"`
+	Goal    *[2]int  `json:"goal,omitempty"`
+	Hazards [][2]int `json:"hazards,omitempty"`
 	Name    string   `json:"name"`
 	Walls   [][2]int `json:"walls"`
 	Gems    [][2]int `json:"gems"`
@@ -27,6 +30,7 @@ type Game struct {
 	Collected map[int]bool
 	Tick      int
 	Won       bool
+	Lost      bool
 }
 
 func parseScene(data []byte) (Scene, error) {
@@ -37,40 +41,85 @@ func parseScene(data []byte) (Scene, error) {
 	if err := json.Unmarshal(data, &s); err != nil {
 		return s, fmt.Errorf("parse scene: %w", err)
 	}
-	if s.Version != 1 {
-		return s, errors.New("unsupported scene version")
+	if s.Mode == "" {
+		s.Mode = "collect"
 	}
-	if s.Speed < 0.5 || s.Speed > 4 {
-		return s, errors.New("speed must be between 0.5 and 4")
+	if s.Mode != "collect" && s.Mode != "escape" {
+		return s, errors.New("choose collect or escape rules")
 	}
-	if s.Color < 0 || s.Color > 63 {
-		return s, errors.New("colour must be between 0 and 63")
+	if s.Mode == "escape" && s.Goal == nil {
+		return s, errors.New("escape games need a finish tile")
 	}
-	if len(s.Name) > 80 || len(s.Walls) > 576 || len(s.Gems) > 100 {
-		return s, errors.New("scene is too large")
+	if err := validateSceneLimits(s); err != nil {
+		return s, err
 	}
 	if err := validateSceneCells(s); err != nil {
 		return s, err
 	}
 
-	if len(s.Sprite) != 64 {
-		return s, errors.New("sprite must have 64 pixels")
-	}
-	for _, p := range s.Sprite {
-		if p < 0 || p > 63 {
-			return s, errors.New("invalid sprite colour")
-		}
-	}
-	for _, c := range s.Walls {
-		if c == s.Spawn {
-			return s, errors.New("player spawn overlaps a wall")
-		}
+	if err := validateScenePlacements(s); err != nil {
+		return s, err
 	}
 	return s, nil
 }
 
+func validateSceneLimits(s Scene) error {
+	if s.Version != 1 {
+		return errors.New("unsupported scene version")
+	}
+	if s.Speed < 0.5 || s.Speed > 4 {
+		return errors.New("speed must be between 0.5 and 4")
+	}
+	if s.Color < 0 || s.Color > 63 {
+		return errors.New("colour must be between 0 and 63")
+	}
+	if len(s.Name) > 80 || len(s.Walls) > 576 || len(s.Gems) > 100 || len(s.Hazards) > 100 {
+		return errors.New("scene is too large")
+	}
+	if len(s.Sprite) != 64 {
+		return errors.New("sprite must have 64 pixels")
+	}
+	for _, p := range s.Sprite {
+		if p < 0 || p > 63 {
+			return errors.New("invalid sprite colour")
+		}
+	}
+	return nil
+}
+
+func validateScenePlacements(s Scene) error {
+	for _, c := range s.Walls {
+		if c == s.Spawn {
+			return errors.New("player spawn overlaps a wall")
+		}
+	}
+	for _, c := range s.Hazards {
+		if c == s.Spawn {
+			return errors.New("player spawn overlaps a hazard")
+		}
+		if s.Goal != nil && c == *s.Goal {
+			return errors.New("finish overlaps a hazard")
+		}
+	}
+	if s.Goal != nil {
+		if *s.Goal == s.Spawn {
+			return errors.New("finish must be away from the player")
+		}
+		for _, c := range s.Walls {
+			if c == *s.Goal {
+				return errors.New("finish overlaps a wall")
+			}
+		}
+	}
+	return nil
+}
+
 func validateSceneCells(s Scene) error {
-	for _, cells := range [][][2]int{s.Walls, s.Gems, [][2]int{s.Spawn}} {
+	groups := [][][2]int{s.Walls, s.Gems, s.Hazards, {s.Spawn}}
+	if s.Goal != nil {
+		groups = append(groups, [][2]int{*s.Goal})
+	}
+	for _, cells := range groups {
 		for _, c := range cells {
 			if c[0] < 0 || c[0] >= 32 || c[1] < 0 || c[1] >= 18 {
 				return errors.New("tile outside the 32 x 18 scene")
@@ -86,22 +135,23 @@ func (g *Game) Reset(s Scene) {
 	g.Collected = map[int]bool{}
 	g.Tick = 0
 	g.Won = false
+	g.Lost = false
 }
-func overlap(x, y, w, h, a, b, c, d int) bool { return x < a+c && x+w > a && y < b+d && y+h > b }
+func playerOverlaps(x, y, a, b, w, h int) bool { return x < a+w && x+8 > a && y < b+h && y+8 > b }
 func (g *Game) blocked(x, y ph.Fixed32) bool {
 	a, b := x.Int(), y.Int()
 	if a < 0 || b < 0 || a+8 > width || b+8 > height {
 		return true
 	}
 	for _, v := range g.Scene.Walls {
-		if overlap(a, b, 8, 8, v[0]*tile, v[1]*tile, tile, tile) {
+		if playerOverlaps(a, b, v[0]*tile, v[1]*tile, tile, tile) {
 			return true
 		}
 	}
 	return false
 }
 func (g *Game) Step(dx, dy int) {
-	if g.Won {
+	if g.Won || g.Lost {
 		return
 	}
 	v := ph.FixedFromFloat(g.Scene.Speed)
@@ -115,11 +165,22 @@ func (g *Game) Step(dx, dy int) {
 	}
 	g.Tick++
 	for i, c := range g.Scene.Gems {
-		if overlap(g.X.Int(), g.Y.Int(), 8, 8, c[0]*tile+2, c[1]*tile+2, 6, 6) {
+		if playerOverlaps(g.X.Int(), g.Y.Int(), c[0]*tile+2, c[1]*tile+2, 6, 6) {
 			g.Collected[i] = true
 		}
 	}
-	g.Won = len(g.Scene.Gems) > 0 && len(g.Collected) == len(g.Scene.Gems)
+	for _, c := range g.Scene.Hazards {
+		if playerOverlaps(g.X.Int(), g.Y.Int(), c[0]*tile+2, c[1]*tile+2, 6, 6) {
+			g.Lost = true
+			return
+		}
+	}
+	if g.Scene.Mode == "escape" && g.Scene.Goal != nil {
+		c := *g.Scene.Goal
+		g.Won = playerOverlaps(g.X.Int(), g.Y.Int(), c[0]*tile+1, c[1]*tile+1, 8, 8)
+	} else {
+		g.Won = len(g.Scene.Gems) > 0 && len(g.Collected) == len(g.Scene.Gems)
+	}
 }
 func (g *Game) Render(grid bool) []byte {
 	pf.Camera = pf.Position{}
@@ -151,6 +212,21 @@ func (g *Game) Render(grid bool) []byte {
 		pf.SetColor(7)
 		pf.SetPixel(c[0]*tile+4, c[1]*tile+4)
 	}
+	for _, c := range g.Scene.Hazards {
+		x, y := c[0]*tile, c[1]*tile
+		pf.SetColor(8)
+		pf.RectFill(x+2, y+2, x+7, y+7)
+		pf.SetColor(7)
+		pf.Line(x+3, y+3, x+6, y+6)
+		pf.Line(x+6, y+3, x+3, y+6)
+	}
+	if g.Scene.Goal != nil {
+		x, y := g.Scene.Goal[0]*tile, g.Scene.Goal[1]*tile
+		pf.SetColor(11)
+		pf.Rect(x+1, y+1, x+8, y+8)
+		pf.Line(x+3, y+5, x+5, y+7)
+		pf.Line(x+5, y+7, x+7, y+3)
+	}
 	src := pf.NewCanvas(8, 8)
 	for i, c := range g.Scene.Sprite {
 		src.Set(i%8, i/8, uint8(c))
@@ -158,6 +234,10 @@ func (g *Game) Render(grid bool) []byte {
 	pf.DrawSprite(pf.CanvasSprite(src), g.X.Int(), g.Y.Int())
 	if g.Won {
 		pf.SetColor(11)
+		pf.Rect(1, 1, 318, 178)
+	}
+	if g.Lost {
+		pf.SetColor(8)
 		pf.Rect(1, 1, 318, 178)
 	}
 	rgba := make([]byte, width*height*4)
