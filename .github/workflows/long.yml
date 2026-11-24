@@ -99,6 +99,8 @@ jobs:
           xvfb-run -a go test -tags=long -json \
             ./pixelforge_studio/integration_test/... \
             > test-results-linux-amd64.json
+      - name: Build an exported native game
+        run: go test -tags=long -run '^TestGenerate_BuildExportedBinary$' ./pixelforge_studio/codegen
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -118,6 +120,8 @@ jobs:
           go test -tags=long -json \
             ./pixelforge_studio/integration_test/... \
             > test-results-macos-arm64.json
+      - name: Build an exported native game
+        run: go test -tags=long -run '^TestGenerate_BuildExportedBinary$' ./pixelforge_studio/codegen
       - uses: actions/upload-artifact@v4
         if: always()
         with:

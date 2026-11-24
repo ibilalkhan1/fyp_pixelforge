@@ -34,7 +34,7 @@ import (
 // TemplateVersion stamps every generated file's header. Bump when the
 // templates change shape so debugging "why does my old export not
 // rebuild?" is unambiguous.
-const TemplateVersion = "1"
+const TemplateVersion = "2"
 
 // Options configures Generate. Zero value works for the common case.
 type Options struct {

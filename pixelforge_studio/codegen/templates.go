@@ -49,6 +49,7 @@ import (
 	"github.com/ibilalkhan1/fyp_pixelforge"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_project"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_render"
+ "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/capsuleruntime"
 )
 
 //go:embed project.pforge
