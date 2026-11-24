@@ -5,7 +5,7 @@
 //
 // # Wire format
 //
-// Every shipped binary ends with:
+// Native appended files and macOS resource carts end with:
 //
 //	[CRC32   4 bytes ]   IEEE polynomial over the cart payload
 //	[length  8 bytes ]   little-endian uint64, byte count of payload
@@ -20,21 +20,19 @@
 //
 // # Append flow
 //
-// Append copies the player binary, writes the cart bytes, writes
-// the footer, and renames the temp file into place atomically
-// (see assetlibrary/downloader.go's matching pattern). On macOS
-// it then ad-hoc-signs the result via `codesign --force --sign -
-// <path>`; Apple Silicon refuses to launch a binary whose
-// signature has been invalidated by post-link modification with
-// `killed: 9` and no diagnostic, so re-signing is load-bearing
-// even though we're not publishing through the App Store. The
-// equivalent Windows-side Authenticode invariant — append BEFORE
-// signing — is documented here for the v3 timeline; Authenticode
-// signing itself is out of scope for v2.
+// Append writes executable + cart + footer for Linux/Windows outputs.
+// For .app outputs it preserves the Mach-O executable and stores cart + footer
+// in Contents/Resources/game.pfcart. The build pipeline writes the icon and
+// Info.plist before calling SignAppBundle. Appending data to Mach-O violates
+// Apple's signing rules; re-signing does not make that layout valid.
+// See https://developer.apple.com/library/archive/technotes/tn2206/.
+// Ad-hoc signing supports a local demo, not notarized distribution.
+// Windows Authenticode signing, if used, must happen after cart append.
 //
 // # Read-self flow
 //
-// ReadSelf opens the running executable once and holds a single
+// ReadSelf prefers the macOS bundle resource, otherwise the running
+// executable. It opens the selected source once and holds a single
 // *os.File for every seek/read. The single-FD discipline closes
 // the TOCTOU window an attacker would otherwise have to swap the
 // path between magic-check and payload-read; the file descriptor

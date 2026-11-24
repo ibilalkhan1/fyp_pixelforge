@@ -10,7 +10,7 @@ import (
 )
 
 // adhocSign runs `codesign --force --sign - <path>` to attach an
-// ad-hoc signature to the freshly appended binary. The ad-hoc
+// ad-hoc signature to the completed app bundle or bare binary. The ad-hoc
 // identity (the lone "-" sentinel) requires no Apple Developer
 // account, no entitlements, and no notarization — it's the
 // minimum Apple Silicon will accept to actually launch a binary
@@ -24,9 +24,8 @@ import (
 //     complaint.
 //
 // The `--force` flag tells codesign to overwrite any existing
-// signature, which is the relevant case: the player binary was
-// signed by the Go toolchain at link time and our append-cart
-// step invalidated that signature.
+// signature. App bundles must contain an unchanged Mach-O executable;
+// appending data to it is prohibited even when a re-sign is attempted.
 func adhocSign(path string) error {
 	binary, err := exec.LookPath("codesign")
 	if err != nil {

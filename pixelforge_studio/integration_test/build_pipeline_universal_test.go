@@ -133,8 +133,11 @@ func loadAsteroidsShippingProject(t *testing.T) (*pixelforge_project.Project, st
 // authored — Name, Scenes count, PhysicsPreset.
 func extractAppendedCart(t *testing.T, path string) []byte {
 	t.Helper()
+	if runtime.GOOS == "darwin" {
+		path = filepath.Join(filepath.Dir(filepath.Dir(path)), "Resources", pixelforge_cart.AppCartFilename)
+	}
 	data, err := os.ReadFile(path)
-	require.NoError(t, err, "read built binary at %s", path)
+	require.NoError(t, err, "read shipped cart at %s", path)
 	require.GreaterOrEqual(t, len(data), pixelforge_cart.FooterSize,
 		"built binary too small to contain a footer (got %d bytes)", len(data))
 

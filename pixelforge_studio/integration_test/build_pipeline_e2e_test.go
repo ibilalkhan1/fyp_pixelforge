@@ -36,7 +36,7 @@ func TestE2E_BuildPipeline_AE1_OrchestratorParallelEvents(t *testing.T) {
 	ch := buildpipeline.Build(context.Background(), buildpipeline.BuildRequest{
 		Project: p, ProjectPath: path, OutputDir: dir,
 	}, []buildpipeline.Target{
-		buildpipeline.TargetLinux,
+		buildpipeline.HostTarget(),
 		buildpipeline.TargetWASM,
 		buildpipeline.TargetSource,
 	})

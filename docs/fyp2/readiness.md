@@ -7,7 +7,7 @@ Reviewed 24 November 2026. Baseline: `692f63aff4932a54ef782d2c8feaaa2457ba4247`.
 - A focused browser demonstrator in `web-demo/`, backed by the actual Go PixelForge renderer compiled to WebAssembly.
 - Tile editing, 8x8 sprite painting, keyboard movement, AABB wall collision, collectible completion, scene JSON import/export, browser save/restore, screenshots and standalone playable HTML export.
 - The native Studio still builds. It is a separate application, not the browser demo.
-- Normal Studio builds now select real exporters instead of placeholder writers.
+- Normal Studio builds now select real exporters instead of placeholder writers. macOS exports keep the executable unchanged, store the cart in app Resources, and sign after metadata and icons are written.
 - Universal carts can package referenced sprites and WAV audio with project JSON. Legacy JSON-only carts remain readable. Missing files and unsafe paths fail clearly. MP3/OGG export is rejected until decode support exists.
 - Smoke startup retains assets and uses the same loaders as normal startup. Old cached players are invalidated by a cache-version bump.
 

@@ -121,10 +121,8 @@ func (b *hostLongBuilder) Build(ctx context.Context, req BuildRequest, emit func
 		playerPath = relinked
 	}
 
-	// macOS .app bundle: append into the .app directory and let
-	// pixelforge_cart.Append resolve the inner Mach-O path
-	// (Foo.app/Contents/MacOS/Foo). The .icns + Info.plist drop in
-	// AFTER the append so codesign sees a complete bundle.
+	// macOS keeps the executable unchanged and puts the cart in Resources.
+	// Sign only after the icon and Info.plist have also been written.
 	appendTarget := outPath
 	if target == TargetMacOS {
 		if err := os.MkdirAll(filepath.Join(outDir, gameName+".app", "Contents", "MacOS"), 0o755); err != nil {
@@ -156,6 +154,9 @@ func (b *hostLongBuilder) Build(ctx context.Context, req BuildRequest, emit func
 		plist := macInfoPlist(gameName, version)
 		if err := os.WriteFile(plistPath, []byte(plist), 0o644); err != nil {
 			return fmt.Errorf("hostLongBuilder: write Info.plist: %w", err)
+		}
+		if err := pixelforge_cart.SignAppBundle(outPath); err != nil {
+			return fmt.Errorf("hostLongBuilder: sign completed app: %w", err)
 		}
 	}
 

@@ -30,7 +30,7 @@ import (
 // Phase 1: a stable "v2" string; commit-hash-based invalidation is
 // deferred to a follow-up unit (see plan-009's player-binary
 // discovery chain notes).
-const playerCacheVersion = "v3-assets"
+const playerCacheVersion = "v4-bundle-resources"
 
 // resolvedPlayer carries the path + cleanup the long builders use
 // after locating a player binary on disk. cleanup is always

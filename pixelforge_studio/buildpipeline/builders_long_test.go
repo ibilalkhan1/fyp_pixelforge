@@ -48,6 +48,15 @@ func minimalCart(t *testing.T, name string) *pixelforge_project.Project {
 func fakePlayerBinary(t *testing.T, dir string) string {
 	t.Helper()
 	path := filepath.Join(dir, "pixelforge-player-fake")
+	if runtime.GOOS == "darwin" {
+		// Signing requires a valid Mach-O even when testing only packaging.
+		executable, err := os.Executable()
+		require.NoError(t, err)
+		player, err := os.ReadFile(executable)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(path, player, 0o755))
+		return path
+	}
 	// Sufficiently long that the footer-strip math in
 	// pixelforge_cart isn't tripping over an artificially small
 	// "host program" boundary.
@@ -97,8 +106,7 @@ func TestHostLongBuilder_HappyPath_AppendsCart(t *testing.T) {
 	require.NotEmpty(t, entries, "host build must produce at least one output entry")
 
 	// On darwin the artifact is the .app bundle (a directory) and
-	// the inner Mach-O carries the cart. Find the file pixelforge_cart
-	// would target.
+	// its Resources directory carries the cart. First check the executable.
 	gameName := projectGameName(project)
 	verifyPath := filepath.Join(hostDir, gameName+artifactExt(HostTarget()))
 	if HostTarget() == TargetMacOS {
@@ -116,6 +124,9 @@ func TestHostLongBuilder_HappyPath_AppendsCart(t *testing.T) {
 	// ModifiedAt on each invocation; a byte-level compare would
 	// false-positive on the timestamp drift, not on real cart
 	// corruption.
+	if HostTarget() == TargetMacOS {
+		verifyPath = filepath.Join(hostDir, gameName+".app", "Contents", "Resources", pixelforge_cart.AppCartFilename)
+	}
 	gotCart, err := readCartFromFile(verifyPath)
 	require.NoError(t, err, "ReadSelf-equivalent extraction must succeed on the appended binary")
 	require.NotEmpty(t, gotCart, "cart payload must be non-empty")

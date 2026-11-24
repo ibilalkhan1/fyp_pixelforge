@@ -15,6 +15,7 @@ package integration_test
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -127,6 +128,9 @@ func TestLong_HostBuilder_ProducesRealExecutable(t *testing.T) {
 	} else {
 		// macOS .app is a directory.
 		assert.True(t, info.IsDir(), "macOS output must be a .app bundle directory")
+		verify := exec.CommandContext(ctx, "codesign", "--verify", "--deep", "--strict", last.OutputPath)
+		verification, err := verify.CombinedOutput()
+		require.NoError(t, err, "completed app signature must verify: %s", verification)
 	}
 }
 
