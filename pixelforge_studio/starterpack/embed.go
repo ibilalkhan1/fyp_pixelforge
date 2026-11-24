@@ -60,9 +60,7 @@ var starterAssets = []assetlibrary.Asset{
 	{Path: "sfx/jump.wav", Kind: "sfx", License: "CC0", Author: "Pixelforge starter pack"},
 	{Path: "sfx/hit.wav", Kind: "sfx", License: "CC0", Author: "Pixelforge starter pack"},
 
-	// 1 placeholder BGM — per U19 the BGM decoder is stubbed, so
-	// this byte-content proves the wiring; audible BGM lands with
-	// the audio-v2 polish.
+	// One original Vorbis test tone. A valid stream keeps offline imports usable.
 	{Path: "bgm/level_theme.ogg", Kind: "bgm", License: "CC0", Author: "Pixelforge starter pack"},
 }
 

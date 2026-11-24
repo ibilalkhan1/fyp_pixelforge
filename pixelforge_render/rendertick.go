@@ -8,6 +8,7 @@ import (
 
 	"github.com/ibilalkhan1/fyp_pixelforge"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten"
+	pikey "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_key"
 	piloop "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_loop"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/capsuleruntime"
 )
@@ -62,8 +63,10 @@ type GamepadState struct {
 // ebiten.Key.String() representation when (de)serialising
 // .trace.jsonl.
 type InputFrame struct {
-	Keys []ebiten.Key
-	Pad  *GamepadState
+	// NativeEvents means Ebitengine already published physical input this tick.
+	NativeEvents bool `json:"-"`
+	Keys         []ebiten.Key
+	Pad          *GamepadState
 }
 
 // IsKeyDown reports whether the named key is held in this frame.
@@ -176,6 +179,7 @@ func advanceAndRender(rt *capsuleruntime.Runtime, screen *ebiten.Image, tick uin
 	// Step 1: bind tick counter. The engine reads pixelforge.Frame
 	// in many places; matching it to the caller's `tick` lets the
 	// replay harness reproduce frame-counter-dependent logic.
+	rt.Start()
 	pixelforge.Frame = int(tick)
 	if tps := pixelforge.TPS(); tps > 0 {
 		pixelforge.Time = float64(tick) / float64(tps)
@@ -204,18 +208,21 @@ func advanceAndRender(rt *capsuleruntime.Runtime, screen *ebiten.Image, tick uin
 	// EbitenGame.Update — those are wall-clock-driven and would
 	// break determinism. The replay path always runs the full
 	// sequence every tick.
-	if !engineInitialised {
+	if !rt.Initialized {
 		if pixelforge.Init != nil {
 			pixelforge.Init()
 		}
 		piloop.Target().Publish(piloop.EventInit)
-		engineInitialised = true
+		rt.Initialized = true
+		piloop.Target().Publish(piloop.Event("scene_starts"))
 	}
 
 	piloop.Target().Publish(piloop.EventFrameStart)
 	pixelforge.Update()
 	piloop.Target().Publish(piloop.EventUpdate)
 	piloop.Target().Publish(piloop.EventLateUpdate)
+	rt.SyncPositions()
+	rt.AdvanceTick()
 	pixelforge.Draw()
 	piloop.Target().Publish(piloop.EventDraw)
 	piloop.Target().Publish(piloop.EventLateDraw)
@@ -231,19 +238,6 @@ func advanceAndRender(rt *capsuleruntime.Runtime, screen *ebiten.Image, tick uin
 	// indirectly via the capsule subscribers installed during Boot.
 }
 
-// engineInitialised tracks whether pixelforge.Init + EventInit have
-// been published. The Ebitengame originally guarded this with a
-// `started` field; advanceAndRender preserves the same once-only
-// semantics so behaviour matches between the player binary and the
-// replay harness on the first tick.
-//
-// Package-level scope is deliberate: the pixelforge globals
-// (pixelforge.Init, pixelforge.Frame, etc.) are themselves
-// package-level, and engineInitialised is the matching once-flag
-// for those globals. Tests that need a fresh init reset this via
-// ResetForTest.
-var engineInitialised bool
-
 // activeInputFrame is the most recently applied InputFrame.
 // applyInputFrame writes it; future bridges to the synthetic-event
 // path (U5) read it. Kept here so the seam is wired without the
@@ -256,6 +250,7 @@ var activeInputFrame InputFrame
 // "set held state" API) will publish synthetic key/pad events here.
 func applyInputFrame(f InputFrame) {
 	activeInputFrame = f
+	publishInputSnapshot(f)
 }
 
 // ActiveInputFrame returns the most recently applied InputFrame.
@@ -265,14 +260,15 @@ func ActiveInputFrame() InputFrame {
 	return activeInputFrame
 }
 
-// ResetForTest restores the package-level once-flag + active input
-// to their zero state. Tests that exercise the EventInit-published-
-// exactly-once contract call this between subtests. Production code
-// does not call it.
-func ResetForTest() {
-	engineInitialised = false
+// ResetInputState releases held synthetic keys between preview sessions.
+func ResetInputState() {
 	activeInputFrame = InputFrame{}
+	syntheticKeys = map[pikey.Key]bool{}
+	pikey.ResetState()
 }
+
+// ResetForTest resets shared input state between deterministic fixtures.
+func ResetForTest() { ResetInputState() }
 
 // UpdateCameraOffsetForTest exposes the U17 multi-screen camera
 // offset computation to test code without forcing a full Ebitengine

@@ -32,6 +32,7 @@ func buildPlaySample(args map[string]any, ctx Context) (Effect, error) {
 		if !ok || sample == nil {
 			return
 		}
+		pixelforge_audio.LoadSample(sample)
 		pixelforge_audio.Play(pixelforge_audio.Chan(chArg), sample, pitch, vol)
 	}, nil
 }

@@ -37,10 +37,12 @@ const (
 // per-frame map from panel name to screen rect, used by Draw to place
 // the existing native asset browser / inspector / canvas widgets.
 type Editor struct {
-	settings  *Settings
-	keymap    *KeyMap
-	project   *pixelforge_project.Project
-	inspector *Inspector
+	audioDriver AudioDriver
+	preview     *playPreview
+	settings    *Settings
+	keymap      *KeyMap
+	project     *pixelforge_project.Project
+	inspector   *Inspector
 
 	selectedEntityID string
 	// selectedSceneID names the Scene whose settings inspector should
@@ -342,6 +344,7 @@ func (e *Editor) Project() *pixelforge_project.Project { return e.project }
 // registered ProjectListener so per-project subsystems (the M5
 // scripting runtime in particular) can teardown and re-instantiate.
 func (e *Editor) SetProject(p *pixelforge_project.Project) {
+	e.StopPreview()
 	if e.project == p && p != nil {
 		// Same pointer — listeners don't need to restart.
 		return
@@ -542,6 +545,11 @@ func (e *Editor) Update() error {
 		return ebiten.Termination
 	}
 
+	if e.audioDriver != nil {
+		e.audioDriver.OnBeforeUpdate()
+		defer e.audioDriver.OnAfterUpdate()
+	}
+
 	if e.dragDropPoller != nil {
 		e.dragDropPoller()
 	}
@@ -580,6 +588,7 @@ func (e *Editor) Update() error {
 			handler.Update(e)
 		}
 	}
+	e.updatePreview()
 	return nil
 }
 

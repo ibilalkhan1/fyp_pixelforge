@@ -15,3 +15,7 @@ Choose Blank game, Crystal quest example or Maze escape example, then click New 
 Scene version 1 remains compatible with earlier collector scenes. Optional `mode` defaults to `collect`; `hazards` and `goal` extend the same format. Imports validate bounds and disallow player/finish overlap with dangerous or blocked tiles. JSON downloads preserve editable projects; playable HTML downloads embed their rules and support keyboard and touch controls. There is one browser-local save slot. Export before replacing it.
 
 The free public creator is hosted at https://ibilalkhan1.github.io/fyp_pixelforge/ on a separate `gh-pages` branch. No account, server-side code or running presentation laptop is required. Hosting a visitor's exported game is a separate action; the creator downloads the file and does not automatically publish visitors' work.
+
+## Additional engine examples
+
+The home page links to Snake and Pac-Man. These are the existing Go/Ebitengine examples compiled to WebAssembly with embedded sprites/audio, restart and sound controls, and touch direction buttons. They are separate examples and cannot be imported as editable creator scenes. Click Start once, then use keyboard arrows or hold the direction buttons. Pac-Man's starting corridor and tunnel row were corrected after an actual browser test found the player stuck inside a wall.

@@ -47,9 +47,8 @@ import (
 	"fmt"
 
 	"github.com/ibilalkhan1/fyp_pixelforge"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_project"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/capsuleruntime"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_render"
 )
 
 //go:embed project.pforge
@@ -97,11 +96,7 @@ func CapsuleRun(opts CapsuleOpts) error {
 	// "verbs.bus" topic handlers. The capsule never reaches Run
 	// without populated registries — partial state would silently
 	// drop authored verbs at runtime.
-	if _, err := capsuleruntime.Boot(p, capsuleAssetsFS, capsuleruntime.Options{}); err != nil {
-		return fmt.Errorf("capsule: boot runtime: %w", err)
-	}
-	pixelforge_ebiten.Run()
-	return nil
+	return pixelforge_render.RunProject(p, capsuleAssetsFS)
 }
 
 // CapsuleAssets returns the embedded asset FS so callers can

@@ -479,10 +479,10 @@ func TestDonkeyKongProof(t *testing.T) {
 	checkpointHashes := map[uint64]string{}
 
 	var (
-		sawHeroOnLadder       bool
-		heroMinY              = heroBody.Position.Y.Int()
+		sawHeroOnLadder        bool
+		heroMinY               = heroBody.Position.Y.Int()
 		sawCameraOffsetNonZero bool
-		wasClimbing           bool
+		wasClimbing            bool
 	)
 
 	for _, f := range trace.Frames {
@@ -515,7 +515,7 @@ func TestDonkeyKongProof(t *testing.T) {
 			sawCameraOffsetNonZero = true
 		}
 
-		rt.AdvanceTick()
+		// RenderTickAtRGBA owns the single housekeeping advance for this tick.
 	}
 
 	// --- smoke: events fired -------------------------------------------
@@ -698,7 +698,7 @@ func TestDonkeyKongProof_AE4_MidGameSaveLoadRestoresAllState(t *testing.T) {
 			Keys: f.Keys, Pad: f.Pad,
 		})
 		require.NoErrorf(t, err, "render at tick %d", f.Tick)
-		rt.AdvanceTick()
+		// RenderTickAtRGBA owns the single housekeeping advance for this tick.
 	}
 
 	// --- 2. Capture pre-save state ------------------------------------

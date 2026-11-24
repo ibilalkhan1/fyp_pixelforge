@@ -1,43 +1,14 @@
-// bgm_runner.go is plan-009 U19's BGM-import seam. The studio's
-// drag-drop ingest dispatcher routes .ogg / .mp3 paths through the
-// BGM runner installed by RegisterWith; this file implements that
-// runner against audiolib's per-project AudioSample registry.
-//
-// Decoder status (path (b) from the U19 plan note):
-//
-//	Full OGG / MP3 decode-to-PCM-with-resample-to-48kHz lands in a
-//	later audio-v2 polish unit. The engine's pixelforge_audio Sample
-//	type is 8-bit mono PCM up to 48000Hz (see decode.go), and the
-//	jfreymuth/oggvorbis + hajimehoshi/go-mp3 decoders emit 16-bit
-//	stereo at the source rate — bridging those requires a downmix
-//	+ requantize-to-8-bit + resample pipeline that is out of scope
-//	for the U19 wiring slice.
-//
-//	For now the runner:
-//	  1. Reads the file bytes (validating non-empty + the container
-//	     magic at the head so a renamed .txt → .ogg drop errors
-//	     cleanly).
-//	  2. Copies the bytes into the project's audio assets dir at
-//	     "audio/<sample>.ogg" (or .mp3) preserving the container
-//	     extension — when the audio-v2 unit lands the decoder will
-//	     read these copies in-place.
-//	  3. Appends an AudioSample with Loop=true, priority="bgm",
-//	     SampleRateHz=0 (unknown until decode lands).
-//	  4. Logs a TODO so the deferral is visible at studio runtime.
-//
-// The dispatcher + project surface still see a fully-routed
-// "import succeeded" path — the gap is only the audible playback,
-// which the runtime gates separately via Sample-not-decoded checks.
+// MP3 and Vorbis imports validate real decoded audio before registering it.
 package audiolib
 
 import (
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_audio"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_project"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/editor"
 )
@@ -55,8 +26,7 @@ const (
 	BGMContainerMP3 BGMContainer = "mp3"
 )
 
-// BGMImportResult summarises a successful BGM import. DurationMs is
-// 0 until the full decoder lands (see file header).
+// BGMImportResult reports the decoded duration and persisted source.
 type BGMImportResult struct {
 	SampleName   string
 	RelativePath string
@@ -100,10 +70,10 @@ func importBGMCore(
 		baseName = "imported_bgm"
 	}
 
-	// Path (b) deferral: log once per import so studio runtime
-	// surfaces the gap. The audio-v2 polish unit will replace this
-	// with a real decode + resample pipeline.
-	log.Printf("[bgm-import] %s: stub decoder; full decode lands in audio-v2 polish (track registered with placeholder Sample)", baseName)
+	sample, err := pixelforge_audio.DecodeAudio(bytes, string(container))
+	if err != nil {
+		return BGMImportResult{}, fmt.Errorf("bgm import: %w", err)
+	}
 
 	uniqueName, relPath := chooseUniqueBGMName(baseName, string(container), p, projectSourcePath)
 
@@ -118,17 +88,15 @@ func importBGMCore(
 		RelativePath:             relPath,
 		SuggestedChannelPriority: "bgm",
 		Loop:                     true,
-		// SampleRateHz=0 until audio-v2 decode lands. Runtime
-		// playback gates on this — a placeholder Sample won't be
-		// auditioned by accident.
-		SampleRateHz: 0,
+		// Rate reflects the actual decoded mixer sample.
+		SampleRateHz: int(sample.SampleRate()),
 	}
 	p.Audio = append(p.Audio, asset)
 
 	return BGMImportResult{
 		SampleName:   uniqueName,
 		RelativePath: relPath,
-		DurationMs:   0,
+		DurationMs:   sample.Len() * 1000 / int(sample.SampleRate()),
 		Container:    container,
 	}, nil
 }

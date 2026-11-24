@@ -2,6 +2,9 @@ package capsuleruntime
 
 import (
 	"fmt"
+	pievent "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
+	piinput "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_input"
+	scripting "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/scripting/runtime"
 	"io/fs"
 	"log"
 
@@ -56,9 +59,14 @@ type Options struct {
 // they are mutated by the sinks in response to verb-recipe events,
 // and the renderer + game-loop read them per frame.
 type Runtime struct {
-	Project *pixelforge_project.Project
-	Save    *pisave.Service
-	Sinks   Sinks
+	lastPositions map[string]pixelforge_project.EntityPosition
+	behaviours    *scripting.Engine
+	inputCompiler *piinput.Compiler
+	verbHandler   pievent.Handler
+	Initialized   bool
+	Project       *pixelforge_project.Project
+	Save          *pisave.Service
+	Sinks         Sinks
 
 	// CurrentScene is the active scene the sinks mutate. Pointer
 	// so mutations land in-place; sceneSink swaps the pointer on
@@ -252,6 +260,10 @@ func Boot(p *pixelforge_project.Project, assets fs.FS, opts Options) (*Runtime, 
 				pixelforge_physics.FixedFromInt(16),
 			)
 			rt.Bodies[e.ID] = body
+			if rt.lastPositions == nil {
+				rt.lastPositions = map[string]pixelforge_project.EntityPosition{}
+			}
+			rt.lastPositions[e.ID] = e.Position
 			rt.Physics.AddBody(body)
 		}
 	}

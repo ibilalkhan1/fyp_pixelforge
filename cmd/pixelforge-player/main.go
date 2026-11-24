@@ -37,12 +37,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
-
-	"github.com/ibilalkhan1/fyp_pixelforge"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_cart"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_project"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_render"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/capsuleruntime"
@@ -72,85 +67,8 @@ type bootFn func(p *pixelforge_project.Project, assets fs.FS) error
 // window closes; the bootFn return is reached only on a graceful
 // shutdown.
 func defaultBoot(p *pixelforge_project.Project, assets fs.FS) error {
-	rt, err := capsuleruntime.Boot(p, assets, capsuleruntime.Options{})
-	if err != nil {
-		return fmt.Errorf("boot runtime: %w", err)
-	}
-
-	// Install the U4 single-render-path seam. The closure captures
-	// `rt` plus a scratch input-key slice (re-used per tick to avoid
-	// allocation churn) and delegates the actual per-tick simulation
-	// + draw work to pixelforge_render.RenderTickAtScreen. The
-	// destination *ebiten.Image is the runtime's pixelforge canvas
-	// surface, which pixelforge_ebiten owns; we draw into the
-	// pixelforge.Screen()-backed canvas indirectly via the engine's
-	// pixelforge.Draw path that RenderTickAtScreen invokes.
-	//
-	// Because the seam draws into the same pixelforge.Screen() the
-	// EbitenGame.Draw call subsequently blits to the GPU surface,
-	// the hook does not itself receive the GPU screen — it operates
-	// on the existing CPU-side paletted canvas. This keeps the
-	// player binary one-render-path-aligned without re-architecting
-	// the canvas-to-GPU blit that pixelforge_ebiten already owns.
-	var keysScratch []ebiten.Key
-	pixelforge_ebiten.SetTickHook(func(tick uint64) {
-		keysScratch = inpututil.AppendPressedKeys(keysScratch[:0])
-		// Snapshot the keys into a fresh slice — RenderTickAtScreen
-		// stashes the InputFrame on the seam's ActiveInputFrame
-		// accessor (consumed by the U5 replay recorder when it
-		// lands), so handing out a slice that gets clobbered next
-		// tick would silently break the recorder.
-		keys := make([]ebiten.Key, len(keysScratch))
-		copy(keys, keysScratch)
-
-		inputs := pixelforge_render.InputFrame{Keys: keys}
-		if drawErr := pixelforge_render.RenderTickAtScreen(rt, playerOffscreenSurface(), tick, inputs); drawErr != nil {
-			// RenderTickAtScreen does not return errors during the
-			// happy path — only on nil-runtime / nil-screen. We
-			// log and continue rather than crashing the player on
-			// what would be a programmer error.
-			log.Printf("pixelforge-player: render tick %d: %v", tick, drawErr)
-		}
-	})
-
-	pixelforge_ebiten.Run()
-	return nil
+	return pixelforge_render.RunProject(p, assets) //nolint:wrapcheck // run adds the player error context.
 }
-
-// playerOffscreenSurface returns the per-frame destination surface
-// the TickHook hands to RenderTickAtScreen. RenderTickAtScreen
-// performs the canvas-to-Ebiten-image palette blit as the last step
-// of its render pipeline; the engine's own EbitenGame.Draw then
-// scales + composites the engine's owned ebitenScreen onto the
-// window. The two surfaces are different images today: the player's
-// hook draws into this scratch surface, and EbitenGame.Draw blits
-// pixelforge.Screen() (which the hook also populated via the engine's
-// pixelforge.Draw path) onto the visible window.
-//
-// Sized to match pixelforge.Screen() so the WritePixels inside
-// CopyCanvasToEbitenImage doesn't reject a dimension mismatch.
-// Allocated lazily on the first hook call (when ebiten is fully
-// initialised) and rebuilt when the project's screen size changes.
-//
-// This is the documented seam asymmetry: the player's TickHook runs
-// the unified RenderTickAt simulation, but the on-screen composite
-// is owned by pixelforge_ebiten. A future cleanup (post-U4) can
-// thread the engine's ebitenScreen through the hook signature so
-// RenderTickAtScreen writes straight into the on-window image and
-// the scratch surface goes away. Keeping the seam stable was the
-// U4 priority.
-func playerOffscreenSurface() *ebiten.Image {
-	scr := pixelforge.Screen()
-	w, h := scr.W(), scr.H()
-	if playerOffscreenCache == nil ||
-		playerOffscreenCache.Bounds().Dx() != w ||
-		playerOffscreenCache.Bounds().Dy() != h {
-		playerOffscreenCache = ebiten.NewImage(w, h)
-	}
-	return playerOffscreenCache
-}
-
-var playerOffscreenCache *ebiten.Image
 
 // smokeBoot is the test-mode bootFn the universal player uses when
 // invoked with --smoke-tick=N. Plan-009 U12 introduced this seam so

@@ -482,7 +482,7 @@ func TestBombermanProof(t *testing.T) {
 			checkpointHashes[f.Tick] = hex.EncodeToString(h[:])
 		}
 
-		rt.AdvanceTick()
+		// RenderTickAtRGBA owns the single housekeeping advance for this tick.
 	}
 
 	// --- smoke: bomb fired ----------------------------------------------

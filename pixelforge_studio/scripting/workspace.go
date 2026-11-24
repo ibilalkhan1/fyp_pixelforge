@@ -29,6 +29,7 @@ const (
 // Workspace is the M5 behaviour workspace. Implements editor.Workspace
 // (Name / DisplayName / Render) so it slots into the dockspace.
 type Workspace struct {
+	editor    *editor.Editor
 	engine    *runtime.Engine
 	activeTab int
 
@@ -104,7 +105,6 @@ func (w *Workspace) OnProjectChanged(p *pixelforge_project.Project) {
 		return
 	}
 	w.engine = runtime.New(p)
-	w.engine.Start()
 	w.lane.bind(p)
 	w.sheet.bind(p)
 	w.debugger.bind(w.engine)
@@ -164,6 +164,9 @@ func (w *Workspace) renderTab(label string, idx int, body func()) {
 // renderEngineHeader emits the "engine running / stopped" indicator
 // + Run / Stop buttons at the top of the workspace.
 func (w *Workspace) renderEngineHeader() {
+	if w.editor != nil && w.editor.PreviewRunning() {
+		w.engine = w.editor.PreviewEngine()
+	}
 	running := w.engine != nil && w.engine.Running()
 	if running {
 		imgui.Text("engine: running")
@@ -221,6 +224,15 @@ func (w *Workspace) Update(e *editor.Editor) {
 }
 
 func (w *Workspace) runEngine() {
+	if w.editor != nil {
+		if err := w.editor.StartPreview(); err != nil {
+			w.statusLine = err.Error()
+		} else {
+			w.engine = w.editor.PreviewEngine()
+			w.statusLine = "game started"
+		}
+		return
+	}
 	if w.engine == nil {
 		return
 	}
@@ -233,6 +245,9 @@ func (w *Workspace) runEngine() {
 }
 
 func (w *Workspace) stopEngine() {
+	if w.editor != nil {
+		w.editor.StopPreview()
+	}
 	if w.engine == nil {
 		return
 	}
@@ -247,6 +262,7 @@ func RegisterWith(e *editor.Editor) *Workspace {
 		return nil
 	}
 	w := NewWorkspace()
+	w.editor = e
 	e.RegisterWorkspace(w)
 	registerKeymap(e)
 	e.RegisterProjectListener(w)

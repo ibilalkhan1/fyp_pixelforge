@@ -36,10 +36,10 @@ const placeholderRecipeNameKey = "recipe_name"
 // Each binding produces a rule with exactly one Condition and one
 // Action:
 //
-//   Condition.Kind = "event_fired"
-//   Condition.Args = {"target": triggerTarget, "event": triggerEvent}
-//   Action.Kind    = recipe.ActionKind
-//   Action.Args    = merged(recipe.DefaultArgs, binding.ArgOverrides)
+//	Condition.Kind = "event_fired"
+//	Condition.Args = {"target": triggerTarget, "event": triggerEvent}
+//	Action.Kind    = recipe.ActionKind
+//	Action.Args    = merged(recipe.DefaultArgs, binding.ArgOverrides)
 //
 // Bindings whose RecipeName is not registered in catalog.LookupRecipe
 // are preserved as placeholder rules with Action.Kind ==
@@ -131,6 +131,9 @@ func triggerNameToTarget(trigger string) (targetName string, eventName string) {
 	t := strings.TrimSpace(trigger)
 	if t == "" {
 		return "loop.main", ""
+	}
+	if t == "every_tick" {
+		return "loop.main", "update"
 	}
 	if strings.HasPrefix(t, "when_input/") {
 		intent := strings.TrimPrefix(t, "when_input/")

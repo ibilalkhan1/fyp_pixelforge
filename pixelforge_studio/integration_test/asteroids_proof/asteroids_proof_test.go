@@ -157,8 +157,8 @@ func (g *gameWithOneUpdate) Update() error {
 	return ebiten.Termination
 }
 
-func (*gameWithOneUpdate) Draw(*ebiten.Image)            {}
-func (*gameWithOneUpdate) Layout(int, int) (int, int)    { return 320, 180 }
+func (*gameWithOneUpdate) Draw(*ebiten.Image)         {}
+func (*gameWithOneUpdate) Layout(int, int) (int, int) { return 320, 180 }
 
 func TestMain(m *testing.M) {
 	flag.Parse()
@@ -418,7 +418,7 @@ func TestAsteroidsProof(t *testing.T) {
 			bodyMovedDuringRun = true
 		}
 
-		rt.AdvanceTick()
+		// RenderTickAtRGBA owns the single housekeeping advance for this tick.
 	}
 
 	// --- smoke: ship moved -----------------------------------------------

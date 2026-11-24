@@ -82,8 +82,9 @@ func referencedAssetPaths(p *pixelforge_project.Project) ([]string, error) {
 	}
 	for _, a := range p.Audio {
 		if a.RelativePath != "" {
-			if strings.ToLower(filepath.Ext(a.RelativePath)) != ".wav" {
-				return nil, fmt.Errorf("export audio %q: only decoded WAV assets are supported", a.RelativePath)
+			ext := strings.ToLower(filepath.Ext(a.RelativePath))
+			if ext != ".wav" && ext != ".mp3" && ext != ".ogg" {
+				return nil, fmt.Errorf("export audio %q: supported audio formats are WAV, MP3 and OGG/Vorbis", a.RelativePath)
 			}
 			paths = append(paths, a.RelativePath)
 		}

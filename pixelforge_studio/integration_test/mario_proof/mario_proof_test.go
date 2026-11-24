@@ -434,7 +434,7 @@ func TestMarioProof(t *testing.T) {
 			heroMinY = y
 		}
 
-		rt.AdvanceTick()
+		// RenderTickAtRGBA owns the single housekeeping advance for this tick.
 	}
 
 	// --- smoke: hero moved (gravity + collision actually advanced) ------

@@ -335,6 +335,12 @@ func (e *Editor) buildMenuDefs() []widgets.MenuDef {
 
 // handleShortcuts routes keymap shortcuts to FileMenu actions.
 func (e *Editor) handleShortcuts() {
+	if e.keymap.JustPressed("preview.play") {
+		_ = e.StartPreview()
+	}
+	if e.keymap.JustPressed("preview.stop") {
+		e.StopPreview()
+	}
 	if e.keymap.JustPressed("file.new") {
 		e.fileMenu.New()
 	}

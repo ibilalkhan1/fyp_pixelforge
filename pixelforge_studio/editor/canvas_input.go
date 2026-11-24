@@ -23,10 +23,13 @@ import (
 
 	"github.com/ibilalkhan1/fyp_pixelforge"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_camera"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_entity"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_project"
+	render "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_render"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/editor/widgets"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_tilemap"
+	"image/color"
 )
 
 // scenePreviewW / scenePreviewH size the off-screen image the
@@ -97,17 +100,18 @@ type sceneGame struct {
 	followerBoundsH  int
 
 	sheetResolver SheetResolver
+	assetCache    map[string]previewAsset
+	frame         *ebiten.Image
 
 	tilemapRenderFn func(layer *pixelforge_project.TileAtlas, sheet *pixelforge.Canvas)
 	entityRenderFn  func(entities []pixelforge_project.Entity, sprites []pixelforge_project.SpriteAsset)
 }
 
 func newSceneGame(e *Editor) *sceneGame {
-	return &sceneGame{
-		editor:          e,
-		tilemapRenderFn: pixelforge_tilemap.Render,
-		entityRenderFn:  pixelforge_entity.RenderAll,
-	}
+	g := &sceneGame{editor: e, tilemapRenderFn: pixelforge_tilemap.Render}
+	g.sheetResolver = g.resolveAsset
+	g.entityRenderFn = g.drawEntities
+	return g
 }
 
 // Update advances the scene-side simulation tick. v1 of idea #1
@@ -121,6 +125,9 @@ func newSceneGame(e *Editor) *sceneGame {
 // for a fresh editor). That keeps the preview deterministic for
 // scenes that haven't been tagged with a Player yet.
 func (g *sceneGame) Update() error {
+	if g.editor != nil && g.editor.PreviewRunning() {
+		return nil
+	}
 	g.updateCamera(previewTickDt)
 	return nil
 }
@@ -303,11 +310,49 @@ func (g *sceneGame) Draw(screen *ebiten.Image) {
 		return
 	}
 	screen.Fill(themeBackground)
-
-	g.drawWorld()
-
+	project := g.editor.project
+	if project == nil {
+		return
+	}
 	area := widgets.Rect{X: 0, Y: 0, W: scenePreviewW, H: scenePreviewH}
-	g.editor.canvas.Draw(screen, area, g.editor)
+	view := g.editor.canvas.viewBox(area, project)
+	if g.editor.PreviewRunning() {
+		op := &ebiten.DrawImageOptions{}
+		image := g.editor.preview.surface
+		op.GeoM.Scale(float64(view.W)/float64(image.Bounds().Dx()), float64(view.H)/float64(image.Bounds().Dy()))
+		op.GeoM.Translate(float64(view.X), float64(view.Y))
+		screen.DrawImage(image, op)
+		return
+	}
+	w, h := project.ScreenWidth, project.ScreenHeight
+	if w <= 0 || h <= 0 {
+		return
+	}
+	if pixelforge.Screen().W() != w || pixelforge.Screen().H() != h {
+		pixelforge.SetScreenSize(w, h)
+	}
+	render.ApplyProject(project)
+	pixelforge.SetDrawTarget(pixelforge.Screen())
+	pixelforge.Screen().Clear(0)
+	g.drawWorld()
+	if g.frame == nil || g.frame.Bounds().Dx() != w || g.frame.Bounds().Dy() != h {
+		g.frame = ebiten.NewImage(w, h)
+	}
+	pixelforge_ebiten.CopyCanvasToEbitenImage(pixelforge.Screen(), g.frame)
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Scale(float64(view.W)/float64(w), float64(view.H)/float64(h))
+	op.GeoM.Translate(float64(view.X), float64(view.Y))
+	screen.DrawImage(g.frame, op)
+	// Selection stays an editor overlay; it does not cover the rendered artwork.
+	if scene := g.editor.activeScene(); scene != nil {
+		scaleX, scaleY := g.editor.canvas.scale(view, project)
+		for _, entity := range scene.Entities {
+			if entity.ID == g.editor.selectedEntityID {
+				marker := g.editor.canvas.entityMarkerRect(view, &entity, scaleX, scaleY)
+				strokeWidgetsRect(screen, marker, color.RGBA{R: 255, G: 255, B: 255, A: 255})
+			}
+		}
+	}
 }
 
 // drawWorld renders the tilemap layers + entity sprites through the

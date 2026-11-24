@@ -7,6 +7,7 @@
 package pixelforge_gametree
 
 import (
+	"io/fs"
 	"math/rand"
 	"os"
 	"slices"
@@ -17,13 +18,13 @@ import (
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_cofont"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_key"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_metrics"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_pad"
 )
 
 // Game is the declarative game builder. Call its methods in main()
 // to describe the game, then call Loop() to start playing.
 type Game struct {
+	assetFS fs.FS
 	// ── configuration set by the user ──────────────────────────────
 	spritePath string
 	bgColor    int
@@ -115,7 +116,21 @@ func (g *Game) Loop() {
 	g.init()
 	pixelforge.Update = g.update
 	pixelforge.Draw = g.draw
-	pixelforge_metrics.Start()
+	installWebGameControls(func() map[string]any {
+		return map[string]any{
+			"game": "Snake", "score": len(g.snake) - 3, "gameOver": g.gameOver,
+			"x": g.snake[0].X, "y": g.snake[0].Y, "sound": g.soundOn,
+		}
+	}, func(action string) {
+		if action == "restart" {
+			g.startNewGame()
+		}
+		if action == "sound" {
+			g.soundOn = !g.soundOn
+			pixelforge_audio.ClearChan(15, 0)
+		}
+	})
+	pixelforge_ebiten.SetMetricsBorder(8, 8, 8, 8)
 	pixelforge_ebiten.Run()
 }
 
@@ -129,7 +144,7 @@ func (g *Game) init() {
 		g.gridSize = 16
 	}
 
-	data, err := os.ReadFile(g.spritePath)
+	data, err := g.readAsset(g.spritePath)
 	if err != nil {
 		panic("snake: cannot read sprite sheet: " + err.Error())
 	}
@@ -149,15 +164,15 @@ func (g *Game) loadSounds() {
 	if g.soundsLoaded || !g.soundOn {
 		return
 	}
-	if data, err := os.ReadFile("eat.wav"); err == nil {
+	if data, err := g.readAsset("eat.wav"); err == nil {
 		g.eatSound = pixelforge_audio.DecodeWav(data)
 		pixelforge_audio.LoadSample(g.eatSound)
 	}
-	if data, err := os.ReadFile("crash.wav"); err == nil {
+	if data, err := g.readAsset("crash.wav"); err == nil {
 		g.crashSound = pixelforge_audio.DecodeWav(data)
 		pixelforge_audio.LoadSample(g.crashSound)
 	}
-	if data, err := os.ReadFile("restart.wav"); err == nil {
+	if data, err := g.readAsset("restart.wav"); err == nil {
 		g.restartSound = pixelforge_audio.DecodeWav(data)
 		pixelforge_audio.LoadSample(g.restartSound)
 	}
@@ -531,4 +546,13 @@ func (g *Game) drawSnake() {
 	for i := 1; i < len(g.snake); i++ {
 		pixelforge.DrawSprite(g.bodySprite, g.snake[i].X*tileSize, g.snake[i].Y*tileSize)
 	}
+}
+
+// AssetsFS supplies embedded assets so examples run independently of their working directory.
+func (g *Game) AssetsFS(assets fs.FS) { g.assetFS = assets }
+func (g *Game) readAsset(name string) ([]byte, error) {
+	if g.assetFS != nil {
+		return fs.ReadFile(g.assetFS, name) //nolint:wrapcheck // Caller adds the game and asset context.
+	}
+	return os.ReadFile(name) //nolint:wrapcheck // Caller adds the game and asset context.
 }

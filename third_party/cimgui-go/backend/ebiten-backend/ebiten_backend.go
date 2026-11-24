@@ -135,14 +135,14 @@ func (e *EbitenBackend) BeginFrame() {
 	if e.syncCursor {
 		if e.getCursor != nil {
 			x, y := e.getCursor()
-			io.SetMousePos(imgui.Vec2{X: x, Y: y})
+			io.AddMousePosEvent(x, y)
 		} else {
 			mx, my := ebiten.CursorPosition()
-			io.SetMousePos(imgui.Vec2{X: float32(mx), Y: float32(my)})
+			io.AddMousePosEvent(float32(mx), float32(my))
 		}
-		io.SetMouseButtonDown(0, ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft))
-		io.SetMouseButtonDown(1, ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight))
-		io.SetMouseButtonDown(2, ebiten.IsMouseButtonPressed(ebiten.MouseButtonMiddle))
+		io.AddMouseButtonEvent(0, ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft))
+		io.AddMouseButtonEvent(1, ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight))
+		io.AddMouseButtonEvent(2, ebiten.IsMouseButtonPressed(ebiten.MouseButtonMiddle))
 		xoff, yoff := ebiten.Wheel()
 		io.AddMouseWheelDelta(float32(xoff), float32(yoff))
 		e.controlCursorShapeFn()

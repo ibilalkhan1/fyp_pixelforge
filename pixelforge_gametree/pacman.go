@@ -5,6 +5,7 @@
 package pixelforge_gametree
 
 import (
+	"io/fs"
 	"math"
 	"os"
 	"strconv"
@@ -14,13 +15,13 @@ import (
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_cofont"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_ebiten"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_key"
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_metrics"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_pad"
 )
 
 // PacmanGame is a self-contained Pac-Man clone. Configure it with
 // the declarative methods and call Loop() to play.
 type PacmanGame struct {
+	assetFS fs.FS
 	// ── user-configurable ──────────────────────────────────────────
 	pacmanColor      int
 	gridColor        int
@@ -209,7 +210,22 @@ func (g *PacmanGame) Loop() {
 	g.init()
 	pf.Update = g.update
 	pf.Draw = g.draw
-	pixelforge_metrics.Start()
+	installWebGameControls(func() map[string]any {
+		return map[string]any{
+			"game": "Pac-Man", "score": g.score, "gameOver": g.state != pStatePlay,
+			"x": g.pac.x, "y": g.pac.y, "lives": g.livesLeft, "sound": g.soundOn,
+		}
+	}, func(action string) {
+		if action == "restart" {
+			g.init()
+		}
+		if action == "sound" {
+			g.soundOn = !g.soundOn
+			pixelforge_audio.ClearChan(15, 0)
+			g.bgmActive = false
+		}
+	})
+	pixelforge_ebiten.SetMetricsBorder(8, 8, 8, 8)
 	pixelforge_ebiten.Run()
 }
 
@@ -308,9 +324,10 @@ func (g *PacmanGame) resetLevel() {
 	}
 
 	g.pac = pPacman{
-		x:   14 * pTileSize,
-		y:   23 * pTileSize,
-		dir: pDirLeft,
+		x:       14 * pTileSize,
+		y:       22 * pTileSize,
+		dir:     pDirLeft,
+		nextDir: pDirLeft,
 	}
 
 	g.ghosts = make([]pGhost, g.enemyCount)
@@ -344,7 +361,7 @@ func (g *PacmanGame) loadSound(name string) *pixelforge_audio.Sample {
 	if s, ok := g.samples[name]; ok {
 		return s
 	}
-	data, err := os.ReadFile(g.assetPath(name))
+	data, err := g.readAsset(g.assetPath(name))
 	if err != nil {
 		return nil
 	}
@@ -497,7 +514,7 @@ func (g *PacmanGame) sfxStart() {
 // ─── Update ──────────────────────────────────────────────────────
 
 func (g *PacmanGame) update() {
-	if !g.soundsLoaded {
+	if !g.soundsLoaded && g.soundOn {
 		g.loadSounds()
 	}
 
@@ -538,7 +555,7 @@ func (g *PacmanGame) update() {
 	// Move Pac-Man
 	if g.aligned(g.pac.x) && g.aligned(g.pac.y) {
 		row := int(g.pac.y) / pTileSize
-		if row == 15 {
+		if row == 14 {
 			col := int(g.pac.x) / pTileSize
 			if col == 0 && (g.pac.nextDir == pDirLeft || g.pac.dir == pDirLeft) {
 				g.pac.x = float64((pMazeW - 1) * pTileSize)
@@ -642,7 +659,7 @@ func (g *PacmanGame) update() {
 
 		if g.aligned(gh.x) && g.aligned(gh.y) {
 			row := int(gh.y) / pTileSize
-			if row == 15 {
+			if row == 14 {
 				col := int(gh.x) / pTileSize
 				if col == 0 && gh.dir == pDirLeft {
 					gh.x = float64((pMazeW - 1) * pTileSize)
@@ -694,7 +711,7 @@ func (g *PacmanGame) update() {
 					g.state = pStateDead
 				} else {
 					g.pac.x = 14 * pTileSize
-					g.pac.y = 23 * pTileSize
+					g.pac.y = 22 * pTileSize
 					g.pac.dir = pDirLeft
 					g.pac.nextDir = pDirLeft
 					for j := range g.ghosts {
@@ -935,7 +952,7 @@ func (g *PacmanGame) drawGhost(x, y int, col pf.Color) {
 
 func (g *PacmanGame) drawPacman(x, y int, dir pDir, anim int) {
 	pf.SetColor(pf.Color(g.pacmanColor))
-	mouthOpen := (anim % 8 < 4)
+	mouthOpen := (anim%8 < 4)
 	if !mouthOpen {
 		pf.CircFill(x+3, y+3, 4)
 		return
@@ -972,4 +989,13 @@ func (g *PacmanGame) drawSmallPac(x, y int) {
 	pf.SetPixel(x+4, y+2)
 	pf.SetPixel(x+5, y+3)
 	pf.SetPixel(x+4, y+4)
+}
+
+// AssetsFS supplies embedded assets so examples run independently of their working directory.
+func (g *PacmanGame) AssetsFS(assets fs.FS) { g.assetFS = assets }
+func (g *PacmanGame) readAsset(name string) ([]byte, error) {
+	if g.assetFS != nil {
+		return fs.ReadFile(g.assetFS, name) //nolint:wrapcheck // Caller adds the game and asset context.
+	}
+	return os.ReadFile(name) //nolint:wrapcheck // Caller adds the game and asset context.
 }

@@ -57,6 +57,10 @@ func DefaultKeyMap() *KeyMap {
 	k.Register("file.export", Binding{Mods: ModCtrl, Key: ebiten.KeyE})
 	k.Register("file.quit", Binding{Mods: ModCtrl, Key: ebiten.KeyQ})
 
+	// Play controls are available from every workspace.
+	k.Register("preview.play", Binding{Key: ebiten.KeyF5})
+	k.Register("preview.stop", Binding{Key: ebiten.KeyF6})
+
 	// Canvas tools.
 	k.Register("tool.select", Binding{Key: ebiten.KeyV})
 	k.Register("tool.place", Binding{Key: ebiten.KeyP})

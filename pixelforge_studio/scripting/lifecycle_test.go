@@ -10,14 +10,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLifecycle_RegisterStartsEngine(t *testing.T) {
+func TestLifecycle_RegisterPreparesEngineUntilPlay(t *testing.T) {
 	e := editor.New()
 	w := scripting.RegisterWith(e)
 	require.NotNil(t, w.Engine())
-	assert.True(t, w.Engine().Running(), "engine should start when project is present at registration")
+	assert.False(t, w.Engine().Running(), "editing prepares rules without executing the game")
 }
 
-func TestLifecycle_SwitchProject_StopsThenStarts(t *testing.T) {
+func TestLifecycle_SwitchProject_StopsThenPrepares(t *testing.T) {
 	e := editor.New()
 	w := scripting.RegisterWith(e)
 	first := w.Engine()
@@ -25,7 +25,7 @@ func TestLifecycle_SwitchProject_StopsThenStarts(t *testing.T) {
 	e.SetProject(pixelforge_project.NewProject("second"))
 	second := w.Engine()
 	assert.NotSame(t, first, second, "switching projects should rebuild the engine")
-	assert.True(t, second.Running())
+	assert.False(t, second.Running(), "the replacement waits for Play")
 	assert.False(t, first.Running(), "old engine should stop on project swap")
 }
 
