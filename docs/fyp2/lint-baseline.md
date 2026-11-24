@@ -32,3 +32,7 @@ golangci-lint run \
 The default test job still runs the full `go test ./...` set. It now uses Xvfb,
 as the Ebitengine packages initialize a display even when tests do not open a
 visible window. No test filters were added to make the default test job pass.
+
+The long integration jobs also preserve their test process exit codes. Results
+are uploaded even after failure and the capability report still runs, but a
+successful artifact upload can no longer hide a failed parent test suite.

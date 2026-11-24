@@ -95,15 +95,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libasound2-dev libgl1-mesa-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev libxxf86vm-dev xvfb
       - name: Run long-tag proof-test suite
-        # continue-on-error so the matrix job still runs + reports the
-        # FAIL cells when a proof regresses. The capability-matrix job
-        # is the surface that fails the workflow on red cells if needed.
-        continue-on-error: true
         run: |
           xvfb-run -a go test -tags=long -json \
             ./pixelforge_studio/integration_test/... \
             > test-results-linux-amd64.json
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: test-results-linux-amd64
           path: test-results-linux-amd64.json
@@ -117,18 +114,20 @@ jobs:
         with:
           go-version: '1.24.2'
       - name: Run long-tag proof-test suite
-        continue-on-error: true
         run: |
           go test -tags=long -json \
             ./pixelforge_studio/integration_test/... \
             > test-results-macos-arm64.json
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: test-results-macos-arm64
           path: test-results-macos-arm64.json
           if-no-files-found: error
 
   capability-matrix:
+    # Keep the report available even when a parent suite reports a failure.
+    if: always()
     needs: [test-long-linux-amd64, test-long-macos-arm64]
     runs-on: ubuntu-latest
     steps:
