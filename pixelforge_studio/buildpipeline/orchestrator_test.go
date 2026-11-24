@@ -2,6 +2,7 @@ package buildpipeline_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -202,7 +203,6 @@ func TestBuild_UnregisteredTargetFailsClearly(t *testing.T) {
 
 func registerTestBuilders() {
 	for _, t := range buildpipeline.AllTargets {
-		t := t
 		buildpipeline.RegisterBuilder(t, &noopBuilder{target: t})
 	}
 }
@@ -211,7 +211,7 @@ type noopBuilder struct{ target buildpipeline.Target }
 
 func (n *noopBuilder) Build(ctx context.Context, req buildpipeline.BuildRequest, emit func(buildpipeline.BuildStatus)) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("test builder context: %w", err)
 	}
 	dir := req.OutputDir
 	if dir == "" {
@@ -219,10 +219,10 @@ func (n *noopBuilder) Build(ctx context.Context, req buildpipeline.BuildRequest,
 	}
 	output := filepath.Join(dir, n.target.String(), req.Project.Name+"-orchestrator-test-artifact")
 	if err := os.MkdirAll(filepath.Dir(output), 0755); err != nil {
-		return err
+		return fmt.Errorf("test builder directory: %w", err)
 	}
 	if err := os.WriteFile(output, []byte("test fixture"), 0644); err != nil {
-		return err
+		return fmt.Errorf("test builder artifact: %w", err)
 	}
 	emit(buildpipeline.BuildStatus{Phase: buildpipeline.PhaseDone, OutputPath: output})
 	return nil

@@ -1,6 +1,7 @@
 package codegen
 
 import (
+	"errors"
 	"fmt"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_cart"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_project"
@@ -17,25 +18,16 @@ func EncodeCartWithAssets(p *pixelforge_project.Project, projectPath string) ([]
 	if e != nil {
 		return nil, e
 	}
-	paths := []string{}
-	for _, a := range p.Sprites {
-		if a.RelativePath != "" {
-			paths = append(paths, a.RelativePath)
-		}
+	paths, e := referencedAssetPaths(p)
+	if e != nil {
+		return nil, e
 	}
-	for _, a := range p.Audio {
-		if a.RelativePath != "" {
-			if strings.ToLower(filepath.Ext(a.RelativePath)) != ".wav" {
-				return nil, fmt.Errorf("export audio %q: only decoded WAV assets are supported", a.RelativePath)
-			}
-			paths = append(paths, a.RelativePath)
-		}
-	}
+
 	if len(paths) == 0 {
 		return data, nil
 	}
 	if projectPath == "" {
-		return nil, fmt.Errorf("save the project before exporting its assets")
+		return nil, errors.New("save the project before exporting its assets")
 	}
 	root := pixelforge_project.AssetsDir(projectPath)
 	resolvedRoot, e := filepath.EvalSymlinks(root)
@@ -58,7 +50,7 @@ func EncodeCartWithAssets(p *pixelforge_project.Project, projectPath string) ([]
 		}
 		info, e := os.Stat(file)
 		if e != nil {
-			return nil, e
+			return nil, fmt.Errorf("stat asset %q: %w", name, e)
 		}
 
 		if _, exists := assets["assets/"+name]; exists {
@@ -70,9 +62,31 @@ func EncodeCartWithAssets(p *pixelforge_project.Project, projectPath string) ([]
 		total += info.Size()
 		b, e := os.ReadFile(file)
 		if e != nil {
-			return nil, e
+			return nil, fmt.Errorf("read asset %q: %w", name, e)
 		}
 		assets["assets/"+name] = b
 	}
-	return pixelforge_cart.EncodeBundle(data, assets)
+	bundle, e := pixelforge_cart.EncodeBundle(data, assets)
+	if e != nil {
+		return nil, fmt.Errorf("encode asset cart: %w", e)
+	}
+	return bundle, nil
+}
+
+func referencedAssetPaths(p *pixelforge_project.Project) ([]string, error) {
+	paths := []string{}
+	for _, a := range p.Sprites {
+		if a.RelativePath != "" {
+			paths = append(paths, a.RelativePath)
+		}
+	}
+	for _, a := range p.Audio {
+		if a.RelativePath != "" {
+			if strings.ToLower(filepath.Ext(a.RelativePath)) != ".wav" {
+				return nil, fmt.Errorf("export audio %q: only decoded WAV assets are supported", a.RelativePath)
+			}
+			paths = append(paths, a.RelativePath)
+		}
+	}
+	return paths, nil
 }

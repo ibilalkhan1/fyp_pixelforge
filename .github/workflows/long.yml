@@ -32,6 +32,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version: '1.24.2'
@@ -42,6 +44,9 @@ jobs:
       - uses: golangci/golangci-lint-action@v8
         with:
           version: v2.2.1
+          # The supplied source has inherited lint debt. Enforce every enabled
+          # linter on new findings without pretending the baseline is clean.
+          args: --new-from-rev=692f63aff4932a54ef782d2c8feaaa2457ba4247 --max-issues-per-linter=0 --max-same-issues=0
 
   test-default:
     runs-on: ubuntu-latest

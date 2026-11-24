@@ -2,8 +2,8 @@
 
 package main
 
-import "fmt"
+import "log"
 
 func main() {
-	fmt.Println("PixelForge browser demo: build with web-demo/build.sh, then serve web-demo over HTTP.")
+	log.Print("PixelForge browser demo: build with web-demo/build.sh, then serve web-demo over HTTP.")
 }

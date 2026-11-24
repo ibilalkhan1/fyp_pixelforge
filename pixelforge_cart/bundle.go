@@ -3,6 +3,7 @@ package pixelforge_cart
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -36,23 +37,24 @@ func EncodeBundle(project []byte, assets map[string][]byte) ([]byte, error) {
 		data := files[name]
 		total += len(data)
 		if total > maxBundleBytes {
-			return nil, fmt.Errorf("cart bundle exceeds 64 MiB")
+			return nil, errors.New("cart bundle exceeds 64 MiB")
 		}
 		f, e := w.Create(name)
 		if e != nil {
-			return nil, e
+			return nil, fmt.Errorf("cart bundle: create %q: %w", name, e)
 		}
 		if _, e = f.Write(data); e != nil {
-			return nil, e
+			return nil, fmt.Errorf("cart bundle: write %q: %w", name, e)
 		}
 	}
 	if e := w.Close(); e != nil {
-		return nil, e
+		return nil, fmt.Errorf("cart bundle: close archive: %w", e)
 	}
 	return buf.Bytes(), nil
 }
 func validAsset(name string) bool {
-	return strings.HasPrefix(name, "assets/") && fs.ValidPath(name) && path.Clean(name) == name && !strings.Contains(name, "\\")
+	return strings.HasPrefix(name, "assets/") && fs.ValidPath(name) &&
+		path.Clean(name) == name && !strings.Contains(name, "\\")
 }
 
 // DecodeBundle accepts asset-bearing ZIP carts and legacy JSON-only carts.
@@ -76,7 +78,7 @@ func DecodeBundle(data []byte) ([]byte, fs.FS, error) {
 			return nil, nil, fmt.Errorf("cart bundle: unsafe path %q", f.Name)
 		}
 		if f.UncompressedSize64 > maxBundleBytes-total {
-			return nil, nil, fmt.Errorf("cart bundle exceeds 64 MiB")
+			return nil, nil, errors.New("cart bundle exceeds 64 MiB")
 		}
 		total += f.UncompressedSize64
 	}
@@ -84,13 +86,16 @@ func DecodeBundle(data []byte) ([]byte, fs.FS, error) {
 	if e != nil {
 		return nil, nil, fmt.Errorf("cart bundle: missing project: %w", e)
 	}
-	defer f.Close()
 	project, e := io.ReadAll(io.LimitReader(f, maxBundleBytes+1))
+	closeErr := f.Close()
 	if e != nil {
-		return nil, nil, e
+		return nil, nil, fmt.Errorf("cart bundle: read project: %w", e)
+	}
+	if closeErr != nil {
+		return nil, nil, fmt.Errorf("cart bundle: close project: %w", closeErr)
 	}
 	if len(project) > maxBundleBytes {
-		return nil, nil, fmt.Errorf("cart bundle project too large")
+		return nil, nil, errors.New("cart bundle project too large")
 	}
 	return project, z, nil
 }

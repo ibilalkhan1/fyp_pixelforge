@@ -6,7 +6,10 @@ import (
 )
 
 func fixture() Scene {
-	return Scene{Version: 1, Name: "test", Spawn: [2]int{1, 1}, Speed: 1, Color: 11, Sprite: make([]int, 64), Walls: [][2]int{{2, 1}}, Gems: [][2]int{{1, 2}}}
+	return Scene{
+		Version: 1, Name: "test", Spawn: [2]int{1, 1}, Speed: 1, Color: 11,
+		Sprite: make([]int, 64), Walls: [][2]int{{2, 1}}, Gems: [][2]int{{1, 2}},
+	}
 }
 func TestCollisionAndWin(t *testing.T) {
 	var g Game
@@ -32,10 +35,19 @@ func TestCollisionAndWin(t *testing.T) {
 }
 func TestSceneValidation(t *testing.T) {
 	s := fixture()
-	for _, mutate := range []func(*Scene){func(s *Scene) { s.Speed = 100 }, func(s *Scene) { s.Walls = append(s.Walls, s.Spawn) }, func(s *Scene) { s.Sprite = nil }, func(s *Scene) { s.Spawn = [2]int{-1, 0} }} {
+	mutations := []func(*Scene){
+		func(s *Scene) { s.Speed = 100 },
+		func(s *Scene) { s.Walls = append(s.Walls, s.Spawn) },
+		func(s *Scene) { s.Sprite = nil },
+		func(s *Scene) { s.Spawn = [2]int{-1, 0} },
+	}
+	for _, mutate := range mutations {
 		bad := s
 		mutate(&bad)
-		b, _ := json.Marshal(bad)
+		b, err := json.Marshal(bad)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if _, e := parseScene(b); e == nil {
 			t.Fatal("accepted invalid scene")
 		}

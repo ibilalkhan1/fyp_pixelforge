@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	pf "github.com/ibilalkhan1/fyp_pixelforge"
 	ph "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_physics"
@@ -31,44 +32,52 @@ type Game struct {
 func parseScene(data []byte) (Scene, error) {
 	var s Scene
 	if len(data) > 100000 {
-		return s, fmt.Errorf("scene exceeds 100 KB")
+		return s, errors.New("scene exceeds 100 KB")
 	}
 	if err := json.Unmarshal(data, &s); err != nil {
-		return s, err
+		return s, fmt.Errorf("parse scene: %w", err)
 	}
 	if s.Version != 1 {
-		return s, fmt.Errorf("unsupported scene version")
+		return s, errors.New("unsupported scene version")
 	}
 	if s.Speed < 0.5 || s.Speed > 4 {
-		return s, fmt.Errorf("speed must be between 0.5 and 4")
+		return s, errors.New("speed must be between 0.5 and 4")
 	}
 	if s.Color < 0 || s.Color > 63 {
-		return s, fmt.Errorf("colour must be between 0 and 63")
+		return s, errors.New("colour must be between 0 and 63")
 	}
 	if len(s.Name) > 80 || len(s.Walls) > 576 || len(s.Gems) > 100 {
-		return s, fmt.Errorf("scene is too large")
+		return s, errors.New("scene is too large")
 	}
-	for _, cells := range [][][2]int{s.Walls, s.Gems, [][2]int{s.Spawn}} {
-		for _, c := range cells {
-			if c[0] < 0 || c[0] >= 32 || c[1] < 0 || c[1] >= 18 {
-				return s, fmt.Errorf("tile outside the 32 x 18 scene")
-			}
-		}
+	if err := validateSceneCells(s); err != nil {
+		return s, err
 	}
+
 	if len(s.Sprite) != 64 {
-		return s, fmt.Errorf("sprite must have 64 pixels")
+		return s, errors.New("sprite must have 64 pixels")
 	}
 	for _, p := range s.Sprite {
 		if p < 0 || p > 63 {
-			return s, fmt.Errorf("invalid sprite colour")
+			return s, errors.New("invalid sprite colour")
 		}
 	}
 	for _, c := range s.Walls {
 		if c == s.Spawn {
-			return s, fmt.Errorf("player spawn overlaps a wall")
+			return s, errors.New("player spawn overlaps a wall")
 		}
 	}
 	return s, nil
+}
+
+func validateSceneCells(s Scene) error {
+	for _, cells := range [][][2]int{s.Walls, s.Gems, [][2]int{s.Spawn}} {
+		for _, c := range cells {
+			if c[0] < 0 || c[0] >= 32 || c[1] < 0 || c[1] >= 18 {
+				return errors.New("tile outside the 32 x 18 scene")
+			}
+		}
+	}
+	return nil
 }
 func (g *Game) Reset(s Scene) {
 	g.Scene = s
