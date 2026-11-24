@@ -3,6 +3,9 @@
 package main
 
 import (
+	"bytes"
+	"image"
+	"image/png"
 	"io/fs"
 	"testing"
 
@@ -172,22 +175,11 @@ func TestSmokeBoot_ZeroTicksIsNoOp(t *testing.T) {
 		"smoke-tick=0 must still boot cleanly")
 }
 
-// TestSmokeBoot_TolerantOfMissingSpriteAssets is the load-bearing
-// regression test for U12's pragmatic asset-strip: a cart that
-// declares sprite references the player's embedded placeholder FS
-// cannot resolve (the as-shipped state until cart-asset-bundling
-// lands) must still smoke-tick cleanly. Without the strip the
-// capsule's LoadSprites would fail at Boot and the smoke would
-// exit non-zero.
-//
-// We assemble a minimal project with one Sprite row whose file
-// would normally need to live at assets/sprites/missing.png — it
-// doesn't — and verify smokeBoot doesn't error.
-func TestSmokeBoot_TolerantOfMissingSpriteAssets(t *testing.T) {
+// TestSmokeBoot_RejectsMissingSpriteAssets ensures smoke startup exercises
+// the same asset requirements as normal startup instead of hiding broken carts.
+
+func TestSmokeBoot_RejectsMissingSpriteAssets(t *testing.T) {
 	p := pixelforge_project.NewProject("smoke_missing_sprite")
-	// Real designer-supplied projects carry SpriteAsset entries; the
-	// universal player's placeholder FS does NOT carry the files
-	// they reference. Smoke must survive this corner.
 	p.Sprites = []pixelforge_project.SpriteAsset{
 		{Name: "ship", RelativePath: "sprites/missing.png"},
 	}
@@ -195,6 +187,19 @@ func TestSmokeBoot_TolerantOfMissingSpriteAssets(t *testing.T) {
 	require.NoError(t, err)
 
 	stubRead := func() ([]byte, error) { return cartBytes, nil }
-	require.NoError(t, run(stubRead, smokeBoot(3)),
-		"smoke-tick must tolerate carts whose sprite assets are not in the player's embed FS")
+	err = run(stubRead, smokeBoot(3))
+	require.Error(t, err, "smoke startup must reject unresolved sprite assets")
+	assert.Contains(t, err.Error(), "sprites/missing.png")
+}
+
+func TestSmokeBoot_LoadsBundledSpriteAssets(t *testing.T) {
+	p := pixelforge_project.NewProject("smoke_bundled_sprite")
+	p.Sprites = []pixelforge_project.SpriteAsset{{Name: "ship", RelativePath: "sprites/ship.png"}}
+	var sprite bytes.Buffer
+	require.NoError(t, png.Encode(&sprite, image.NewRGBA(image.Rect(0, 0, 8, 8))))
+	project, err := pixelforge_project.Encode(p)
+	require.NoError(t, err)
+	cart, err := pixelforge_cart.EncodeBundle(project, map[string][]byte{"assets/sprites/ship.png": sprite.Bytes()})
+	require.NoError(t, err)
+	require.NoError(t, run(func() ([]byte, error) { return cart, nil }, smokeBoot(3)))
 }
