@@ -11,7 +11,7 @@ python3 -m http.server 8765 --bind 127.0.0.1 --directory web-demo
 
 Open http://127.0.0.1:8765. Edit a tile or an 8x8 character, choose Play scene, and use arrow keys or WASD to collect the crystals. Save a scene in the browser, download its JSON, or export a standalone playable HTML.
 
-The browser demo uses the actual Go renderer through WebAssembly. It uses a separate, limited scene format and does not replace the full native Studio. Audio is outside the creator. The gallery includes separate playable Snake and Pac-Man examples with sound controls.
+The browser demo uses the actual Go renderer through WebAssembly. It uses a separate, limited scene format and does not replace the full native Studio. Audio is outside the creator. The game library includes Snake, Pac-Man and three Studio-compatible projects: Vault of Ember (dungeon crawler), River Hopper (Frogger-style) and Neon Courier (top-down city driving). The three new projects share the native Studio/player runtime and offer project downloads. See [arcade project details](docs/fyp2/arcade-games.md).
 
 Faculty link: https://ibilalkhan1.github.io/fyp_pixelforge/ . GitHub Pages serves the demo without keeping the development laptop online.
 

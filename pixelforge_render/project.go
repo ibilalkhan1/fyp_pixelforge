@@ -24,6 +24,8 @@ func RunProject(project *pixelforge_project.Project, assets fs.FS) error {
 	}
 	defer rt.Close()
 	rt.Start()
+	releaseControls := installArcadeWebControls(rt.Arcade)
+	defer releaseControls()
 	previousDraw := pf.Draw
 	pf.Draw = func() { DrawProject(rt) }
 	defer func() { pf.Draw = previousDraw; pixelforge_ebiten.SetTickHook(nil) }()
@@ -73,6 +75,10 @@ func DrawProject(rt *capsuleruntime.Runtime) {
 		return
 	}
 	pf.SetDrawTarget(pf.Screen())
+	if rt.Arcade != nil {
+		rt.Arcade.Draw()
+		return
+	}
 	pf.Screen().Clear(0)
 	scene := rt.CurrentScene
 	for i := range scene.TileAtlases {

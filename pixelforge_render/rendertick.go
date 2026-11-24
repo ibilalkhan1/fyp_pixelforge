@@ -2,6 +2,7 @@ package pixelforge_render
 
 import (
 	"errors"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_arcade"
 	"image"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -219,6 +220,16 @@ func advanceAndRender(rt *capsuleruntime.Runtime, screen *ebiten.Image, tick uin
 
 	piloop.Target().Publish(piloop.EventFrameStart)
 	pixelforge.Update()
+	if rt.Arcade != nil {
+		rt.Arcade.Step(pixelforge_arcade.Input{
+			Up:      inputs.IsKeyDown(ebiten.KeyArrowUp) || inputs.IsKeyDown(ebiten.KeyW),
+			Down:    inputs.IsKeyDown(ebiten.KeyArrowDown) || inputs.IsKeyDown(ebiten.KeyS),
+			Left:    inputs.IsKeyDown(ebiten.KeyArrowLeft) || inputs.IsKeyDown(ebiten.KeyA),
+			Right:   inputs.IsKeyDown(ebiten.KeyArrowRight) || inputs.IsKeyDown(ebiten.KeyD),
+			Action:  inputs.IsKeyDown(ebiten.KeySpace),
+			Restart: inputs.IsKeyDown(ebiten.KeyR), Pause: inputs.IsKeyDown(ebiten.KeyP),
+		})
+	}
 	piloop.Target().Publish(piloop.EventUpdate)
 	piloop.Target().Publish(piloop.EventLateUpdate)
 	rt.SyncPositions()

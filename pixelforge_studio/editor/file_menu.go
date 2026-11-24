@@ -341,6 +341,10 @@ func (e *Editor) handleShortcuts() {
 	if e.keymap.JustPressed("preview.stop") {
 		e.StopPreview()
 	}
+	// During Play, ordinary keys belong to the game (P pauses the arcade presets).
+	if e.PreviewRunning() {
+		return
+	}
 	if e.keymap.JustPressed("file.new") {
 		e.fileMenu.New()
 	}
