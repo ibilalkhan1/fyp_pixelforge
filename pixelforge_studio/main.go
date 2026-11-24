@@ -10,8 +10,10 @@ package main
 
 import (
 	"context"
+	project "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_project"
 	"log"
 	"os"
+	"path/filepath"
 	"slices"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -112,6 +114,8 @@ func main() {
 	}
 
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
+	// Keep editor rendering and audio servicing alive while other windows are active.
+	ebiten.SetRunnableOnUnfocused(true)
 
 	// Build the cimgui-go Ebiten backend before RunGame. CreateWindow
 	// inside the backend drives ebiten.SetWindowTitle/Size, so the
@@ -128,10 +132,35 @@ func main() {
 	// matches its internal constant; mismatches panic loudly so
 	// drift surfaces immediately.
 	audioCtx := ebitenaudio.NewContext(studioAudioSampleRate)
-	pixelforge_audio.Backend = pixelforge_ebiten.StartAudioBackend(audioCtx)
+	audioDriver := pixelforge_ebiten.StartAudioBackend(audioCtx)
+	pixelforge_audio.Backend = audioDriver
 
 	e := editor.NewWithSettings(settings)
+	e.SetAudioDriver(audioDriver)
 	e.AttachImguiBackend(imguiBackend, showImguiDemo)
+	// A project path is optional; the packaged rehearsal app supplies one.
+	initialProject := ""
+	for i, arg := range os.Args[1:] {
+		if arg == "--project" && i+2 < len(os.Args) {
+			initialProject = os.Args[i+2]
+		}
+	}
+	if initialProject == "" {
+		if executable, err := os.Executable(); err == nil {
+			candidate := filepath.Join(filepath.Dir(executable), "../Resources/native-demo.pforge")
+			if _, err := os.Stat(candidate); err == nil {
+				initialProject = candidate
+			}
+		}
+	}
+	if initialProject != "" {
+		if p, err := project.Load(initialProject); err != nil {
+			log.Printf("open project: %v", err)
+		} else {
+			e.SetProject(p)
+			e.SetCurrentProjectPath(initialProject)
+		}
+	}
 	palette.RegisterWith(e)
 	capture.RegisterWith(e)
 	scripting.RegisterWith(e)
@@ -197,6 +226,11 @@ func main() {
 		})
 	}
 
+	if slices.Contains(os.Args[1:], "--play") {
+		if err := e.StartPreview(); err != nil {
+			log.Printf("start preview: %v", err)
+		}
+	}
 	if err := ebiten.RunGame(e); err != nil {
 		log.Fatalf("pixelforge studio: %v", err)
 	}

@@ -3,56 +3,25 @@ package pixelforge_cart
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 )
 
-// Append copies the player binary at playerBinaryPath, appends the
-// cart payload plus a v2 footer, and writes the result atomically
-// to outputPath. On Unix the result is chmod 0o755 so it's
-// launchable. On darwin the function additionally runs
-// `codesign --force --sign - <outputPath>` as the final step.
-//
-// Atomicity: the data lands at <outputPath>.tmp first, then we
-// os.Rename onto outputPath. A crash mid-write leaves a stale .tmp
-// the caller can clean up; the real target is never half-written.
-//
-// .app bundles: if outputPath ends in ".app", the function writes
-// into "<outputPath>/Contents/MacOS/<base-without-.app>" — the
-// macOS bundle's actual executable lives there, not at the .app
-// directory itself. The parent dirs are created lazily.
-//
-// Payload bound: payloads larger than MaxPayloadSize are rejected
-// with ErrPayloadTooLarge (the same cap the reader enforces) so
-// the writer can't produce a binary the reader would refuse.
-//
-// Codesign failure modes (darwin only):
-//   - codesign missing from PATH → returns ErrCodesignUnavailable.
-//     The binary is still on disk and runnable on darwin/amd64;
-//     darwin/arm64 callers must decide whether to ship unsigned.
-//   - codesign exits non-zero → returns ErrCodesignFailed wrapping
-//     the captured stderr.
-//
-// In both codesign failure modes the appended binary remains in
-// place — the caller can inspect or re-sign manually.
+// Append ships a player and cart. For a .app output, it copies the executable
+// unchanged and stores the cart envelope in Contents/Resources/game.pfcart.
+// Call SignAppBundle after writing the bundle's metadata and other resources.
+// Appending bytes to a Mach-O executable would violate macOS signing rules.
+// Other outputs retain the executable + cart + v2-footer layout.
+// Writes use a temporary file and rename. Oversize carts are rejected first.
 func Append(playerBinaryPath string, cart []byte, outputPath string) error {
 	if uint64(len(cart)) > MaxPayloadSize {
 		return fmt.Errorf("%w: cart is %d bytes, limit %d", ErrPayloadTooLarge, len(cart), MaxPayloadSize)
 	}
 
-	// .app bundle redirect: outer ".../Foo.app" → inner
-	// ".../Foo.app/Contents/MacOS/Foo". The Mach-O executable
-	// inside the bundle is what we modify; the bundle wrapper is
-	// just a directory.
-	resolvedOutput := outputPath
 	if strings.HasSuffix(outputPath, ".app") {
-		base := strings.TrimSuffix(filepath.Base(outputPath), ".app")
-		resolvedOutput = filepath.Join(outputPath, "Contents", "MacOS", base)
-		if err := os.MkdirAll(filepath.Dir(resolvedOutput), 0o755); err != nil {
-			return fmt.Errorf("pixelforge_cart: mkdir bundle MacOS dir: %w", err)
-		}
+		return writeAppBundle(playerBinaryPath, cart, outputPath)
 	}
+	resolvedOutput := outputPath
 
 	playerBytes, err := os.ReadFile(playerBinaryPath)
 	if err != nil {

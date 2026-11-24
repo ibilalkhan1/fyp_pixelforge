@@ -1,0 +1,4 @@
+Original test fixtures generated for this project: 440 Hz sine, 0.2 seconds,
+44.1 kHz, stereo. No third-party recordings are included.
+FFmpeg input: -f lavfi -i sine=frequency=440:duration=0.2:sample_rate=44100 -ac 2
+Encoders: libmp3lame (tone.mp3), libvorbis (tone.ogg), pcm_s16le (tone16.wav).

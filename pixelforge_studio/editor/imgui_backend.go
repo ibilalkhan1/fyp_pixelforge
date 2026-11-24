@@ -79,6 +79,8 @@ func NewEbitenImguiBackend(title string, width, height int) (*ebitenbackend.Ebit
 	// initial window dimensions instead of calling ebiten.SetWindow*
 	// separately.
 	eb.CreateWindow(title, width, height)
+	io := imgui.CurrentIO()
+	io.SetConfigFlags(io.ConfigFlags() | imgui.ConfigFlagsDockingEnable)
 	return eb, nil
 }
 

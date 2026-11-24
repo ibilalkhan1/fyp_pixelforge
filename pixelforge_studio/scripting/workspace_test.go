@@ -54,12 +54,12 @@ func TestWorkspace_TabSwitching(t *testing.T) {
 	assert.Equal(t, scripting.PaneDebug, w.ActiveTab())
 }
 
-func TestWorkspace_OnProjectChanged_StartsEngine(t *testing.T) {
+func TestWorkspace_OnProjectChanged_PreparesStoppedEngine(t *testing.T) {
 	w := scripting.NewWorkspace()
 	p := pixelforge_project.NewProject("demo")
 	w.OnProjectChanged(p)
-	assert.NotNil(t, w.Engine(), "OnProjectChanged should start an engine")
-	assert.True(t, w.Engine().Running())
+	assert.NotNil(t, w.Engine(), "OnProjectChanged should prepare an engine")
+	assert.False(t, w.Engine().Running(), "authoring must not run gameplay before Play")
 	w.OnProjectChanged(nil)
 	assert.Nil(t, w.Engine(), "nil project should tear down the engine")
 }

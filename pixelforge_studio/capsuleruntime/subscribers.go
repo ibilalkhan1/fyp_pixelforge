@@ -142,7 +142,10 @@ func InstallSubscribers(rt *Runtime) {
 	}
 	rt.Sinks.fillDefaults(rt)
 	target := piloop.VerbsBus()
-	target.SubscribeAll(func(ev *piloop.VerbEvent, _ pievent.Handler) {
+	if rt.verbHandler != 0 {
+		target.Unsubscribe(rt.verbHandler)
+	}
+	rt.verbHandler = target.SubscribeAll(func(ev *piloop.VerbEvent, _ pievent.Handler) {
 		if ev == nil {
 			return
 		}
@@ -528,6 +531,7 @@ func (s *Sinks) fillDefaults(rt *Runtime) {
 type realAudioSink struct{}
 
 func (realAudioSink) Play(ch pixelforge_audio.Chan, sample *pixelforge_audio.Sample, pitch, vol float64) {
+	pixelforge_audio.LoadSample(sample)
 	pixelforge_audio.Play(ch, sample, pitch, vol)
 }
 

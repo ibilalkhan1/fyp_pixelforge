@@ -10,8 +10,8 @@ import (
 	"runtime"
 )
 
-// ReadSelf reads the cart payload appended to the running
-// executable. The function opens the executable once and holds a
+// ReadSelf reads the app resource cart or legacy appended executable cart.
+// The function opens the selected source once and holds a
 // single *os.File for every read — the descriptor is inode-bound
 // after open, so a path-level swap mid-read cannot redirect the
 // reader to a different file.
@@ -35,12 +35,32 @@ func ReadSelf() ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("pixelforge_cart: resolve self: %w", err)
 	}
+	return readSelfAtPath(path)
+}
+
+// readSelfAtPath prefers the signed bundle resource. Legacy appended carts
+// remain readable when no resource exists. A corrupt resource must fail.
+func readSelfAtPath(path string) ([]byte, error) {
+	if resource, ok := appCartPath(path); ok {
+		if _, err := os.Stat(resource); err == nil {
+			path = resource
+		} else if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("stat app cart: %w", err)
+		}
+	}
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("pixelforge_cart: open self %s: %w", path, err)
+		return nil, fmt.Errorf("open cart source: %w", err)
 	}
-	defer f.Close()
-	return readFromFile(f)
+	payload, readErr := readFromFile(f)
+	closeErr := f.Close()
+	if readErr != nil {
+		return nil, readErr
+	}
+	if closeErr != nil {
+		return nil, fmt.Errorf("close cart source: %w", closeErr)
+	}
+	return payload, nil
 }
 
 // resolveSelfPath returns a stable filesystem path for the running

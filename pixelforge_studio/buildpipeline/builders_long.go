@@ -1,7 +1,5 @@
-// builders_long.go is the //go:build long real-build path. Built
-// with `-tags=long` the studio (and the long-tag CI job) replaces
-// the placeholder scaffolds in builders.go with builders that
-// actually produce runnable artifacts.
+// Real game exporters are available in all Studio builds.
+// The long build tag selects additional integration tests only.
 //
 // Plan-009 U3 rewired both the host and WASM builders: instead of
 // emitting a per-cart main.go + invoking `go build`, they call
@@ -13,12 +11,8 @@
 // effect: no Go toolchain is required at user-build time when the
 // studio installer shipped with embedded player binaries.
 //
-// Production callers — the studio's Build button — apply the tag
-// automatically so users don't need to know about it. The default
-// test suite stays headless (no Go toolchain dependency) because
-// builders.go is `//go:build !long`.
-
-//go:build long
+// Real builders are available in normal Studio builds. The long tag only
+// selects additional integration tests.
 
 package buildpipeline
 
@@ -76,7 +70,7 @@ func (b *hostLongBuilder) Build(ctx context.Context, req BuildRequest, emit func
 		return err
 	}
 
-	cartBytes, err := codegen.EncodeCart(req.Project)
+	cartBytes, err := codegen.EncodeCartWithAssets(req.Project, req.ProjectPath)
 	if err != nil {
 		return fmt.Errorf("hostLongBuilder: encode cart: %w", err)
 	}
@@ -127,10 +121,8 @@ func (b *hostLongBuilder) Build(ctx context.Context, req BuildRequest, emit func
 		playerPath = relinked
 	}
 
-	// macOS .app bundle: append into the .app directory and let
-	// pixelforge_cart.Append resolve the inner Mach-O path
-	// (Foo.app/Contents/MacOS/Foo). The .icns + Info.plist drop in
-	// AFTER the append so codesign sees a complete bundle.
+	// macOS keeps the executable unchanged and puts the cart in Resources.
+	// Sign only after the icon and Info.plist have also been written.
 	appendTarget := outPath
 	if target == TargetMacOS {
 		if err := os.MkdirAll(filepath.Join(outDir, gameName+".app", "Contents", "MacOS"), 0o755); err != nil {
@@ -162,6 +154,9 @@ func (b *hostLongBuilder) Build(ctx context.Context, req BuildRequest, emit func
 		plist := macInfoPlist(gameName, version)
 		if err := os.WriteFile(plistPath, []byte(plist), 0o644); err != nil {
 			return fmt.Errorf("hostLongBuilder: write Info.plist: %w", err)
+		}
+		if err := pixelforge_cart.SignAppBundle(outPath); err != nil {
+			return fmt.Errorf("hostLongBuilder: sign completed app: %w", err)
 		}
 	}
 
@@ -230,7 +225,7 @@ func (b *wasmLongBuilder) Build(ctx context.Context, req BuildRequest, emit func
 		return err
 	}
 
-	cartBytes, err := codegen.EncodeCart(req.Project)
+	cartBytes, err := codegen.EncodeCartWithAssets(req.Project, req.ProjectPath)
 	if err != nil {
 		return fmt.Errorf("wasmLongBuilder: encode cart: %w", err)
 	}

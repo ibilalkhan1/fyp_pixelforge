@@ -47,6 +47,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
+	"image/png"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -74,9 +77,7 @@ const smokeTickTimeout = 30 * time.Second
 
 // loadAsteroidsProofProject opens the U11 .pforge fixture and
 // returns the loaded *Project plus its on-disk path. The build
-// pipeline only consumes the project struct; the path is returned
-// for callers who want to assert the fixture exists alongside the
-// loaded payload.
+// pipeline consumes the saved project path when packaging assets.
 //
 // Resolution: walk from the integration_test package directory to
 // fixtures/asteroids_proof.pforge. runtime.Caller(0) keeps the
@@ -99,6 +100,26 @@ func loadAsteroidsProofProject(t *testing.T) (*pixelforge_project.Project, strin
 	return project, path
 }
 
+// loadAsteroidsShippingProject pairs the proof project with real PNG files in
+// a temporary saved project. These generated images exercise asset packaging;
+// they are test artwork, not evidence of a finished Asteroids game.
+func loadAsteroidsShippingProject(t *testing.T) (*pixelforge_project.Project, string) {
+	t.Helper()
+	project, _ := loadAsteroidsProofProject(t)
+	path := filepath.Join(t.TempDir(), "asteroids_proof.pforge")
+	data, err := pixelforge_project.Encode(project)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, data, 0o600))
+	for _, sprite := range project.Sprites {
+		assetPath := filepath.Join(pixelforge_project.AssetsDir(path), filepath.FromSlash(sprite.RelativePath))
+		require.NoError(t, os.MkdirAll(filepath.Dir(assetPath), 0o755))
+		var imageBytes bytes.Buffer
+		require.NoError(t, png.Encode(&imageBytes, image.NewRGBA(image.Rect(0, 0, sprite.Width, sprite.Height))))
+		require.NoError(t, os.WriteFile(assetPath, imageBytes.Bytes(), 0o600))
+	}
+	return project, path
+}
+
 // extractAppendedCart is the test-side equivalent of pixelforge_cart.ReadSelf
 // against an arbitrary on-disk binary. Mirrors readCartFromFile in
 // builders_long_test.go but lives here too because that helper is
@@ -112,8 +133,11 @@ func loadAsteroidsProofProject(t *testing.T) (*pixelforge_project.Project, strin
 // authored — Name, Scenes count, PhysicsPreset.
 func extractAppendedCart(t *testing.T, path string) []byte {
 	t.Helper()
+	if runtime.GOOS == "darwin" {
+		path = filepath.Join(filepath.Dir(filepath.Dir(path)), "Resources", pixelforge_cart.AppCartFilename)
+	}
 	data, err := os.ReadFile(path)
-	require.NoError(t, err, "read built binary at %s", path)
+	require.NoError(t, err, "read shipped cart at %s", path)
 	require.GreaterOrEqual(t, len(data), pixelforge_cart.FooterSize,
 		"built binary too small to contain a footer (got %d bytes)", len(data))
 
@@ -227,13 +251,14 @@ func TestBuildPipelineUniversal_HostSmoke(t *testing.T) {
 		t.Skip("Windows host triggers the .syso relink path; smoke covered by manual runs")
 	}
 
-	project, _ := loadAsteroidsProofProject(t)
+	project, projectPath := loadAsteroidsShippingProject(t)
 	outDir := t.TempDir()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	req := buildpipeline.BuildRequest{
 		Project:        project,
+		ProjectPath:    projectPath,
 		OutputDir:      outDir,
 		EnginePath:     engineRepoRoot(t),
 		EngineStrategy: buildpipeline.ModuleStrategyDevReplace,
@@ -255,7 +280,13 @@ func TestBuildPipelineUniversal_HostSmoke(t *testing.T) {
 	binaryPath := hostArtifactPath(t, outDir, project)
 	cartBytes := extractAppendedCart(t, binaryPath)
 	require.NotEmpty(t, cartBytes, "appended cart must be non-empty")
-	roundTripped, err := pixelforge_project.LoadReader(bytes.NewReader(cartBytes))
+	projectBytes, assets, err := pixelforge_cart.DecodeBundle(cartBytes)
+	require.NoError(t, err)
+	for _, sprite := range project.Sprites {
+		_, err := fs.Stat(assets, "assets/"+sprite.RelativePath)
+		require.NoError(t, err, "export must carry sprite %s", sprite.RelativePath)
+	}
+	roundTripped, err := pixelforge_project.LoadReader(bytes.NewReader(projectBytes))
 	require.NoError(t, err, "ReadSelf-equivalent cart must LoadReader cleanly")
 	assert.Equal(t, project.Name, roundTripped.Name)
 	assert.Equal(t, project.PhysicsPreset, roundTripped.PhysicsPreset)
@@ -288,13 +319,14 @@ func TestBuildPipelineUniversal_WASMSmoke(t *testing.T) {
 		t.Skipf("long-tag smoke requires the Go toolchain on PATH: %v", err)
 	}
 
-	project, _ := loadAsteroidsProofProject(t)
+	project, projectPath := loadAsteroidsShippingProject(t)
 	outDir := t.TempDir()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	req := buildpipeline.BuildRequest{
 		Project:        project,
+		ProjectPath:    projectPath,
 		OutputDir:      outDir,
 		EnginePath:     engineRepoRoot(t),
 		EngineStrategy: buildpipeline.ModuleStrategyDevReplace,

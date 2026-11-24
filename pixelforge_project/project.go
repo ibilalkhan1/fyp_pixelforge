@@ -105,6 +105,16 @@ type Project struct {
 	// warning at Boot. omitempty so pre-U8 projects round-trip
 	// without a phantom key.
 	PhysicsPreset string `json:"physics_preset,omitempty"`
+
+	// Arcade opts into a code-driven preset shared by Studio and native/web exports.
+	Arcade *ArcadeConfig `json:"arcade,omitempty"`
+}
+
+// ArcadeConfig stores a preset kind and its authored 20 by 11 tile layout.
+// The ordinary scene workspace does not graphically edit preset maps or rules.
+type ArcadeConfig struct {
+	Kind   string   `json:"kind"`
+	Layout []string `json:"layout,omitempty"`
 }
 
 // EventSubscription wires an entity (or a global handler) to a topic

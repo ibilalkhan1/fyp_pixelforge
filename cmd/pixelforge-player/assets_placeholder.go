@@ -6,11 +6,8 @@
 // though, so this file supplies a guaranteed-empty embed.FS rooted at
 // an "assets_placeholder/" directory containing a single .keep file.
 //
-// U3 will pivot this seam: once the cart payload carries its own
-// asset blobs, Boot will receive an fs.FS view of the in-cart
-// asset tree instead of this placeholder. The placeholder stays in
-// the source so the player still builds when the cart-side asset FS
-// is absent (e.g. an empty smoke-test cart).
+// Asset-bearing carts supply a read-only ZIP filesystem in run(). This
+// empty filesystem is retained only for legacy JSON-only carts.
 package main
 
 import "embed"

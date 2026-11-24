@@ -1,0 +1,37 @@
+name: FYP-II demo checks
+on:
+  push:
+  pull_request:
+jobs:
+  browser-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check core and demo packages
+        env:
+          CGO_ENABLED: '0'
+        run: >-
+          go test . ./pixelforge_arcade ./pixelforge_project ./pixelforge_physics ./pixelforge_event
+          ./pixelforge_routine ./pixelforge_cart ./pixelforge_save
+          ./pixelforge_studio/capsuleruntime ./pixelforge_studio/codegen
+          ./pixelforge_studio/buildpipeline ./pixelforge_studio/scripting/runtime
+          ./pixelforge_studio/scripting/catalog ./pixelforge_camera
+          ./pixelforge_tilemap ./pixelforge_entity ./pixelforge_audio ./cmd/pixelforge-web
+      - name: Check browser script
+        run: |
+          node --check web-demo/app.js
+          node --check web-demo/games/game-player.js
+          node --check web-demo/games/runtime.js
+      - name: Build browser demo
+        run: ./web-demo/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pixelforge-browser-demo
+          path: web-demo/
+          retention-days: 7

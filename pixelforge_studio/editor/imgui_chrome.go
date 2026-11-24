@@ -12,7 +12,6 @@ import (
 
 	"github.com/AllenDang/cimgui-go/imgui"
 
-	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_project"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/editor/widgets"
 )
 
@@ -20,10 +19,10 @@ import (
 // imgui.ini layout persistence (added in U6) keys against a stable
 // string. Tests assert on these too via Editor.PanelRect.
 const (
-	PanelAssets     = "Assets"
-	PanelInspector  = "Inspector"
-	PanelScene      = "Scene"
-	PanelStatusBar  = "##StatusBar"
+	PanelAssets    = "Assets"
+	PanelInspector = "Inspector"
+	PanelScene     = "Scene"
+	PanelStatusBar = "##StatusBar"
 )
 
 // statusBarHeight is the pixel height ImGui reserves for the status
@@ -79,18 +78,18 @@ func (e *Editor) buildChrome() {
 	for _, w := range e.workspaces {
 		w.Render(e)
 	}
+	// Focus after every tab exists; focusing before Render loses to the
+	// last window created during the first frame.
+	if e.dockspace != nil && e.dockspace.focusScene {
+		e.SetActiveWorkspaceByName("scene")
+		e.dockspace.focusScene = false
+	}
 }
 
-// activeImguiTheme resolves the theme + project palette pair the
-// chrome should push this frame. The editor owns the loaded theme
-// directly (U9); the active project supplies the palette. Either may
-// be nil — the build helper substitutes default greys.
+// activeImguiTheme uses the editor's palette so changing game artwork cannot
+// make the application's controls unreadable.
 func (e *Editor) activeImguiTheme() imguiTheme {
-	var palette *pixelforge_project.PaletteData
-	if e.project != nil {
-		palette = &e.project.Palette
-	}
-	return buildImguiTheme(e.Theme(), palette)
+	return buildImguiTheme(e.Theme(), &editorChromePalette)
 }
 
 // ensurePanelRects lazily allocates the rect map and clears any rect

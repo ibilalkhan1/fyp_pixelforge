@@ -1,1 +1,9 @@
 saves
+
+# Browser demo build products
+web-demo/engine.wasm
+web-demo/wasm_exec.js
+
+/web-demo/games/*/game.wasm
+
+/web-demo/games/arcade.wasm

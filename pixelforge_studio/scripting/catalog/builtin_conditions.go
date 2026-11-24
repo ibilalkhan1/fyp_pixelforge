@@ -1,7 +1,9 @@
 package catalog
 
 import (
+	piinput "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_input"
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_key"
+	piloop "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_loop"
 )
 
 func init() {
@@ -21,6 +23,12 @@ func buildEventFired(args map[string]any, _ Context) (Predicate, error) {
 		switch p := payload.(type) {
 		case string:
 			return p == wantEvent
+		case pixelforge_key.Event:
+			return string(p.Type) == wantEvent
+		case piloop.Event:
+			return string(p) == wantEvent
+		case piinput.IntentEvent:
+			return p.Intent == wantEvent && p.Type == piinput.IntentEventDown
 		case fmt_Stringer:
 			return p.String() == wantEvent
 		default:

@@ -36,7 +36,7 @@ func TestE2E_BuildPipeline_AE1_OrchestratorParallelEvents(t *testing.T) {
 	ch := buildpipeline.Build(context.Background(), buildpipeline.BuildRequest{
 		Project: p, ProjectPath: path, OutputDir: dir,
 	}, []buildpipeline.Target{
-		buildpipeline.TargetLinux,
+		buildpipeline.HostTarget(),
 		buildpipeline.TargetWASM,
 		buildpipeline.TargetSource,
 	})
@@ -61,10 +61,10 @@ func TestE2E_BuildPipeline_AE2_CapsuleEmbedsProjectAndAssets(t *testing.T) {
 	// Generate with explicit published-version strategy to skip
 	// the vendor/dev-replace path that needs an engine source dir.
 	_, err := codegen.Generate(p, out, codegen.Options{
-		Force:                true,
-		ProjectSourcePath:    path,
-		Strategy:             modulepath.StrategyPublishedVersion,
-		EngineVersion:        "v0.0.0",
+		Force:             true,
+		ProjectSourcePath: path,
+		Strategy:          modulepath.StrategyPublishedVersion,
+		EngineVersion:     "v0.0.0",
 	})
 	require.NoError(t, err)
 
@@ -142,25 +142,31 @@ func TestE2E_BuildPipeline_AE6_BuildOnSaveDebouncesCoalescedSaves(t *testing.T) 
 }
 
 func TestE2E_BuildPipeline_AE7_SourceTargetProducesOutputFile(t *testing.T) {
-	if isLongBuildTag() {
-		t.Skip("Source target under //go:build long uses real codegen which needs an explicit EnginePath; long-tag equivalent is exercised via host/wasm long tests.")
-	}
-	p, path := tempCapsuleProject(t)
+	p, projectPath := tempCapsuleProject(t)
+	enginePath, err := filepath.Abs(filepath.Join("..", ".."))
+	require.NoError(t, err)
 	dir := t.TempDir()
 	ch := buildpipeline.Build(context.Background(), buildpipeline.BuildRequest{
-		Project: p, ProjectPath: path, OutputDir: dir,
+		Project: p, ProjectPath: projectPath, OutputDir: dir,
+		EnginePath: enginePath, EngineStrategy: buildpipeline.ModuleStrategyDevReplace,
 	}, []buildpipeline.Target{buildpipeline.TargetSource})
 	var doneStatus *buildpipeline.BuildStatus
-	for s := range ch {
-		if s.Phase == buildpipeline.PhaseDone {
-			s := s
-			doneStatus = &s
+	for status := range ch {
+		if status.Phase == buildpipeline.PhaseFailed {
+			require.NoError(t, status.Err)
+		}
+		if status.Phase == buildpipeline.PhaseDone {
+			captured := status
+			doneStatus = &captured
 		}
 	}
 	require.NotNil(t, doneStatus)
 	assert.Contains(t, doneStatus.OutputPath, "source")
-	_, err := os.Stat(doneStatus.OutputPath)
-	require.NoError(t, err)
+	// A real source export is a complete source tree, not a placeholder file.
+	for _, name := range []string{"main.go", "capsule.go", "go.mod", "project.pforge"} {
+		_, err := os.Stat(filepath.Join(doneStatus.OutputPath, name))
+		require.NoError(t, err)
+	}
 }
 
 func TestE2E_BuildPipeline_AE8_ToolchainResolvesGoBinary(t *testing.T) {
@@ -222,4 +228,3 @@ func TestE2E_BuildPipeline_F4_CancellationStopsAllInFlight(t *testing.T) {
 	}
 	assert.Equal(t, 2, terminal, "each target reaches a terminal phase even on cancel")
 }
-

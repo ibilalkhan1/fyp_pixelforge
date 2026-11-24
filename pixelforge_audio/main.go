@@ -123,23 +123,6 @@ func (f Format) String() string {
 	return "Unknown"
 }
 
-// DecodeMP3 accepts an MP3 byte stream and returns a mono PCM
-// sample suitable for loading into a Paula channel. The engine
-// keeps this path for inclusiveness, but shipped carts rarely
-// use it because of the larger memory footprint.
-func DecodeMP3(data []byte) (*Sample, error) {
-	// Platform-specific decoder delegate.
-	return nil, nil
-}
-
-// DecodeWAV accepts a RIFF/WAVE byte stream and returns a mono PCM
-// sample. WAV is the preferred lossless intermediate when authors
-// import studio-recorded sound effects.
-func DecodeWAV(data []byte) (*Sample, error) {
-	// Platform-specific decoder delegate.
-	return nil, nil
-}
-
 // ─── MIDI BGM & SoundFX ──────────────────────────────────────────
 
 // MidiTrack is a parsed Standard MIDI File ready for playback

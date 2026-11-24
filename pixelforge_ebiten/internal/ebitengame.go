@@ -59,6 +59,11 @@ func (c *cachedMonitor) Get() *ebiten.MonitorType {
 	return c.monitor
 }
 
+type frameAudioDriver interface {
+	OnBeforeUpdate()
+	OnAfterUpdate()
+}
+
 // TODO split into multiple objects to reduce complexity
 type EbitenGame struct {
 	piScreen       pixelforge.Canvas
@@ -81,7 +86,7 @@ type EbitenGame struct {
 	paused bool
 
 	windowState  windowState
-	audioBackend *audio.Backend
+	audioBackend frameAudioDriver
 	inputBackend *input.Backend
 
 	ebitenFrame int // frame incremented on each Ebiten tick
@@ -109,7 +114,7 @@ func (g *EbitenGame) Update() error {
 
 	started := time.Now()
 
-	if !g.started {
+	if !g.started && TickHook == nil {
 		if pixelforge.Init != nil {
 			pixelforge.Init()
 		}
@@ -118,7 +123,7 @@ func (g *EbitenGame) Update() error {
 	g.started = true
 
 	if g.ebitenFrame%(ebitenTPS/pixelforge.TPS()) == 0 {
-		if !g.paused {
+		if !g.paused && TickHook == nil {
 			piloop.Target().Publish(piloop.EventFrameStart)
 		}
 		piloop.DebugTarget().Publish(piloop.EventFrameStart)

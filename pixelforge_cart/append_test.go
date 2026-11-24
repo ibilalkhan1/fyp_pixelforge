@@ -119,9 +119,6 @@ func TestAppend_PayloadTooLargeRejected(t *testing.T) {
 }
 
 func TestAppend_AppBundleResolvesInnerPath(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("darwin path runs codesign on the .app; tested separately")
-	}
 	dir := t.TempDir()
 	playerPath := writeFakePlayer(t, dir, []byte{0xDE, 0xAD, 0xBE, 0xEF})
 	cart := []byte("cart")
@@ -137,14 +134,25 @@ func TestAppend_AppBundleResolvesInnerPath(t *testing.T) {
 	require.NoError(t, err, "inner executable must exist at .app/Contents/MacOS/Foo")
 	assert.False(t, info.IsDir(), "inner path must be the executable file, not a dir")
 
-	// Round-trip: ReadSelf-equivalent extraction must work on the
-	// inner file.
-	f, err := os.Open(innerPath)
+	// The signed executable stays unchanged; the envelope lives in Resources.
+	player, err := os.ReadFile(playerPath)
+	require.NoError(t, err)
+	shipped, err := os.ReadFile(innerPath)
+	require.NoError(t, err)
+	assert.Equal(t, player, shipped)
+	resource := filepath.Join(outerPath, "Contents", "Resources", AppCartFilename)
+	f, err := os.Open(resource)
 	require.NoError(t, err)
 	defer f.Close()
 	got, err := readFromFile(f)
 	require.NoError(t, err)
 	assert.Equal(t, cart, got)
+	self, err := readSelfAtPath(innerPath)
+	require.NoError(t, err)
+	assert.Equal(t, cart, self, "player must discover its resource cart")
+	require.NoError(t, os.WriteFile(resource, []byte("broken"), 0o644))
+	_, err = readSelfAtPath(innerPath)
+	require.ErrorIs(t, err, ErrNoCart, "a broken resource must not fall back to another cart")
 }
 
 func TestAppend_TmpFileCleanedOnSizeRejection(t *testing.T) {

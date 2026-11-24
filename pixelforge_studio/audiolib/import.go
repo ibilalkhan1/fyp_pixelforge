@@ -79,9 +79,9 @@ func importCore(
 		baseName = "imported_sound"
 	}
 
-	sample, err := pixelforge_audio.DecodeWavOrErr(bytes)
+	sample, err := pixelforge_audio.DecodeWAV(bytes)
 	if err != nil {
-		return ImportResult{}, fmt.Errorf("audio import: %w (requires 8-bit mono PCM WAV)", err)
+		return ImportResult{}, fmt.Errorf("audio import: %w (requires a supported PCM WAV file)", err)
 	}
 
 	if priority == "" {
@@ -106,7 +106,7 @@ func importCore(
 	// uint16. Truncation is safe (max declared rate is 48000).
 	sampleRateHz := 0
 	if sample != nil {
-		sampleRateHz = int(sampleRateHzFromBytes(bytes))
+		sampleRateHz = int(sample.SampleRate())
 	}
 
 	asset := pixelforge_project.AudioSample{

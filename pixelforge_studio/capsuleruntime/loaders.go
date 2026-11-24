@@ -66,7 +66,7 @@ func LoadAudio(p *pixelforge_project.Project, assets fs.FS) error {
 		if err != nil {
 			return fmt.Errorf("capsuleruntime: read audio %q (%s): %w", a.Name, a.RelativePath, err)
 		}
-		sample, err := pixelforge_audio.DecodeWavOrErr(bytesIn)
+		sample, err := pixelforge_audio.DecodeAudio(bytesIn, path.Ext(a.RelativePath))
 		if err != nil {
 			return fmt.Errorf("capsuleruntime: decode audio %q (%s): %w", a.Name, a.RelativePath, err)
 		}

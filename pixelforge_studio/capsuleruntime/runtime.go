@@ -1,7 +1,12 @@
 package capsuleruntime
 
 import (
+	"errors"
 	"fmt"
+	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_arcade"
+	pievent "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_event"
+	piinput "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_input"
+	scripting "github.com/ibilalkhan1/fyp_pixelforge/pixelforge_studio/scripting/runtime"
 	"io/fs"
 	"log"
 
@@ -56,9 +61,15 @@ type Options struct {
 // they are mutated by the sinks in response to verb-recipe events,
 // and the renderer + game-loop read them per frame.
 type Runtime struct {
-	Project *pixelforge_project.Project
-	Save    *pisave.Service
-	Sinks   Sinks
+	Arcade        *pixelforge_arcade.Game
+	lastPositions map[string]pixelforge_project.EntityPosition
+	behaviours    *scripting.Engine
+	inputCompiler *piinput.Compiler
+	verbHandler   pievent.Handler
+	Initialized   bool
+	Project       *pixelforge_project.Project
+	Save          *pisave.Service
+	Sinks         Sinks
 
 	// CurrentScene is the active scene the sinks mutate. Pointer
 	// so mutations land in-place; sceneSink swaps the pointer on
@@ -190,6 +201,17 @@ func Boot(p *pixelforge_project.Project, assets fs.FS, opts Options) (*Runtime, 
 	if p == nil {
 		return nil, fmt.Errorf("capsuleruntime: project is nil")
 	}
+	var arcadeGame *pixelforge_arcade.Game
+	if p.Arcade != nil {
+		var err error
+		arcadeGame, err = pixelforge_arcade.New(p.Arcade.Kind, p.Arcade.Layout)
+		if err != nil {
+			return nil, fmt.Errorf("boot arcade preset: %w", err)
+		}
+		if p.ScreenWidth != pixelforge_arcade.Width || p.ScreenHeight != pixelforge_arcade.Height || p.TPS != 30 {
+			return nil, errors.New("arcade presets require a 320x208 screen at 30 TPS")
+		}
+	}
 	if err := LoadSprites(p, assets); err != nil {
 		return nil, err
 	}
@@ -207,6 +229,7 @@ func Boot(p *pixelforge_project.Project, assets fs.FS, opts Options) (*Runtime, 
 		return nil, err
 	}
 	rt := &Runtime{
+		Arcade:          arcadeGame,
 		Project:         p,
 		Save:            save,
 		Sinks:           opts.SinksOverride,
@@ -252,6 +275,10 @@ func Boot(p *pixelforge_project.Project, assets fs.FS, opts Options) (*Runtime, 
 				pixelforge_physics.FixedFromInt(16),
 			)
 			rt.Bodies[e.ID] = body
+			if rt.lastPositions == nil {
+				rt.lastPositions = map[string]pixelforge_project.EntityPosition{}
+			}
+			rt.lastPositions[e.ID] = e.Position
 			rt.Physics.AddBody(body)
 		}
 	}

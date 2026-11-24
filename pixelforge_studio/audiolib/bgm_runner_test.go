@@ -11,29 +11,12 @@ import (
 	"github.com/ibilalkhan1/fyp_pixelforge/pixelforge_project"
 )
 
-// bgm_runner_test.go covers plan-009 U19's BGM-import seam: magic-
-// byte validation + project-side AudioSample append with Loop=true
-// + collision suffixing. The decoder is stubbed (see file header in
-// bgm_runner.go for the deferral note); these tests cover the
-// wiring, not the still-pending audio-v2 decode pipeline.
-
-// minimalOGG returns a 4-byte stub carrying the OggS magic. The
-// runner only validates the magic at the head — full-OGG decode
-// lands later — so this is enough to exercise the success path.
-func minimalOGG() []byte {
-	return []byte("OggS")
-}
-
-// minimalMP3 returns 3 bytes carrying the ID3 magic. Same reason
-// as minimalOGG.
-func minimalMP3() []byte {
-	return []byte("ID3")
-}
-
-// minimalMP3Sync returns 2 bytes that satisfy the MPEG sync-word
-// detector (0xFF + 0xE0..0xFF in the second byte).
-func minimalMP3Sync() []byte {
-	return []byte{0xFF, 0xFB}
+// Fixtures are original 440 Hz tones; headers alone must fail decoding.
+func testBGM(t *testing.T, extension string) []byte {
+	t.Helper()
+	data, err := os.ReadFile("../../pixelforge_audio/internal/test/tone." + extension)
+	require.NoError(t, err)
+	return data
 }
 
 func writeBGMFile(t *testing.T, dir, name string, content []byte) string {
@@ -45,7 +28,7 @@ func writeBGMFile(t *testing.T, dir, name string, content []byte) string {
 
 func TestImportBGMFromFile_ValidOGGAppendsToProject(t *testing.T) {
 	p, ppath := tempProjectFor(t)
-	bgmPath := writeBGMFile(t, t.TempDir(), "title.ogg", minimalOGG())
+	bgmPath := writeBGMFile(t, t.TempDir(), "title.ogg", testBGM(t, "ogg"))
 	res, err := ImportBGMFromFile(bgmPath, p, ppath)
 	require.NoError(t, err)
 	assert.Equal(t, "title", res.SampleName)
@@ -62,7 +45,7 @@ func TestImportBGMFromFile_ValidOGGAppendsToProject(t *testing.T) {
 
 func TestImportBGMFromFile_ValidMP3WithID3AppendsToProject(t *testing.T) {
 	p, ppath := tempProjectFor(t)
-	bgmPath := writeBGMFile(t, t.TempDir(), "stage1.mp3", minimalMP3())
+	bgmPath := writeBGMFile(t, t.TempDir(), "stage1.mp3", testBGM(t, "mp3"))
 	res, err := ImportBGMFromFile(bgmPath, p, ppath)
 	require.NoError(t, err)
 	assert.Equal(t, "stage1", res.SampleName)
@@ -74,7 +57,7 @@ func TestImportBGMFromFile_ValidMP3WithID3AppendsToProject(t *testing.T) {
 
 func TestImportBGMFromFile_ValidMP3WithSyncWordAppendsToProject(t *testing.T) {
 	p, ppath := tempProjectFor(t)
-	bgmPath := writeBGMFile(t, t.TempDir(), "stage2.mp3", minimalMP3Sync())
+	bgmPath := writeBGMFile(t, t.TempDir(), "stage2.mp3", testBGM(t, "mp3"))
 	res, err := ImportBGMFromFile(bgmPath, p, ppath)
 	require.NoError(t, err)
 	assert.Equal(t, BGMContainerMP3, res.Container)
@@ -98,7 +81,7 @@ func TestImportBGMFromFile_BadMP3MagicReturnsError(t *testing.T) {
 
 func TestImportBGMFromFile_UnrecognisedExtensionReturnsError(t *testing.T) {
 	p, ppath := tempProjectFor(t)
-	bad := writeBGMFile(t, t.TempDir(), "mystery.xyz", minimalOGG())
+	bad := writeBGMFile(t, t.TempDir(), "mystery.xyz", testBGM(t, "ogg"))
 	_, err := ImportBGMFromFile(bad, p, ppath)
 	require.Error(t, err)
 }
@@ -110,7 +93,7 @@ func TestImportBGMFromFile_EmptyPathReturnsError(t *testing.T) {
 }
 
 func TestImportBGMFromFile_NilProjectReturnsError(t *testing.T) {
-	bgmPath := writeBGMFile(t, t.TempDir(), "nil.ogg", minimalOGG())
+	bgmPath := writeBGMFile(t, t.TempDir(), "nil.ogg", testBGM(t, "ogg"))
 	_, err := ImportBGMFromFile(bgmPath, nil, "")
 	require.Error(t, err)
 }
@@ -118,11 +101,11 @@ func TestImportBGMFromFile_NilProjectReturnsError(t *testing.T) {
 func TestImportBGMFromFile_NameCollisionSuffixes(t *testing.T) {
 	p, ppath := tempProjectFor(t)
 	dir := t.TempDir()
-	first := writeBGMFile(t, dir, "loop.ogg", minimalOGG())
+	first := writeBGMFile(t, dir, "loop.ogg", testBGM(t, "ogg"))
 	_, err := ImportBGMFromFile(first, p, ppath)
 	require.NoError(t, err)
 	// Re-import the same basename — must collision-suffix.
-	second := writeBGMFile(t, t.TempDir(), "loop.ogg", minimalOGG())
+	second := writeBGMFile(t, t.TempDir(), "loop.ogg", testBGM(t, "ogg"))
 	_, err = ImportBGMFromFile(second, p, ppath)
 	require.NoError(t, err)
 	require.Len(t, p.Audio, 2)
@@ -133,7 +116,7 @@ func TestImportBGMFromFile_NameCollisionSuffixes(t *testing.T) {
 
 func TestImportBGMFromFile_NoProjectSourcePathSkipsCopy(t *testing.T) {
 	p := pixelforge_project.NewProject("test")
-	bgmPath := writeBGMFile(t, t.TempDir(), "nopath.ogg", minimalOGG())
+	bgmPath := writeBGMFile(t, t.TempDir(), "nopath.ogg", testBGM(t, "ogg"))
 	_, err := ImportBGMFromFile(bgmPath, p, "")
 	require.NoError(t, err)
 	require.Len(t, p.Audio, 1, "AudioSample still appended; just no file copy")
@@ -143,4 +126,16 @@ func TestImportBGMFromFile_NonexistentPathReturnsError(t *testing.T) {
 	p, ppath := tempProjectFor(t)
 	_, err := ImportBGMFromFile("/no/such/file.ogg", p, ppath)
 	require.Error(t, err)
+}
+
+func TestImportBGMRejectsHeaderOnlyFiles(t *testing.T) {
+	for _, fixture := range []struct {
+		name string
+		data []byte
+	}{{"bad.ogg", []byte("OggS")}, {"bad.mp3", []byte("ID3")}} {
+		p, ppath := tempProjectFor(t)
+		_, err := ImportBGMFromFile(writeBGMFile(t, t.TempDir(), fixture.name, fixture.data), p, ppath)
+		require.Error(t, err)
+		assert.Empty(t, p.Audio)
+	}
 }

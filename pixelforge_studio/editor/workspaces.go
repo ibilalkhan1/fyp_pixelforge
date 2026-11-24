@@ -205,6 +205,15 @@ func (s *SceneWorkspace) Render(e *Editor) {
 // plan's "U6 deviation note" — the painter lives where the canvas
 // dispatch can reach it.
 func (s *SceneWorkspace) renderToolbar(e *Editor) {
+	if e.PreviewRunning() {
+		if imgui.Button("Stop game (F6)") {
+			e.StopPreview()
+		}
+	} else if imgui.Button("Play game (F5)") {
+		_ = e.StartPreview()
+	}
+	imgui.SameLine()
+
 	tools := []struct {
 		label string
 		tool  Tool
@@ -315,6 +324,9 @@ func (s *SceneWorkspace) renderPreview(e *Editor) {
 // clicks on the toolbar (or in other docked workspaces) don't
 // accidentally place/delete entities.
 func (s *SceneWorkspace) Update(e *Editor) {
+	if e.PreviewRunning() {
+		return
+	}
 	if e == nil || e.canvas == nil {
 		return
 	}

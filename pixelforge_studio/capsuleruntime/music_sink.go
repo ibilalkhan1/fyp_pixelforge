@@ -51,7 +51,9 @@ func (m *musicSink) PlayMusic(name string) {
 		m.rt.CurrentMusic = ""
 		return
 	}
+	pixelforge_audio.LoadSample(sample)
 	pixelforge_audio.Play(musicChan, sample, 1.0, 1.0)
+	pixelforge_audio.SetLoop(musicChan, 0, sample.Len(), pixelforge_audio.LoopForward, 0)
 	m.rt.CurrentMusic = name
 }
 

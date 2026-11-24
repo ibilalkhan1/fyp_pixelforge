@@ -133,3 +133,6 @@ func init() {
 	pievent.RegisterTarget("key.main", target)
 	pievent.RegisterTarget("key.debug", debugTarget)
 }
+
+// ResetState releases stale physical state between detached game sessions.
+func ResetState() { keyState = input.State[Key]{} }

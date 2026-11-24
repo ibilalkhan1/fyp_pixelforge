@@ -108,14 +108,14 @@ const imguiIniFilename = "imgui.ini"
 // EditorTheme. Computed once per theme load, applied each frame via
 // pushColors() inside buildChrome's outer scope.
 type imguiTheme struct {
-	Text       imgui.Vec4
-	TextDim    imgui.Vec4
-	WindowBg   imgui.Vec4
-	PanelBg    imgui.Vec4
-	PanelHdr   imgui.Vec4
-	Accent     imgui.Vec4
-	Warning    imgui.Vec4
-	Border     imgui.Vec4
+	Text     imgui.Vec4
+	TextDim  imgui.Vec4
+	WindowBg imgui.Vec4
+	PanelBg  imgui.Vec4
+	PanelHdr imgui.Vec4
+	Accent   imgui.Vec4
+	Warning  imgui.Vec4
+	Border   imgui.Vec4
 }
 
 // buildImguiTheme converts an EditorTheme + project palette into the
@@ -146,6 +146,21 @@ func buildImguiTheme(theme *EditorTheme, palette *pixelforge_project.PaletteData
 		Warning:  lookup(uint8(theme.WarningSlot)),
 		Border:   lookup(uint8(theme.PanelHeaderSlot)),
 	}
+}
+
+// editorChromePalette keeps interface contrast independent of game colours.
+var editorChromePalette = defaultChromePalette()
+
+func defaultChromePalette() pixelforge_project.PaletteData {
+	palette := pixelforge_project.DefaultPalette()
+	palette.Base[1] = "#111827"
+	palette.Base[2] = "#1F2937"
+	palette.Base[5] = "#374151"
+	palette.Base[6] = "#B8C4D4"
+	palette.Base[7] = "#F3F4F6"
+	palette.Base[9] = "#FBBF24"
+	palette.Base[12] = "#3B82F6"
+	return palette
 }
 
 // applyImguiTheme pushes the theme colours onto ImGui's style stack.
