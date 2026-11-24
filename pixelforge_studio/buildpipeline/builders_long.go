@@ -1,7 +1,5 @@
-// builders_long.go is the //go:build long real-build path. Built
-// with `-tags=long` the studio (and the long-tag CI job) replaces
-// the placeholder scaffolds in builders.go with builders that
-// actually produce runnable artifacts.
+// Real game exporters are available in all Studio builds.
+// The long build tag selects additional integration tests only.
 //
 // Plan-009 U3 rewired both the host and WASM builders: instead of
 // emitting a per-cart main.go + invoking `go build`, they call
@@ -13,12 +11,8 @@
 // effect: no Go toolchain is required at user-build time when the
 // studio installer shipped with embedded player binaries.
 //
-// Production callers — the studio's Build button — apply the tag
-// automatically so users don't need to know about it. The default
-// test suite stays headless (no Go toolchain dependency) because
-// builders.go is `//go:build !long`.
-
-//go:build long
+// Real builders are available in normal Studio builds. The long tag only
+// selects additional integration tests.
 
 package buildpipeline
 
@@ -76,7 +70,7 @@ func (b *hostLongBuilder) Build(ctx context.Context, req BuildRequest, emit func
 		return err
 	}
 
-	cartBytes, err := codegen.EncodeCart(req.Project)
+	cartBytes, err := codegen.EncodeCartWithAssets(req.Project, req.ProjectPath)
 	if err != nil {
 		return fmt.Errorf("hostLongBuilder: encode cart: %w", err)
 	}
@@ -230,7 +224,7 @@ func (b *wasmLongBuilder) Build(ctx context.Context, req BuildRequest, emit func
 		return err
 	}
 
-	cartBytes, err := codegen.EncodeCart(req.Project)
+	cartBytes, err := codegen.EncodeCartWithAssets(req.Project, req.ProjectPath)
 	if err != nil {
 		return fmt.Errorf("wasmLongBuilder: encode cart: %w", err)
 	}

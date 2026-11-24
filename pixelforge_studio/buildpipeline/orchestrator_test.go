@@ -2,6 +2,7 @@ package buildpipeline_test
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -16,6 +17,21 @@ import (
 
 func tempProject(t *testing.T) (*pixelforge_project.Project, string) {
 	t.Helper()
+
+	previous := map[buildpipeline.Target]buildpipeline.Builder{}
+	for _, target := range buildpipeline.AllTargets {
+		if b, ok := buildpipeline.LookupBuilder(target); ok {
+			previous[target] = b
+		}
+	}
+	buildpipeline.ResetBuildersForTest()
+	registerTestBuilders()
+	t.Cleanup(func() {
+		buildpipeline.ResetBuildersForTest()
+		for target, b := range previous {
+			buildpipeline.RegisterBuilder(target, b)
+		}
+	})
 	dir := t.TempDir()
 	p := pixelforge_project.NewProject("test_game")
 	return p, filepath.Join(dir, "test_game.pforge")
@@ -52,7 +68,7 @@ func TestBuild_EveryTargetEmitsQueuedAndTerminal(t *testing.T) {
 	p, path := tempProject(t)
 	dir := t.TempDir()
 	targets := []buildpipeline.Target{
-		buildpipeline.TargetLinux,
+		buildpipeline.HostTarget(),
 		buildpipeline.TargetWASM,
 	}
 	ch := buildpipeline.Build(context.Background(), buildpipeline.BuildRequest{
@@ -80,7 +96,7 @@ func TestBuild_OutputFileWrittenAtExpectedPath(t *testing.T) {
 	dir := t.TempDir()
 	ch := buildpipeline.Build(context.Background(), buildpipeline.BuildRequest{
 		Project: p, ProjectPath: path, OutputDir: dir,
-	}, []buildpipeline.Target{buildpipeline.TargetLinux})
+	}, []buildpipeline.Target{buildpipeline.HostTarget()})
 
 	var doneStatus *buildpipeline.BuildStatus
 	for s := range ch {
@@ -96,7 +112,7 @@ func TestBuild_OutputFileWrittenAtExpectedPath(t *testing.T) {
 	// carries that information). Accept either layout so the test
 	// stays meaningful under both tag sets.
 	assert.True(t,
-		strings.Contains(doneStatus.OutputPath, "linux") ||
+		strings.Contains(doneStatus.OutputPath, buildpipeline.HostTarget().String()) ||
 			strings.Contains(doneStatus.OutputPath, "host"),
 		"output path should land under linux/ or host/, got %s", doneStatus.OutputPath)
 	assert.Contains(t, doneStatus.OutputPath, "test_game")
@@ -109,7 +125,7 @@ func TestBuild_ParallelTargetsRunConcurrently(t *testing.T) {
 	ch := buildpipeline.Build(context.Background(), buildpipeline.BuildRequest{
 		Project: p, ProjectPath: path, OutputDir: dir,
 	}, []buildpipeline.Target{
-		buildpipeline.TargetLinux,
+		buildpipeline.HostTarget(),
 		buildpipeline.TargetWASM,
 		buildpipeline.TargetSource,
 	})
@@ -127,7 +143,7 @@ func TestBuild_CancelledContextStopsBuilds(t *testing.T) {
 	cancel() // pre-cancel
 	ch := buildpipeline.Build(ctx, buildpipeline.BuildRequest{
 		Project: p, ProjectPath: path, OutputDir: dir,
-	}, []buildpipeline.Target{buildpipeline.TargetLinux})
+	}, []buildpipeline.Target{buildpipeline.HostTarget()})
 
 	var sawFailed bool
 	for s := range ch {
@@ -145,7 +161,7 @@ func TestBuild_DefaultOutputDirIsProjectRelativeExports(t *testing.T) {
 	path := filepath.Join(dir, "game.pforge")
 	ch := buildpipeline.Build(context.Background(), buildpipeline.BuildRequest{
 		Project: p, ProjectPath: path, // no OutputDir
-	}, []buildpipeline.Target{buildpipeline.TargetLinux})
+	}, []buildpipeline.Target{buildpipeline.HostTarget()})
 
 	var doneStatus *buildpipeline.BuildStatus
 	for s := range ch {
@@ -159,24 +175,18 @@ func TestBuild_DefaultOutputDirIsProjectRelativeExports(t *testing.T) {
 	// -tags=long the long builder uses "host" as the subdir
 	// regardless of the host GOOS. Accept either layout.
 	assert.True(t,
-		strings.Contains(doneStatus.OutputPath, filepath.Join(dir, "exports", "linux")) ||
+		strings.Contains(doneStatus.OutputPath, filepath.Join(dir, "exports", buildpipeline.HostTarget().String())) ||
 			strings.Contains(doneStatus.OutputPath, filepath.Join(dir, "exports", "host")),
 		"default output dir should be exports/linux or exports/host, got %s", doneStatus.OutputPath)
 }
 
 func TestBuild_UnregisteredTargetFailsClearly(t *testing.T) {
-	buildpipeline.ResetBuildersForTest()
-	t.Cleanup(func() {
-		// Re-register the production builders so other tests in
-		// the same process see a populated registry.
-		registerProductionBuildersForTest()
-	})
-
 	p, path := tempProject(t)
+	buildpipeline.ResetBuildersForTest()
 	dir := t.TempDir()
 	ch := buildpipeline.Build(context.Background(), buildpipeline.BuildRequest{
 		Project: p, ProjectPath: path, OutputDir: dir,
-	}, []buildpipeline.Target{buildpipeline.TargetLinux})
+	}, []buildpipeline.Target{buildpipeline.HostTarget()})
 
 	var failedErr error
 	for s := range ch {
@@ -188,14 +198,10 @@ func TestBuild_UnregisteredTargetFailsClearly(t *testing.T) {
 	assert.Contains(t, failedErr.Error(), "no builder registered")
 }
 
-// registerProductionBuildersForTest rebuilds the registry that
-// ResetBuildersForTest cleared, mirroring the production init().
-func registerProductionBuildersForTest() {
+// registerTestBuilders installs explicit fakes for orchestration-only tests.
+
+func registerTestBuilders() {
 	for _, t := range buildpipeline.AllTargets {
-		// Re-use the scaffold builder via the placeholder closure
-		// in the production package. The test only needs the
-		// registry to be non-empty for subsequent tests; a no-op
-		// builder is sufficient.
 		t := t
 		buildpipeline.RegisterBuilder(t, &noopBuilder{target: t})
 	}
@@ -204,5 +210,20 @@ func registerProductionBuildersForTest() {
 type noopBuilder struct{ target buildpipeline.Target }
 
 func (n *noopBuilder) Build(ctx context.Context, req buildpipeline.BuildRequest, emit func(buildpipeline.BuildStatus)) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	dir := req.OutputDir
+	if dir == "" {
+		dir = filepath.Join(filepath.Dir(req.ProjectPath), "exports")
+	}
+	output := filepath.Join(dir, n.target.String(), req.Project.Name+"-orchestrator-test-artifact")
+	if err := os.MkdirAll(filepath.Dir(output), 0755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(output, []byte("test fixture"), 0644); err != nil {
+		return err
+	}
+	emit(buildpipeline.BuildStatus{Phase: buildpipeline.PhaseDone, OutputPath: output})
 	return nil
 }

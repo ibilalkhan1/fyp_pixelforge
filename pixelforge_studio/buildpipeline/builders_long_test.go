@@ -2,7 +2,7 @@
 // append pipeline. Runs only under -tags=long because it shells
 // out to `go build` for the developer-fallback scenario and reads
 // real pre-built player binaries via the discovery chain. The
-// non-long suite stays headless (builders.go's scaffold path).
+// non-long orchestration tests use explicit test-only fakes.
 
 //go:build long
 
@@ -316,13 +316,12 @@ func TestResolvePlayerBinary_CacheChecksumMismatch(t *testing.T) {
 // has populated the real per-target bins/<goos>-<goarch>/
 // pixelforge-player entries; see plan-009 U3 verification notes.
 func TestResolvePlayerBinary_EmbedFallsThroughToBuild(t *testing.T) {
-	// Isolate cache dir so a stray previous run doesn't satisfy
-	// the lookup before we reach the embed step.
+	// Isolate only the player cache. Changing HOME also relocates Go's module
+	// cache into this test directory, leaving read-only downloads at cleanup.
 	cacheRoot := t.TempDir()
-	t.Setenv("XDG_CACHE_HOME", cacheRoot)
-	if runtime.GOOS == "darwin" {
-		t.Setenv("HOME", cacheRoot)
-	}
+	previousCacheDir := userCacheDir
+	userCacheDir = func() (string, error) { return cacheRoot, nil }
+	t.Cleanup(func() { userCacheDir = previousCacheDir })
 
 	// The dev checkout's playerbins/bins/ is empty (only .gitkeep
 	// + the test-fake fixture) for HostTarget()'s GOOS/GOARCH, so

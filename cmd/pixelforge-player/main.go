@@ -16,7 +16,7 @@
 //
 // Error surface:
 //   - ErrNoCart        → "this is the universal player; ship a game
-//                        with pixelforge-studio Build → Host" + exit 1
+//     with pixelforge-studio Build → Host" + exit 1
 //   - ErrCorruptCart   → diagnostic wrapping the corruption cause
 //   - ErrVersionMismatch → diagnostic naming the observed magic
 //   - any other error  → wrapped with the failing stage
@@ -166,29 +166,9 @@ var playerOffscreenCache *ebiten.Image
 // the latter (deferred to v3 wasmbrowsertest follow-up), see plan-
 // 009's Scope Boundaries section.
 //
-// Sprites + Audio are zeroed before Boot. The U2/U3 universal player
-// ships with a placeholder embed.FS that does NOT carry the cart's
-// referenced sprite/audio assets — asset-blob-bundling lands in a
-// later unit (see plan-009's asset-bundling follow-up + the doc
-// comment in cmd/pixelforge-player/assets_placeholder.go). Until
-// then the smoke seam strips asset references so capsuleruntime's
-// LoadSprites/LoadAudio don't trip on missing files. The capsule's
-// scene+entity+physics state still loads from the cart, which is
-// what the smoke is verifying. Once cart-asset-bundling lands the
-// strip becomes redundant (Boot reads from the in-cart FS and the
-// references resolve); we can drop the assignment then without a
-// behavioural change.
-//
-// SkipSubscribers stays false because the U7/U8/U9 sinks DO want to
-// register against the global verb-recipe event bus during smoke —
-// that's the cart's "boots cleanly" surface, and any sink wiring
-// regression would surface as a panic here.
+// Smoke uses the same asset-bearing cart and loaders as normal startup.
 func smokeBoot(ticks uint64) bootFn {
 	return func(p *pixelforge_project.Project, assets fs.FS) error {
-		if p != nil {
-			p.Sprites = nil
-			p.Audio = nil
-		}
 		rt, err := capsuleruntime.Boot(p, assets, capsuleruntime.Options{})
 		if err != nil {
 			return fmt.Errorf("smoke-tick boot: %w", err)
@@ -254,12 +234,19 @@ func run(read readCartFn, boot bootFn) error {
 		}
 	}
 
-	p, err := pixelforge_project.LoadReader(bytes.NewReader(cartBytes))
+	projectData, assets, err := pixelforge_cart.DecodeBundle(cartBytes)
+	if err != nil {
+		return fmt.Errorf("pixelforge-player: decode cart bundle: %w", err)
+	}
+	if assets == nil {
+		assets = embeddedAssets
+	}
+	p, err := pixelforge_project.LoadReader(bytes.NewReader(projectData))
 	if err != nil {
 		return fmt.Errorf("pixelforge-player: load project: %w", err)
 	}
 
-	if err := boot(p, embeddedAssets); err != nil {
+	if err := boot(p, assets); err != nil {
 		return fmt.Errorf("pixelforge-player: %w", err)
 	}
 	return nil

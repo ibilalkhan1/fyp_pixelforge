@@ -1,12 +1,10 @@
 // builders_long_helpers.go carries the player-binary discovery
-// chain the long-tag host + WASM builders share. Pulled out of
+// chain the host + WASM builders share. Pulled out of
 // builders_long.go to keep the per-target Build implementations
 // readable: each Build method becomes a linear sequence of
 // codegen.EncodeCart → resolvePlayerBinary → cart.Append /
 // BundleWASM. The cache + SHA-256 sidecar + embed-extract logic
 // lives here so neither builder has to repeat it.
-
-//go:build long
 
 package buildpipeline
 
@@ -32,7 +30,7 @@ import (
 // Phase 1: a stable "v2" string; commit-hash-based invalidation is
 // deferred to a follow-up unit (see plan-009's player-binary
 // discovery chain notes).
-const playerCacheVersion = "v2"
+const playerCacheVersion = "v3-assets"
 
 // resolvedPlayer carries the path + cleanup the long builders use
 // after locating a player binary on disk. cleanup is always
@@ -131,8 +129,10 @@ var noopCleanup = func() {}
 //
 // Returns ("", error) when the platform doesn't expose a user
 // cache dir; callers treat this as a cache miss + fall through.
+var userCacheDir = os.UserCacheDir
+
 func playerCacheDir() (string, error) {
-	base, err := os.UserCacheDir()
+	base, err := userCacheDir()
 	if err != nil {
 		return "", err
 	}
