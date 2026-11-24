@@ -4,48 +4,48 @@ Reviewed 24 November 2026. Baseline: `692f63aff4932a54ef782d2c8feaaa2457ba4247`.
 
 ## What is available
 
-- A focused browser demonstrator in `web-demo/`, backed by the actual Go PixelForge renderer compiled to WebAssembly.
-- Tile editing, 8x8 sprite painting, keyboard movement, AABB wall collision, collectible completion, scene JSON import/export, browser save/restore, screenshots and standalone playable HTML export.
-- The native Studio still builds. It is a separate application, not the browser demo.
-- Normal Studio builds now select real exporters instead of placeholder writers. macOS exports keep the executable unchanged, store the cart in app Resources, and sign after metadata and icons are written.
-- Universal carts can package referenced sprites and WAV audio with project JSON. Legacy JSON-only carts remain readable. Missing files and unsafe paths fail clearly. MP3/OGG export is rejected until decode support exists.
-- Smoke startup retains assets and uses the same loaders as normal startup. Old cached players are invalidated by a cache-version bump.
+- Permanent faculty creator: https://ibilalkhan1.github.io/fyp_pixelforge/ . Free GitHub Pages static hosting keeps the demo available without a laptop or ngrok session.
+- A focused browser game creator backed by the actual Go renderer through WebAssembly: two editable examples plus blank projects, tile and 8x8 character painting, collection/escape rules, hazards, movement/collision, one local save slot, JSON exchange and self-contained playable HTML export.
+- Two separate playable Go examples, Snake and Pac-Man, with Start, Restart, sound controls and held touch direction controls. These are not editable creator templates.
+- Native Studio F5 Play now starts a detached project copy with embedded sprite assets, authored keyboard behaviours and shared runtime housekeeping. F6 Stop restores the authored scene. Basic movement and restoration were observed on the Mac.
+- Normal builds use real exporters. A generated standalone native game compiled, launched and responded to arrow input on Mac. CI also compiles a generated native game on Linux and Mac.
+- Universal carts package sprites and supported audio. Real WAV, MP3 and OGG/Vorbis decoders replace header-only placeholders. The mixer uses signed 8-bit mono data, with bounded in-memory decoding. This is not streaming audio or MIDI support.
 
 ## Build and demonstrate
 
-Requires the repository's Go toolchain version (go.mod: 1.24.2 or newer).
+Requires the repository Go toolchain (go.mod: 1.24.2 or newer) and native platform build dependencies where applicable.
 
 ```sh
 ./web-demo/build.sh
 python3 -m http.server 8765 --bind 127.0.0.1 --directory web-demo
 ```
 
-Open `http://127.0.0.1:8765`. For a temporary faculty link, in a second terminal:
+Open `http://127.0.0.1:8765` for a local backup, or use the permanent faculty link. The static site contains HTML, CSS, JavaScript and WebAssembly. It does not host a server-side native Studio or publish visitors' exported games automatically.
 
-```sh
-ngrok http http://127.0.0.1:8765
-```
-
-Share the HTTPS URL ngrok prints. Visitors may see ngrok's first-visit page and need to choose Visit Site. Keep the Mac awake, online, and both processes running. Restarting or changing ngrok configuration can change the URL. This is a temporary demo, not production hosting.
-
-Use Export playable HTML before the presentation and keep the downloaded file locally. The export contains the engine and the selected scene. Its download and script syntax were verified; local file-protocol browser execution still needs a manual rehearsal on the presentation machine. The browser demonstrator uses its own versioned JSON schema, not Studio's `.pforge` format. Audio and full native Studio tools are outside this demo.
+Download editable JSON and playable HTML before the presentation. Browser JSON and Studio `.pforge` remain different formats. Audio, authored scripts and multiple levels are outside the focused browser creator. Manually rehearse local-file HTML on the presentation laptop. Use the local HTTP bundle if browser file restrictions prevent it.
 
 ## Verified checks
 
-17 targeted Go packages passed, including root engine, physics, project, events, routines, cart, saves, capsule runtime, code generation, build pipeline, scripting runtime/catalogue, camera, tilemap, entities, audio and the browser demo. Default-tag native Studio compilation and universal-player WASM compilation passed on this Mac. The extended real-exporter buildpipeline tests also passed, including the native developer build fallback. Public browser load, tile and sprite editing, keyboard movement, wall collision, collectible pickup, browser save/restore and HTML download were checked.
+Implementation revision `8e5626139ebef98a4a4a2ac7eb5a8842966dccef` passed [full CI](https://github.com/ibilalkhan1/fyp_pixelforge/actions/runs/45462200846): the default Linux suite, both long proof suites, generated native game builds on Linux and Mac, new-finding lint, verb catalogue and capability report. [Browser/core CI](https://github.com/ibilalkhan1/fyp_pixelforge/actions/runs/45462200912) also passed. Each long suite recorded 85 passing test/subtest events and six explicit skips. Skips are not passes. Current [PR checks](https://github.com/ibilalkhan1/fyp_pixelforge/pull/1/checks) show later documentation revisions.
 
-A later GitHub run at `50be43a2` passed the full default Linux `go test ./...` suite under Xvfb, plus the browser checks and no-new-lint gate. This is separate from local macOS native acceptance. The inherited lint backlog remains; see [lint-baseline.md](lint-baseline.md). Long integration test failures now fail their parent job directly while still uploading results for the capability report. Follow the latest [PR checks](https://github.com/ibilalkhan1/fyp_pixelforge/pull/1/checks) for the current revision.
+The full default Mac suite passed across 64 test packages in a working desktop session. The shared rendering regression verifies sprite pixels, key-driven movement, release and one housekeeping advance per tick. A host regression guards against duplicate lifecycle events. Real encoded-tone fixtures verify WAV, MP3 and Vorbis decode output. The generated native source regression compiles a game instead of checking syntax alone.
 
-The event-publish microbenchmark measured 3.112 ns/op, 0 B/op, 0 allocs/op on Apple M4 with 100ms benchtime. It is not a complete-game FPS measurement or a comparison with another engine.
+The public creator loaded, saved a named project, moved the player and downloaded playable HTML. Prior authoring checks covered blank projects, painting, collision, both win rules, hazards, saves and JSON. Public Snake scored, restarted and moved. Public Pac-Man reached score 150 with three lives, then Restart reset it to zero. Browser error logs were empty in these checks. Native Studio F5 Play, arrows, Space audio trigger and F6 Stop restoration were observed. The independent exported Mac app moved the same authored character.
+
+The new-finding lint gate compares against the supplied-source baseline. Inherited lint debt remains. See [lint-baseline.md](lint-baseline.md) and [native/browser acceptance](native-browser-acceptance.md).
+
+The isolated event-publish benchmark measured 3.112 ns/op, 0 B/op and 0 allocs/op on Apple M4 with 100ms benchtime. It is not a full-game FPS measurement or cross-engine comparison.
 
 ## Outstanding acceptance work
 
-1. Native Studio's complete edit/play/export loop is not yet accepted. Its preview asset resolver, authored-behaviour startup, player input bridge, drawing integration and per-tick runtime housekeeping still need joint end-to-end verification and fixes.
-2. MP3/OGG music decoding remains incomplete. Current runtime loading supports WAV samples. Do not claim working MIDI support without an actual decoded/playback demonstration.
-3. Mario, Asteroids, Bomberman and Donkey Kong fixtures are limited scripted proofs, not complete reference games. Some regression-detector tests explicitly skip.
-4. Full native player tests could not finish in this environment because native macOS window-service initialization stalled. The process timed out. The passing Linux CI default suite does not establish local macOS native acceptance.
-5. Windows/Linux executable launches, browser-device compatibility, gamepad controls and audible audio playback need separate acceptance runs.
-6. Rebuild every shipped player binary when distributing the new asset-bearing cart format. Old embedded player binaries cannot read ZIP carts.
+1. Complete authored reference games. Mario, Asteroids, Bomberman and Donkey Kong fixtures are limited subsystem proofs, not finished games. Six explicit skips remain in each long suite.
+2. Broader native authoring: complex scene switching, behaviour combinations, controller input, effects/dialogue overlays, mouse-based workspace editing and long sessions require acceptance beyond the verified basic preview.
+3. Windows/Linux interactive executable launches. CI builds do not replace launching and playing the game on those systems.
+4. Audible output and volume on the presentation speakers. Decoder tests and a triggered audio command do not prove what the room hears.
+5. Manual offline HTML rehearsal on the actual presentation laptop and public-link testing on another device/network.
+6. Rebuild shipped players when changing the cart format or runtime lifecycle. Old cached players are invalidated by the current cache version.
+
+Do not claim 100% completion of the original FYP scope from this evidence.
 
 ## Claims to correct from FYP-I
 
