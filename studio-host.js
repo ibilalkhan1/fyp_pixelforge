@@ -2,7 +2,10 @@
    cartridges installed after IndexedDB restores and before Studio starts. */
 var Module = window.Module = {
   canvas: document.getElementById('canvas'),
-  arguments: [],
+  arguments: (function () {
+    var name = new URLSearchParams(location.search).get('cart');
+    return name && /^[a-zA-Z0-9_-]+$/.test(name) ? ['--skip', '--cmd', 'load ' + name] : [];
+  })(),
   locateFile: function (name) { return new URL(name, document.baseURI).href; },
   printErr: function (message) { console.error('[PixelForge]', message); },
   onAbort: function () { showFailure('Studio could not start. Reload the page to retry.'); },

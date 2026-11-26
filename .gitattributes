@@ -1,0 +1,4 @@
+*.pdf binary
+*.wasm binary
+*.pf binary
+*.zip binary

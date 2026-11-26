@@ -1,0 +1,26 @@
+[
+  {
+    "id": "tetris",
+    "name": "Tetris",
+    "desc": "Stack falling blocks, complete rows and chase your high score.",
+    "controls": "\u2190 \u2192 move \u00b7 \u2193 drop \u00b7 \u2191 / Z rotate \u00b7 X pause \u00b7 Z / X select"
+  },
+  {
+    "id": "quest",
+    "name": "Quest",
+    "desc": "Explore a pixel dungeon, fight creatures and uncover its secrets.",
+    "controls": "Arrow keys move \u00b7 Z attack \u00b7 X use potion"
+  },
+  {
+    "id": "brickbreaker",
+    "name": "Brickbreaker",
+    "desc": "Keep the ball in play and break through a bright pixel world.",
+    "controls": "Arrow keys move \u00b7 Z / X action"
+  },
+  {
+    "id": "emptyhouse",
+    "name": "Empty House",
+    "desc": "A colourful platform adventure through a world of blocks and surprises.",
+    "controls": "Arrow keys move \u00b7 Z / X action"
+  }
+]
