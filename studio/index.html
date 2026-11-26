@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <base href="../">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <!-- cover: the canvas goes under the notch and the home bar, and the
+         player insets its own controls by what the safe areas report -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+    <title>PixelForge Game Studio</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=2">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=2">
+    <link rel="icon" type="image/x-icon" href="favicon.ico?v=2">
+
+    <style type="text/css">
+        html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #1a1c2c; }
+
+        /* The canvas fills what the browser leaves to the page; the player
+           fills that itself, so nothing here has to know about the notch. */
+        #canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            image-rendering: pixelated;
+            touch-action: none;
+        }
+
+        /* The gate that starts the player — and the gesture the browser wants
+           before it lets the page make a sound. */
+        #game-frame {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font: 44px monospace;
+            cursor: pointer;
+            background: #1a1c2c;
+        }
+
+        .modal { display: none; position: fixed; z-index: 1; padding-top: 100px; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0, 0, 0, .4); }
+        .modal-content { color: #333c57; position: relative; background-color: #fefefe; margin: auto; padding: 2px 16px; border: 1px solid #888; width: 500px; box-shadow: 0 4px 8px 0 rgba(0, 0, 0, .2), 0 6px 20px 0 rgba(0, 0, 0, .19); }
+        .close { color: #000; float: right; font-size: 28px; font-weight: 700; }
+        .close:focus, .close:hover { color: #000; text-decoration: none; cursor: pointer; }
+    #game-frame[hidden]{display:none!important}#game-frame{flex-direction:column;gap:12px;font-size:clamp(18px,3vw,38px);border:0;font-family:monospace;cursor:pointer;color:#ffffff;background:#1a1c2c}#game-frame:disabled{cursor:wait}#game-frame:focus-visible{outline:2px solid #ffcd75;outline-offset:12px}
+#studio-help{position:fixed;right:12px;top:12px;z-index:50;font:14px/1.5 system-ui;color:#eef0ff;max-width:min(420px,calc(100vw - 24px));background:#25273ccc;border:1px solid #51556d;border-radius:8px}#studio-help summary{padding:8px 12px;cursor:pointer}#studio-help[open]{background:#1a1c2cf5}#studio-help div{padding:0 16px 12px;max-height:75vh;overflow:auto}#studio-help a{color:#8de2e3}#studio-help code{background:#30344c;padding:1px 4px}
+</style>
+</head>
+<body>
+
+    <!-- The one page: the site's player and, with two things rewritten by
+         the client, the index.html of every exported game — the title below
+         becomes the game's name, and the empty argument list of the Module
+         object becomes the cartridge it embeds. Do not write that empty
+         list anywhere else in this file: the client patches the first one
+         it finds, and a mention in a comment would take its place.
+
+         The on-screen controls are the player's own now, drawn into the
+         canvas, so the page carries none. -->
+
+    <canvas id="canvas" tabindex="0" oncontextmenu="event.preventDefault" onmousedown="window.focus"></canvas>
+
+    <button id="game-frame" type="button"><img src="pixelforge-192.png" width="96" height="96" alt="PixelForge logo" style="margin-bottom:12px">OPEN PIXELFORGE STUDIO<span style="display:block;font:14px system-ui;margin-top:14px">Code · Sprites · Maps · Sound · Music</span></button>
+    <details id="studio-help"><summary><img src="pixelforge-192.png" width="20" height="20" alt="" style="vertical-align:middle;margin-right:6px">Studio guide</summary><div>
+    <strong>Make, play and share .pf games</strong><p>Click to open, then type <code>ls</code> in the Studio console. To try a game, type <code>load fire</code> and then <code>run</code>.</p>
+    <p>Esc returns from a game. F1 Code · F2 Sprites · F3 Map · F4 SFX · F5 Music. Ctrl+R runs; Ctrl+S saves. On a Mac you may need Fn with the function keys, or use the menus.</p>
+    <p>Your edits are kept in this browser. Download a cartridge before clearing browser data or switching devices. Use the Studio's import/upload control to bring in a .pf file.</p>
+    <p><a href="how-it-works.html">How it works &amp; demo steps</a> · <a href="cartridges.html">Download cartridges</a> · <a href="creator.html">Earlier game creator &amp; games</a> · <a href="https://github.com/ibilalkhan1/fyp_pixelforge">Source</a></p>
+    <p style="font-size:12px">Desktop keyboard recommended for editing. Phone-browser gameplay depends on the cartridge and its controls. Native export templates are not supplied on this static site.</p></div></details>
+
+    <div id="add-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times</span>
+            <p>Select a file to add to the computer</p>
+            <p><input type="file" id="upload-input"></p>
+        </div>
+    </div>
+
+    <script src="studio-host.js?v=20261126"></script>
+</body>
+</html>
