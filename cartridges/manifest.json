@@ -1,0 +1,177 @@
+[
+  {
+    "name": "benchmark.pf",
+    "url": "cartridges/benchmark.pf",
+    "sha256": "3f7ca1f820a682ea084e88b9f09527a5237b33d60a6783aa38cb6ac04a0eb43e"
+  },
+  {
+    "name": "bpp.pf",
+    "url": "cartridges/bpp.pf",
+    "sha256": "2a08a812fd474a323d5d98bba1cc9a209b39d429505a4dadbcfd2b422e2c10dd"
+  },
+  {
+    "name": "brickbreaker.pf",
+    "url": "cartridges/brickbreaker.pf",
+    "sha256": "90dc4686e383ec8948b218e5e02c93462c92299257cb66340a75a6ef3b80fdcb"
+  },
+  {
+    "name": "car.pf",
+    "url": "cartridges/car.pf",
+    "sha256": "32fe99424dbf788b2d8e4595496e20a324e9be9abededd79aa9ed24c707d6cfd"
+  },
+  {
+    "name": "config.pf",
+    "url": "cartridges/config.pf",
+    "sha256": "738c8d55041e786caf2c98ee365568f950a6a637a423d7d35d52aaa059dc849e"
+  },
+  {
+    "name": "emptyhouse.pf",
+    "url": "cartridges/emptyhouse.pf",
+    "sha256": "495128160a69060d9559a14d2add6a88aa1483b34edfd2ee7d1c1c0a6381e6be"
+  },
+  {
+    "name": "fire.pf",
+    "url": "cartridges/fire.pf",
+    "sha256": "48aadca174dd99367b536e9aff878d7a6ab9ee81d9806fc64b2bbec8557fb2d4"
+  },
+  {
+    "name": "font.pf",
+    "url": "cartridges/font.pf",
+    "sha256": "aa1852fa6817fc72dab79373e6a3653c991efcd81ee29ce5aa567774ee4f71a2"
+  },
+  {
+    "name": "forthmark.pf",
+    "url": "cartridges/forthmark.pf",
+    "sha256": "6cf10309f9f03302567e1de3ecbfa9604b627055c0baa1c2fab7384db46b6763"
+  },
+  {
+    "name": "gravity.pf",
+    "url": "cartridges/gravity.pf",
+    "sha256": "27fa7ca8db6e981a27166dab547cc72d6453dee765c5d1b6bc5cbcdb3f5bdcb2"
+  },
+  {
+    "name": "gravitydemo.pf",
+    "url": "cartridges/gravitydemo.pf",
+    "sha256": "85226288d904dfd645744ce160003cc8645d27de296f9cd38919d900089fe53d"
+  },
+  {
+    "name": "gravitymark.pf",
+    "url": "cartridges/gravitymark.pf",
+    "sha256": "2975d46e57d303f350c8c6ac9fec03e504701dc6bc9c32736807521c684f42f2"
+  },
+  {
+    "name": "janetmark.pf",
+    "url": "cartridges/janetmark.pf",
+    "sha256": "800f5e4f1a524fb23d28bc209e263a3ef07cd52439ddfc2c6c1ff769634c4675"
+  },
+  {
+    "name": "jsmark.pf",
+    "url": "cartridges/jsmark.pf",
+    "sha256": "a8f1ebe810f7de14c0404dec972ec4a610d0c62b86aa7f162f58cb55985894eb"
+  },
+  {
+    "name": "luamark.pf",
+    "url": "cartridges/luamark.pf",
+    "sha256": "e41c1d01da410621b3a2a56400e17021fa9951da57647953f6a5bdcce3f26a89"
+  },
+  {
+    "name": "miniscriptmark.pf",
+    "url": "cartridges/miniscriptmark.pf",
+    "sha256": "59517426ed1e33f2373b4735e57e3a1f149c6cda5ac06db5ac854fff71293609"
+  },
+  {
+    "name": "moonmark.pf",
+    "url": "cartridges/moonmark.pf",
+    "sha256": "92c79ebeacb4dec2d5dd68c746509ececeddef18bd81e2e81481928268899ac6"
+  },
+  {
+    "name": "music.pf",
+    "url": "cartridges/music.pf",
+    "sha256": "bfb146840a8f3f634c3f50d82b57f682da9e7d5233166f7aaa2bfea7a73e6dc2"
+  },
+  {
+    "name": "p3d.pf",
+    "url": "cartridges/p3d.pf",
+    "sha256": "f3d2956ff17ef0ad7c5f87d981d7365582538fdb379ce62ff97c16ed416384db"
+  },
+  {
+    "name": "palette.pf",
+    "url": "cartridges/palette.pf",
+    "sha256": "cfa9850572756aead422652698142e9916f9556866d20832e55b7cdfb8f55993"
+  },
+  {
+    "name": "pattern.pf",
+    "url": "cartridges/pattern.pf",
+    "sha256": "2cf200c4b0d13fed39b2164e22325da24e45fb47aa743864cd1c262d1c9885ce"
+  },
+  {
+    "name": "pythonmark.pf",
+    "url": "cartridges/pythonmark.pf",
+    "sha256": "d0ecb8979658a2c64affb122281cfd07f717a7c1233e6f3590d9878daf701409"
+  },
+  {
+    "name": "quest.pf",
+    "url": "cartridges/quest.pf",
+    "sha256": "88441895a7a9d14ed44821a06a4ec5b81f9bb2624c6d27728ec086a81f090980"
+  },
+  {
+    "name": "rubymark.pf",
+    "url": "cartridges/rubymark.pf",
+    "sha256": "390e80b31161a89a1fea35a19362a7a5d3e9032bdf354f840a78e94c58e2f80b"
+  },
+  {
+    "name": "schememark.pf",
+    "url": "cartridges/schememark.pf",
+    "sha256": "29b06e7bb017452741f19b9564288ad8e11cce1d8d88cb02877478928b9e0a22"
+  },
+  {
+    "name": "sfx.pf",
+    "url": "cartridges/sfx.pf",
+    "sha256": "b6f00352e0ff76c0d4faa921189561606021114aa6cdfd85f5d20f808a65f279"
+  },
+  {
+    "name": "squirrelmark.pf",
+    "url": "cartridges/squirrelmark.pf",
+    "sha256": "57e5e49d276d509ccb83bc3c379819a88e85e3ce1700e4821cd932cb1c2fab52"
+  },
+  {
+    "name": "terrain.pf",
+    "url": "cartridges/terrain.pf",
+    "sha256": "00e1f523d812aac58fb005105876aadcf77f57c63b194b80c12ba6f34b671c8a"
+  },
+  {
+    "name": "tetris.pf",
+    "url": "cartridges/tetris.pf",
+    "sha256": "7e3bc994e27358b4744f75d2e0456ec4239bec6b3fdc05fbedcad8142a97d54a"
+  },
+  {
+    "name": "wasmdemo.pf",
+    "url": "cartridges/wasmdemo.pf",
+    "sha256": "999f46589768b5353c18c4ca9d18802a163e3fd07654ef8080dffa4e0be98f35"
+  },
+  {
+    "name": "wasmmark.pf",
+    "url": "cartridges/wasmmark.pf",
+    "sha256": "c06331155c0030d4d913b63b8c6acef58ffd0267f67cdbc55847509733609560"
+  },
+  {
+    "name": "wrenmark.pf",
+    "url": "cartridges/wrenmark.pf",
+    "sha256": "fd2d39dda27bc3b8235c19fe61ef166f3309d78a0df232d2e73fe186410787f8"
+  },
+  {
+    "name": "yuemark.pf",
+    "url": "cartridges/yuemark.pf",
+    "sha256": "726dffe30392b007802773961e5367303914bc8887b7f2a9405931ce475db643"
+  },
+  {
+    "name": "pacman.pf",
+    "url": "cartridges/pacman.pf",
+    "sha256": "c9b989d775593f71f9f75fa606fdda85f2abb3498e99e6f1679319443eafcdc5"
+  },
+  {
+    "name": "rooms.pf",
+    "url": "cartridges/rooms.pf",
+    "sha256": "7758ea9e822ff40a4e9ddf78f1121f15e7c704e41a9191104aab4af9bf39b905"
+  }
+]

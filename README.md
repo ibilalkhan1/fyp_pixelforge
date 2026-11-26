@@ -1,21 +1,13 @@
-# Browser demonstrator
+# PixelForge public Studio
 
-Run `./web-demo/build.sh` from the repository root, then serve this folder over HTTP. Requires Go 1.24.2 or newer. `engine.wasm` and its matching Go `wasm_exec.js` are generated together and ignored by Git.
+Public URL: https://ibilalkhan1.github.io/fyp_pixelforge/
 
-The browser handles UI, keyboard collection, saving and downloads. `cmd/pixelforge-web` runs scene validation, fixed-point movement, collision and PixelForge drawing in Go. The core canvas is 320x180 and uses PixelForge's 64-colour palette. The UI exposes the first 16 colours for painting.
+The root now serves the supplied full cartridge Studio, using its C/C++ runtime compiled with Emscripten to WebAssembly. The runtime JS/WASM are copied byte-for-byte from the supplied build/web files. studio-host.js adds demo-cartridge seeding after IndexedDB restore, respects existing saved files, reports startup failures and fixes /export and /js resource URLs for project Pages.
 
-This is a bounded demonstration. It does not load Studio `.pforge` files or provide full native Studio workspaces. The JSON version is 1. Only browser-local scenes are stored. No backend account, database, telemetry or external assets are required.
+The previous Go creator and all its existing assets remain at creator.html. It uses scene JSON and is a different implementation from the .pf cartridge Studio. Existing game URLs remain unchanged.
 
-HTML export embeds the current scene, compiled engine and matching Go runtime into a single downloaded file. Keep an exported copy before the viva and rehearse opening it manually on the presentation machine.
+35 cartridges are bundled in cartridges/, with a SHA-256 manifest. The public site is static: there is no server-side account service, visitor-game publishing endpoint or multiplayer service. Saves stay in the visitor's browser; download a cartridge to transfer it.
 
-## Game creation workflow
+HTML export templates are supplied under export/1.5/html. Native export templates are not included and must not be claimed as working. Physical phone acceptance is separate from desktop browser tests.
 
-Choose Blank game, Crystal quest example or Maze escape example, then click New game. Name the project, paint walls/crystals/hazards, move the player, and use Finish to set an escape objective. Choose the win rule: collect every crystal or reach the finish. Hazards end the run, and Reset starts it again. Escape-mode crystals are optional bonus points. The creator does not check whether a level is solvable; play-test your layout before sharing.
-
-Scene version 1 remains compatible with earlier collector scenes. Optional `mode` defaults to `collect`; `hazards` and `goal` extend the same format. Imports validate bounds and disallow player/finish overlap with dangerous or blocked tiles. JSON downloads preserve editable projects; playable HTML downloads embed their rules and support keyboard and touch controls. There is one browser-local save slot. Export before replacing it.
-
-The free public creator is hosted at https://ibilalkhan1.github.io/fyp_pixelforge/ on a separate `gh-pages` branch. No account, server-side code or running presentation laptop is required. Hosting a visitor's exported game is a separate action; the creator downloads the file and does not automatically publish visitors' work.
-
-## Additional engine examples
-
-The home page links to Snake and Pac-Man. These are the existing Go/Ebitengine examples compiled to WebAssembly with embedded sprites/audio, restart and sound controls, and touch direction buttons. They are separate examples and cannot be imported as editable creator scenes. Click Start once, then use keyboard arrows or hold the direction buttons. Pac-Man's starting corridor and tunnel row were corrected after an actual browser test found the player stuck inside a wall.
+See how-it-works.html for the demo walkthrough and architecture explanation. The source repository's main branch contains earlier Go work; publishing the supplied runtime does not make those two implementations identical.
